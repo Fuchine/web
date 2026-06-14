@@ -6,6 +6,10 @@ dist/
 .next/
 out/
 .turbo/
+*.tsbuildinfo
+
+# Next.js generated
+next-env.d.ts
 
 # Env
 .env
