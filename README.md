@@ -1,0 +1,62 @@
+# Fuchine
+
+**Learn Japanese by immersion in video.** Import a YouTube video, study it with
+intelligent dual subtitles (tokenization, pop-up dictionary, per-line AI
+explanations), mine sentences in one click, and review them with an FSRS-based
+SRS that replays the exact clip from the original video.
+
+The name comes from 淵 (*fuchi*), "the depths" — diving into the language.
+
+> **Status:** Foundation (F0). The monorepo, database schema, and package
+> skeletons are in place; the usable study loop lands in F1.
+
+## Why Fuchine
+
+- **Open core, self-hostable.** The open repository is the whole product. BYOK
+  (bring your own LLM key) and you pay only your own AI bill.
+- **Structurally cheap AI**, via layered processing (local → cheap → expensive
+  on demand) and a shared, versioned cache.
+- **Modern SRS (FSRS)** instead of classic SM-2.
+- **Multilingual by design** — Japanese is the first language, not the only one.
+
+## The loop
+
+> paste a URL → watch with smart subtitles → mine sentences → review in the SRS → back to the video
+
+## Quick start (self-host)
+
+```bash
+cp .env.example .env          # fill in secrets
+docker compose up -d          # Postgres + Redis
+pnpm install
+pnpm db:migrate               # apply the schema
+pnpm dev                      # web + worker
+```
+
+Requires Node 22+ and pnpm 10+.
+
+## Monorepo layout
+
+| Path | What |
+|---|---|
+| `apps/web` | Next.js — UI + API routes |
+| `apps/worker` | BullMQ consumers — the import pipeline |
+| `packages/core` | Domain: entities, services, FSRS |
+| `packages/db` | Drizzle schema + migrations + seeds |
+| `packages/nlp` | `Tokenizer` / `DictionaryProvider` interfaces + `ja` adapter |
+| `packages/llm` | LLM providers + key resolution + AI cache |
+| `docs/` | Architecture, AI contract, screen inventory — the source of truth |
+
+## Documentation
+
+- [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) — vision, open-core model, locked
+  decisions (D1–D8), system architecture, roadmap.
+- [`docs/CONTRATO_IA.md`](docs/CONTRATO_IA.md) — input/output contract for the AI
+  functions and the cache.
+- [`docs/INVENTARIO_TELAS.md`](docs/INVENTARIO_TELAS.md) /
+  [`docs/PROMPT_PACK_TELAS.md`](docs/PROMPT_PACK_TELAS.md) — product screens.
+
+## License
+
+[AGPL-3.0-only](LICENSE). Contributions under the
+[DCO](https://developercertificate.org/).

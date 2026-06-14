@@ -63,15 +63,28 @@ UI é em inglês.
 
 ## Estado atual do repositório
 
-Fase 0 (Fundação), em montagem. O que já existe:
+Fase 0 (Fundação). Monorepo pnpm + Turborepo montado e compilando
+(`pnpm typecheck` verde nos 6 pacotes; `apps/web` builda no Next 15).
 
-- `docs/` — os quatro documentos de referência.
-- `packages/db/src/schema.ts` — schema Drizzle das 13 tabelas (verificado).
-- `packages/db/src/types.ts` — tipos dos payloads jsonb (`Token`, `Explanation`,
-  `Definition`, `DailyGoals`), ancorados no `CONTRATO_IA.md`.
-- `packages/db/drizzle/0000_init.sql` — primeira migration (gerada do schema).
-- `packages/db/drizzle.config.ts` — config do drizzle-kit (`DATABASE_URL`).
+Pacotes e seus pontos de entrada:
 
-`prompt_version` inicial é **1** (ver `CONTRATO_IA.md`). Ainda faltam montar:
-tooling do monorepo (workspaces), `apps/web`, `apps/worker`, `packages/core`,
-`packages/nlp`, `packages/llm`, `docker-compose.yml` e o seed do JMdict.
+- `packages/db` — schema Drizzle das 13 tabelas + tipos jsonb (`Token`,
+  `Explanation`, `Definition`, `DailyGoals`) + `createDb()`. Migration inicial
+  em `drizzle/0000_init.sql` com meta journal (`pnpm db:migrate` funciona).
+- `packages/core` — serviço FSRS (`newCardState`, `reviewCard`,
+  `previewIntervals`) sobre `ts-fsrs`, mapeado 1:1 às colunas de cards/logs.
+- `packages/nlp` — interfaces `Tokenizer`/`DictionaryProvider`, adapter `ja/`
+  (kuromoji ainda é **stub** — ver TODOs) e `getTokenizer(language)`.
+- `packages/llm` — contrato (`LlmProvider`, `SubtitleLineCtx`, `PROMPT_VERSION`
+  = 1), erros, cifragem BYOK (AES-256-GCM em `crypto.ts`), cache cache-first
+  (`explainLineCached`) e `createProvider()` (só `echo` implementado).
+- `apps/web` — Next.js (App Router) só com a casca; UI/API chegam na F1.
+- `apps/worker` — Worker BullMQ + pipeline de import (camadas 0 e 1). O fetch
+  de legendas do YouTube e a tradução real são **stubs/TODOs**.
+
+`docker-compose.yml` sobe Postgres + Redis. Comandos: `pnpm dev`,
+`pnpm typecheck`, `pnpm db:generate`, `pnpm db:migrate`.
+
+Próximos passos da F0: spike de legendas do YouTube + tokenizer kuromoji real
+(`packages/nlp`), provider LLM real (`packages/llm`), seed do JMdict/frequência
+(`packages/db`), e Auth.js + rota de import em `apps/web`.
