@@ -4,3 +4,4 @@
 export * from "./schema";
 export * from "./types";
 export { createDb, type Database } from "./client";
+export { ensureUserSettings } from "./provisioning";

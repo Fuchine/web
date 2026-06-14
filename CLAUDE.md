@@ -71,11 +71,13 @@ Fase 0 (Fundação). Monorepo pnpm + Turborepo montado e compilando
 
 Pacotes e seus pontos de entrada:
 
-- `packages/db` — schema Drizzle das 13 tabelas + tipos jsonb (`Token`,
-  `Explanation`, `Definition`, `DailyGoals`) + `createDb()`. Migrations em
-  `drizzle/` (`0000_init`, `0001_word_entries_unique`) com meta journal
-  (`pnpm db:migrate` funciona). Seed JMdict + frequência em `src/seed/`
-  (`pnpm --filter @fuchine/db seed`; fixture em `seeds/fixtures/`).
+- `packages/db` — schema Drizzle (13 tabelas de conteúdo + 3 do adapter Auth.js:
+  `accounts`, `sessions`, `verification_tokens`) + tipos jsonb (`Token`,
+  `Explanation`, `Definition`, `DailyGoals`) + `createDb()` + `ensureUserSettings`.
+  Migrations em `drizzle/` (`0000_init`, `0001_word_entries_unique`,
+  `0002_auth_tables`) com meta journal (`pnpm db:migrate`). Seed JMdict +
+  frequência em `src/seed/` (`pnpm --filter @fuchine/db seed`; fixture em
+  `seeds/fixtures/`).
 - `packages/core` — serviço FSRS (`newCardState`, `reviewCard`,
   `previewIntervals`) sobre `ts-fsrs`, mapeado 1:1 às colunas de cards/logs.
 - `packages/nlp` — interfaces `Tokenizer`/`DictionaryProvider`, adapter `ja/`,
@@ -86,7 +88,10 @@ Pacotes e seus pontos de entrada:
 - `packages/llm` — contrato (`LlmProvider`, `SubtitleLineCtx`, `PROMPT_VERSION`
   = 1), erros, cifragem BYOK (AES-256-GCM em `crypto.ts`), cache cache-first
   (`explainLineCached`) e `createProvider()` (só `echo` implementado).
-- `apps/web` — Next.js (App Router) só com a casca; UI/API chegam na F1.
+- `apps/web` — Next.js (App Router). Auth.js (NextAuth v5) em `auth.ts`: Google
+  OAuth + e-mail (magic link, opcional via SMTP), adapter Drizzle sobre as
+  tabelas próprias, sessões em banco, e `createUser` provisiona `user_settings`.
+  Rota em `app/api/auth/[...nextauth]`. UI de estudo chega na F1.
 - `apps/worker` — Worker BullMQ + pipeline de import. Camada 0 usa `analyzeLine`
   (tokens + dicionário resolvidos). O fetch de legendas do YouTube e a tradução
   real (`translateBatch`) ainda são **stubs/TODOs**.
@@ -94,10 +99,10 @@ Pacotes e seus pontos de entrada:
 `docker-compose.yml` sobe Postgres + Redis. Comandos: `pnpm dev`,
 `pnpm typecheck`, `pnpm db:generate`, `pnpm db:migrate`.
 
-Progresso no roadmap: **T0.1, T0.2, T0.3, T0.4, T0.6 prontos**. T0.8/T0.9 têm
-o esqueleto compilando, mas ainda não cumprem o "Pronto quando" (fetch de
+Progresso no roadmap: **T0.1, T0.2, T0.3, T0.4, T0.5, T0.6 prontos**. T0.8/T0.9
+têm o esqueleto compilando, mas ainda não cumprem o "Pronto quando" (fetch de
 legendas e `translateBatch` reais continuam stub).
 
-Próximas tarefas (ver `docs/ROADMAP_ENGENHARIA.md`): T0.5 (Auth.js) e T0.9
-(provider LLM real + `translateBatch`). T0.7/T0.8 dependem do spike de
-legendas (tarefa do dono do projeto, não do Claude Code).
+Próxima tarefa não bloqueada (ver `docs/ROADMAP_ENGENHARIA.md`): T0.9 (provider
+LLM real + `translateBatch` com alinhamento 1:1). T0.7/T0.8 dependem do spike
+de legendas (tarefa do dono do projeto, não do Claude Code).

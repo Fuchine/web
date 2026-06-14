@@ -45,7 +45,54 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   plan: userPlan("plan").notNull().default("free"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Auth.js adapter fields (additive). emailVerified is required by the adapter;
+  // name/image are optional OAuth profile data.
+  name: text("name"),
+  emailVerified: timestamp("email_verified", { withTimezone: true }),
+  image: text("image"),
 });
+
+/* ------------------------------------------------------------------ */
+/* Auth.js (NextAuth) adapter tables                                   */
+/* ------------------------------------------------------------------ */
+
+export const accounts = pgTable(
+  "accounts",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // oauth | oidc | email | webauthn
+    provider: text("provider").notNull(),
+    providerAccountId: text("provider_account_id").notNull(),
+    refresh_token: text("refresh_token"),
+    access_token: text("access_token"),
+    expires_at: integer("expires_at"),
+    token_type: text("token_type"),
+    scope: text("scope"),
+    id_token: text("id_token"),
+    session_state: text("session_state"),
+  },
+  (t) => [primaryKey({ columns: [t.provider, t.providerAccountId] })],
+);
+
+export const sessions = pgTable("sessions", {
+  sessionToken: text("session_token").primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expires: timestamp("expires", { withTimezone: true }).notNull(),
+});
+
+export const verificationTokens = pgTable(
+  "verification_tokens",
+  {
+    identifier: text("identifier").notNull(),
+    token: text("token").notNull(),
+    expires: timestamp("expires", { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.identifier, t.token] })],
+);
 
 export const userSettings = pgTable("user_settings", {
   userId: uuid("user_id")
@@ -336,6 +383,16 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   albums: many(albums),
   wordStats: many(userWordStats),
   dailyStats: many(userDailyStats),
+  accounts: many(accounts),
+  sessions: many(sessions),
+}));
+
+export const accountsRelations = relations(accounts, ({ one }) => ({
+  user: one(users, { fields: [accounts.userId], references: [users.id] }),
+}));
+
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+  user: one(users, { fields: [sessions.userId], references: [users.id] }),
 }));
 
 export const userSettingsRelations = relations(userSettings, ({ one }) => ({
