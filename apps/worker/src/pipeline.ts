@@ -4,7 +4,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { type Database, videos, subtitleLines } from "@fuchine/db";
-import { getTokenizer } from "@fuchine/nlp";
+import { analyzeLine } from "@fuchine/nlp";
 import { createProvider, type ProviderName } from "@fuchine/llm";
 import type { ImportJob } from "./queue";
 import { env } from "./env";
@@ -36,8 +36,7 @@ export async function importVideo(db: Database, job: ImportJob): Promise<void> {
   try {
     const captions = await fetchCaptions(video.sourceId);
 
-    // --- Layer 0: tokenize locally (free). ---
-    const tokenizer = getTokenizer(video.language);
+    // --- Layer 0: tokenize + resolve dictionary entries locally (free). ---
     const rows = [];
     for (const c of captions) {
       rows.push({
@@ -46,7 +45,7 @@ export async function importVideo(db: Database, job: ImportJob): Promise<void> {
         tStartMs: c.startMs,
         tEndMs: c.endMs,
         textOriginal: c.text,
-        tokens: await tokenizer.tokenize(c.text),
+        tokens: await analyzeLine(c.text, video.language, db),
       });
     }
     if (rows.length > 0) {

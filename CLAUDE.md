@@ -79,23 +79,25 @@ Pacotes e seus pontos de entrada:
 - `packages/core` — serviço FSRS (`newCardState`, `reviewCard`,
   `previewIntervals`) sobre `ts-fsrs`, mapeado 1:1 às colunas de cards/logs.
 - `packages/nlp` — interfaces `Tokenizer`/`DictionaryProvider`, adapter `ja/`,
-  `getTokenizer(language)` e `getDictionary(language, db)`. `JaDictionary`
-  consulta `word_entries` (lookup por lemma/leitura, real). `JaTokenizer`
-  (kuromoji) ainda é **stub** — ver TODOs.
+  `getTokenizer`/`getDictionary` e `analyzeLine` (tokeniza + resolve dicionário).
+  `JaTokenizer` usa **kuromoji.js** (IPADIC) — surface/lemma/leitura/pos;
+  `JaDictionary` consulta `word_entries`; `resolveWordEntries` preenche
+  `wordEntryId`. Upgrade para SudachiPy fica atrás da mesma interface.
 - `packages/llm` — contrato (`LlmProvider`, `SubtitleLineCtx`, `PROMPT_VERSION`
   = 1), erros, cifragem BYOK (AES-256-GCM em `crypto.ts`), cache cache-first
   (`explainLineCached`) e `createProvider()` (só `echo` implementado).
 - `apps/web` — Next.js (App Router) só com a casca; UI/API chegam na F1.
-- `apps/worker` — Worker BullMQ + pipeline de import (camadas 0 e 1). O fetch
-  de legendas do YouTube e a tradução real são **stubs/TODOs**.
+- `apps/worker` — Worker BullMQ + pipeline de import. Camada 0 usa `analyzeLine`
+  (tokens + dicionário resolvidos). O fetch de legendas do YouTube e a tradução
+  real (`translateBatch`) ainda são **stubs/TODOs**.
 
 `docker-compose.yml` sobe Postgres + Redis. Comandos: `pnpm dev`,
 `pnpm typecheck`, `pnpm db:generate`, `pnpm db:migrate`.
 
-Progresso no roadmap: **T0.1, T0.2, T0.3, T0.4 prontos**. T0.6/T0.8/T0.9 têm o
-esqueleto compilando, mas ainda não cumprem o "Pronto quando" (kuromoji,
-fetch de legendas e `translateBatch` reais continuam stub).
+Progresso no roadmap: **T0.1, T0.2, T0.3, T0.4, T0.6 prontos**. T0.8/T0.9 têm
+o esqueleto compilando, mas ainda não cumprem o "Pronto quando" (fetch de
+legendas e `translateBatch` reais continuam stub).
 
-Próximas tarefas (ver `docs/ROADMAP_ENGENHARIA.md`): T0.5 (Auth.js), T0.6
-(kuromoji real, que usa o lookup já pronto do `JaDictionary`). T0.7/T0.8
-dependem do spike de legendas (tarefa do dono do projeto, não do Claude Code).
+Próximas tarefas (ver `docs/ROADMAP_ENGENHARIA.md`): T0.5 (Auth.js) e T0.9
+(provider LLM real + `translateBatch`). T0.7/T0.8 dependem do spike de
+legendas (tarefa do dono do projeto, não do Claude Code).
