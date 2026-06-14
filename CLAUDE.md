@@ -5,6 +5,9 @@ importa vídeos do YouTube, estuda com legendas duplas inteligentes (tokenizaç�
 dicionário pop-up, explicações de IA por linha), minera frases em um clique e
 revisa com SRS baseado em clipes do vídeo original.
 
+O nome vem de 淵 (*fuchi*), "as profundezas" — mergulhar no idioma. Todo texto de
+UI é em inglês.
+
 ## Documentos de referência (leia antes de decisões estruturais)
 
 - `docs/ARQUITETURA.md` — visão, modelo open core, decisões travadas (D1–D8),
@@ -57,3 +60,18 @@ revisa com SRS baseado em clipes do vídeo original.
 - Antes de mexer em algo estrutural, confira o doc de arquitetura.
 - Mudanças de schema saem do `CONTRATO_IA.md` e do ERD — não improvise colunas.
 - Falha de IA degrada, não quebra (vídeo sem tradução ainda é estudável).
+
+## Estado atual do repositório
+
+Fase 0 (Fundação), em montagem. O que já existe:
+
+- `docs/` — os quatro documentos de referência.
+- `packages/db/src/schema.ts` — schema Drizzle das 13 tabelas (verificado).
+- `packages/db/src/types.ts` — tipos dos payloads jsonb (`Token`, `Explanation`,
+  `Definition`, `DailyGoals`), ancorados no `CONTRATO_IA.md`.
+- `packages/db/drizzle/0000_init.sql` — primeira migration (gerada do schema).
+- `packages/db/drizzle.config.ts` — config do drizzle-kit (`DATABASE_URL`).
+
+`prompt_version` inicial é **1** (ver `CONTRATO_IA.md`). Ainda faltam montar:
+tooling do monorepo (workspaces), `apps/web`, `apps/worker`, `packages/core`,
+`packages/nlp`, `packages/llm`, `docker-compose.yml` e o seed do JMdict.
