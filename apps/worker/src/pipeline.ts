@@ -5,22 +5,34 @@
 import { and, eq } from "drizzle-orm";
 import { type Database, videos, subtitleLines } from "@fuchine/db";
 import { analyzeLine } from "@fuchine/nlp";
-import { createProvider, type ProviderName } from "@fuchine/llm";
+import { createProvider, type LlmProvider, type ProviderName } from "@fuchine/llm";
 import type { ImportJob } from "./queue";
 import { env } from "./env";
 
-type Caption = { idx: number; startMs: number; endMs: number; text: string };
+export type Caption = { idx: number; startMs: number; endMs: number; text: string };
+
+/** Injectable seams: caption source and translation provider (testability). */
+export type ImportDeps = {
+  fetchCaptions?: (sourceId: string) => Promise<Caption[]>;
+  provider?: LlmProvider;
+};
 
 /**
  * Fetch the Japanese caption track + metadata via official YouTube channels (D1).
  * F0 placeholder — wire the captions spike here. Returns ordered lines.
  */
-async function fetchCaptions(_sourceId: string): Promise<Caption[]> {
+async function defaultFetchCaptions(_sourceId: string): Promise<Caption[]> {
   // TODO(import): YouTube metadata + JP caption track. Never store media (D1).
   return [];
 }
 
-export async function importVideo(db: Database, job: ImportJob): Promise<void> {
+export async function importVideo(
+  db: Database,
+  job: ImportJob,
+  deps: ImportDeps = {},
+): Promise<void> {
+  const fetchCaptions = deps.fetchCaptions ?? defaultFetchCaptions;
+
   const [video] = await db
     .select()
     .from(videos)
@@ -55,12 +67,14 @@ export async function importVideo(db: Database, job: ImportJob): Promise<void> {
 
     // --- Layer 1: batch translation (cheap). Failure degrades, not breaks. ---
     try {
-      const provider = createProvider({
-        provider: env.llmProvider as ProviderName,
-        apiKey: env.llmApiKey,
-        baseUrl: env.llmBaseUrl,
-        model: env.llmModel,
-      });
+      const provider =
+        deps.provider ??
+        createProvider({
+          provider: env.llmProvider as ProviderName,
+          apiKey: env.llmApiKey,
+          baseUrl: env.llmBaseUrl,
+          model: env.llmModel,
+        });
       const translations = await provider.translateBatch(
         captions.map((c) => c.text),
         { from: video.language, to: "en" },
