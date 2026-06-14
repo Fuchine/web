@@ -12,6 +12,9 @@ UI é em inglês.
 
 - `docs/ARQUITETURA.md` — visão, modelo open core, decisões travadas (D1–D8),
   arquitetura do sistema, stack, roadmap por fases. **Fonte da verdade.**
+- `docs/ROADMAP_ENGENHARIA.md` — companheiro executável da arquitetura: tarefas
+  tamanho-sessão (T0.x, T1.x), em ordem de dependência, com "Pronto quando".
+  **É a fila de trabalho.**
 - `docs/CONTRATO_IA.md` — formato de entrada/saída das funções de IA
   (`translateBatch`, `explainLine`) e o contrato de cache. Ancora a coluna
   `ai_explanations.content` e o campo `text_translation`.
@@ -85,6 +88,10 @@ Pacotes e seus pontos de entrada:
 `docker-compose.yml` sobe Postgres + Redis. Comandos: `pnpm dev`,
 `pnpm typecheck`, `pnpm db:generate`, `pnpm db:migrate`.
 
-Próximos passos da F0: spike de legendas do YouTube + tokenizer kuromoji real
-(`packages/nlp`), provider LLM real (`packages/llm`), seed do JMdict/frequência
-(`packages/db`), e Auth.js + rota de import em `apps/web`.
+Progresso no roadmap: **T0.1, T0.2, T0.3 prontos**. T0.6/T0.8/T0.9 têm o
+esqueleto compilando, mas ainda não cumprem o "Pronto quando" (kuromoji,
+fetch de legendas e `translateBatch` reais continuam stub).
+
+Próximas tarefas (ver `docs/ROADMAP_ENGENHARIA.md`): T0.4 (seed JMdict +
+frequência), T0.5 (Auth.js), T0.6 (kuromoji real). T0.7/T0.8 dependem do
+spike de legendas (tarefa do dono do projeto, não do Claude Code).
