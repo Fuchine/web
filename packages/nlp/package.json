@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@fuchine/db": "workspace:*"
+    "@fuchine/db": "workspace:*",
+    "drizzle-orm": "^0.38.4"
   }
 }

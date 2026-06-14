@@ -1,0 +1,71 @@
+{
+  "version": "fixture",
+  "languages": ["eng"],
+  "words": [
+    {
+      "id": "1464530",
+      "kanji": [{ "text": "日本語", "common": true, "tags": [] }],
+      "kana": [{ "text": "にほんご", "common": true, "tags": [] }],
+      "sense": [
+        {
+          "partOfSpeech": ["n"],
+          "misc": [],
+          "field": [],
+          "dialect": [],
+          "gloss": [{ "lang": "eng", "text": "Japanese (language)" }]
+        }
+      ]
+    },
+    {
+      "id": "1578850",
+      "kanji": [{ "text": "行く", "common": true, "tags": [] }],
+      "kana": [
+        { "text": "いく", "common": true, "tags": [] },
+        { "text": "ゆく", "common": true, "tags": [] }
+      ],
+      "sense": [
+        {
+          "partOfSpeech": ["v5k-s", "vi"],
+          "misc": [],
+          "field": [],
+          "dialect": [],
+          "gloss": [
+            { "lang": "eng", "text": "to go" },
+            { "lang": "eng", "text": "to move (towards)" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1157170",
+      "kanji": [],
+      "kana": [{ "text": "する", "common": true, "tags": [] }],
+      "sense": [
+        {
+          "partOfSpeech": ["vs-i"],
+          "misc": ["uk"],
+          "field": [],
+          "dialect": [],
+          "gloss": [
+            { "lang": "eng", "text": "to do" },
+            { "lang": "eng", "text": "to carry out" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1049180",
+      "kanji": [],
+      "kana": [{ "text": "コーヒー", "common": true, "tags": [] }],
+      "sense": [
+        {
+          "partOfSpeech": ["n"],
+          "misc": ["uk"],
+          "field": [],
+          "dialect": [],
+          "gloss": [{ "lang": "eng", "text": "coffee" }]
+        }
+      ]
+    }
+  ]
+}

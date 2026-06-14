@@ -72,12 +72,16 @@ Fase 0 (Fundação). Monorepo pnpm + Turborepo montado e compilando
 Pacotes e seus pontos de entrada:
 
 - `packages/db` — schema Drizzle das 13 tabelas + tipos jsonb (`Token`,
-  `Explanation`, `Definition`, `DailyGoals`) + `createDb()`. Migration inicial
-  em `drizzle/0000_init.sql` com meta journal (`pnpm db:migrate` funciona).
+  `Explanation`, `Definition`, `DailyGoals`) + `createDb()`. Migrations em
+  `drizzle/` (`0000_init`, `0001_word_entries_unique`) com meta journal
+  (`pnpm db:migrate` funciona). Seed JMdict + frequência em `src/seed/`
+  (`pnpm --filter @fuchine/db seed`; fixture em `seeds/fixtures/`).
 - `packages/core` — serviço FSRS (`newCardState`, `reviewCard`,
   `previewIntervals`) sobre `ts-fsrs`, mapeado 1:1 às colunas de cards/logs.
-- `packages/nlp` — interfaces `Tokenizer`/`DictionaryProvider`, adapter `ja/`
-  (kuromoji ainda é **stub** — ver TODOs) e `getTokenizer(language)`.
+- `packages/nlp` — interfaces `Tokenizer`/`DictionaryProvider`, adapter `ja/`,
+  `getTokenizer(language)` e `getDictionary(language, db)`. `JaDictionary`
+  consulta `word_entries` (lookup por lemma/leitura, real). `JaTokenizer`
+  (kuromoji) ainda é **stub** — ver TODOs.
 - `packages/llm` — contrato (`LlmProvider`, `SubtitleLineCtx`, `PROMPT_VERSION`
   = 1), erros, cifragem BYOK (AES-256-GCM em `crypto.ts`), cache cache-first
   (`explainLineCached`) e `createProvider()` (só `echo` implementado).
@@ -88,10 +92,10 @@ Pacotes e seus pontos de entrada:
 `docker-compose.yml` sobe Postgres + Redis. Comandos: `pnpm dev`,
 `pnpm typecheck`, `pnpm db:generate`, `pnpm db:migrate`.
 
-Progresso no roadmap: **T0.1, T0.2, T0.3 prontos**. T0.6/T0.8/T0.9 têm o
+Progresso no roadmap: **T0.1, T0.2, T0.3, T0.4 prontos**. T0.6/T0.8/T0.9 têm o
 esqueleto compilando, mas ainda não cumprem o "Pronto quando" (kuromoji,
 fetch de legendas e `translateBatch` reais continuam stub).
 
-Próximas tarefas (ver `docs/ROADMAP_ENGENHARIA.md`): T0.4 (seed JMdict +
-frequência), T0.5 (Auth.js), T0.6 (kuromoji real). T0.7/T0.8 dependem do
-spike de legendas (tarefa do dono do projeto, não do Claude Code).
+Próximas tarefas (ver `docs/ROADMAP_ENGENHARIA.md`): T0.5 (Auth.js), T0.6
+(kuromoji real, que usa o lookup já pronto do `JaDictionary`). T0.7/T0.8
+dependem do spike de legendas (tarefa do dono do projeto, não do Claude Code).

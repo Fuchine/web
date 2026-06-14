@@ -14,13 +14,16 @@
     "typecheck": "tsc --noEmit",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
-    "studio": "drizzle-kit studio"
+    "studio": "drizzle-kit studio",
+    "seed": "tsx --max-old-space-size=4096 src/seed/index.ts",
+    "seed:fixture": "tsx src/seed/index.ts seeds/fixtures/jmdict-sample.json seeds/fixtures/frequency-sample.tsv"
   },
   "dependencies": {
     "drizzle-orm": "^0.38.4",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.30.2"
+    "drizzle-kit": "^0.30.2",
+    "tsx": "^4.19.2"
   }
 }
