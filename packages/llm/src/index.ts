@@ -6,3 +6,4 @@ export * from "./errors";
 export * from "./crypto";
 export * from "./cache";
 export * from "./providers";
+export * from "./resolve";

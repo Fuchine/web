@@ -57,6 +57,9 @@ export async function importVideo(db: Database, job: ImportJob): Promise<void> {
     try {
       const provider = createProvider({
         provider: env.llmProvider as ProviderName,
+        apiKey: env.llmApiKey,
+        baseUrl: env.llmBaseUrl,
+        model: env.llmModel,
       });
       const translations = await provider.translateBatch(
         captions.map((c) => c.text),

@@ -87,22 +87,25 @@ Pacotes e seus pontos de entrada:
   `wordEntryId`. Upgrade para SudachiPy fica atrás da mesma interface.
 - `packages/llm` — contrato (`LlmProvider`, `SubtitleLineCtx`, `PROMPT_VERSION`
   = 1), erros, cifragem BYOK (AES-256-GCM em `crypto.ts`), cache cache-first
-  (`explainLineCached`) e `createProvider()` (só `echo` implementado).
+  (`explainLineCached`). Provider real **OpenAI-compatible** (`minimax` →
+  `api.minimax.io/v1`/`minimax-m3`, `openai`, `openai-compatible`) com
+  `translateBatch` (alinhamento 1:1, chunking, fallback) e `explainLine`
+  (JSON coerce, ≤4 pontos). `resolveUserProvider` decifra a chave BYOK de
+  `user_settings`. `echo` segue para dev sem chave.
 - `apps/web` — Next.js (App Router). Auth.js (NextAuth v5) em `auth.ts`: Google
   OAuth + e-mail (magic link, opcional via SMTP), adapter Drizzle sobre as
   tabelas próprias, sessões em banco, e `createUser` provisiona `user_settings`.
   Rota em `app/api/auth/[...nextauth]`. UI de estudo chega na F1.
 - `apps/worker` — Worker BullMQ + pipeline de import. Camada 0 usa `analyzeLine`
-  (tokens + dicionário resolvidos). O fetch de legendas do YouTube e a tradução
-  real (`translateBatch`) ainda são **stubs/TODOs**.
+  (tokens + dicionário resolvidos); camada 1 usa o provider real via env
+  (`LLM_PROVIDER=minimax` + `LLM_API_KEY`), degradando para JP-only se falhar.
+  Só o fetch de legendas do YouTube continua **stub** (depende do spike / T0.8).
 
 `docker-compose.yml` sobe Postgres + Redis. Comandos: `pnpm dev`,
 `pnpm typecheck`, `pnpm db:generate`, `pnpm db:migrate`.
 
-Progresso no roadmap: **T0.1, T0.2, T0.3, T0.4, T0.5, T0.6 prontos**. T0.8/T0.9
-têm o esqueleto compilando, mas ainda não cumprem o "Pronto quando" (fetch de
-legendas e `translateBatch` reais continuam stub).
-
-Próxima tarefa não bloqueada (ver `docs/ROADMAP_ENGENHARIA.md`): T0.9 (provider
-LLM real + `translateBatch` com alinhamento 1:1). T0.7/T0.8 dependem do spike
-de legendas (tarefa do dono do projeto, não do Claude Code).
+Progresso no roadmap: **T0.1–T0.6 e T0.9 prontos** (translateBatch/explainLine
+reais, testados no contrato). Falta só **T0.7/T0.8** (API de import + job que
+busca legenda), que dependem do spike de legendas (tarefa do dono do projeto).
+O import E2E só roda quando o fetch de legendas existir; a tradução em si já está
+pronta e ligada ao worker.
