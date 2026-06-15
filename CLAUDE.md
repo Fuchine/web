@@ -98,9 +98,10 @@ Pacotes e seus pontos de entrada:
 - `apps/web` — Next.js (App Router). Auth.js (NextAuth v5) em `auth.ts`: Google
   OAuth + e-mail (magic link, opcional via SMTP), adapter Drizzle sobre as
   tabelas próprias, sessões em banco, e `createUser` provisiona `user_settings`.
-  Rotas: `app/api/auth/[...nextauth]` e `POST /api/import` (T0.7) — valida URL,
-  deduplica (cache compartilhado), grava as legendas enviadas e enfileira o job
-  (`lib/import.ts` é a lógica testável; `lib/queue.ts` o produtor). UI na F1.
+  Rotas: `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
+  estudo (F1): `GET /api/videos` (biblioteca) e `GET /api/videos/[id]` (vídeo +
+  `subtitle_lines` com tokens, payload do player). Lógica testável em `lib/`
+  (`import.ts`, `study.ts`); fila lazy em `lib/queue.ts`. UI vem do Claude Design.
 - `apps/worker` — Worker BullMQ + pipeline de import. Enriquece as legendas
   enviadas pela extensão: camada 0 (`analyzeLine` → tokens + dicionário) e
   camada 1 (`translateBatch` via env `LLM_PROVIDER=minimax` + `LLM_API_KEY`,
