@@ -1,30 +1,29 @@
-// Captions spike harness (ROADMAP_ENGENHARIA "Portão de risco").
+// Captions spike harness v2 — diagnostic (ROADMAP_ENGENHARIA "Portão de risco").
 //
-// Question: can we fetch the Japanese caption track of arbitrary YouTube videos
-// reliably from the SERVER, or must the browser extension be the primary
-// ingestion path? This script answers it empirically and prints a verdict.
+// Question: can we fetch a video's Japanese caption track reliably from the
+// SERVER, or must the browser extension be the primary ingestion path?
 //
-// Zero dependencies (Node 22+ global fetch). Self-seeds test videos via YouTube
-// search, then tries several server-side methods per video. yt-dlp is used if
-// present on PATH. Always exits 0 — failures ARE the measurement.
+// v2 distinguishes the failure modes that v1 collapsed:
+//   - video has NO captions at all
+//   - video has captions but NO Japanese track
+//   - Japanese track EXISTS but its content download is empty (gated)
+//   - Japanese track exists AND downloads (server-side works)
+// It reports the languages each method can see, tries multiple track formats
+// (default/json3/srv3/vtt), and probes the WEB and ANDROID InnerTube clients
+// plus the watch page. Zero deps (Node 18+). Always exits 0.
 //
-// Run: node tools/spike/captions.mjs
-// Env: SPIKE_QUERY (search query), SPIKE_VIDEOS (comma-separated ids, override),
-//      SPIKE_LIMIT (how many videos to test, default 6).
+// Run: node captions.mjs   ·   env: SPIKE_QUERY, SPIKE_VIDEOS, SPIKE_LIMIT
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const UA =
+const UA_WEB =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const HEADERS = {
-  "user-agent": UA,
-  "accept-language": "ja,en;q=0.8",
-  cookie: "CONSENT=YES+1",
-};
+const UA_ANDROID = "com.google.android.youtube/19.09.37 (Linux; U; Android 14) gzip";
+const BASE_HEADERS = { "accept-language": "ja,en;q=0.8", cookie: "CONSENT=YES+1" };
 const INNERTUBE_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
 const QUERY = process.env.SPIKE_QUERY || "日本語 ニュース";
 const LIMIT = Number(process.env.SPIKE_LIMIT || 6);
@@ -33,14 +32,12 @@ async function get(url, opts = {}) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 15000);
   try {
-    const res = await fetch(url, { ...opts, headers: { ...HEADERS, ...opts.headers }, signal: ctrl.signal });
-    return res;
+    return await fetch(url, { ...opts, headers: { "user-agent": UA_WEB, ...BASE_HEADERS, ...opts.headers }, signal: ctrl.signal });
   } finally {
     clearTimeout(t);
   }
 }
 
-/** Brace-match a JSON object that follows a marker in HTML. */
 function sliceJson(html, marker) {
   const i = html.indexOf(marker);
   if (i < 0) return null;
@@ -62,184 +59,201 @@ function sliceJson(html, marker) {
   return null;
 }
 
-function pickJaTrack(tracks) {
-  if (!Array.isArray(tracks)) return null;
+function tracksOf(playerResponse) {
+  const t = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+  return Array.isArray(t) ? t : null;
+}
+
+function pickJa(tracks) {
   const ja = tracks.filter((t) => (t.languageCode || "").startsWith("ja"));
-  // Prefer a manual (human) track over ASR (auto).
   return ja.find((t) => t.kind !== "asr") || ja[0] || null;
 }
 
-async function fetchTrackLines(baseUrl) {
-  const url = baseUrl.replace(/&amp;/g, "&") + "&fmt=json3";
-  const res = await get(url);
-  if (!res.ok) throw new Error(`track HTTP ${res.status}`);
-  const data = await res.json();
-  const events = (data.events || []).filter((e) => Array.isArray(e.segs));
-  const lines = events.map((e) => e.segs.map((s) => s.utf8 || "").join("").trim()).filter(Boolean);
-  return lines;
+function decodeXml(s) {
+  return s
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
 }
 
-/** Seed test videos by scraping YouTube search results. */
-async function seedVideos() {
-  if (process.env.SPIKE_VIDEOS) {
-    return process.env.SPIKE_VIDEOS.split(",").map((s) => s.trim()).filter(Boolean).slice(0, LIMIT);
+/** Try several formats; return the first that yields actual caption lines. */
+async function fetchTrack(baseUrl) {
+  const base = baseUrl.replace(/&amp;/g, "&");
+  const sep = base.includes("?") ? "&" : "?";
+  const variants = [
+    ["default", base],
+    ["json3", `${base}${sep}fmt=json3`],
+    ["srv3", `${base}${sep}fmt=srv3`],
+    ["vtt", `${base}${sep}fmt=vtt`],
+  ];
+  let lastBytes = 0;
+  for (const [fmt, url] of variants) {
+    try {
+      const res = await get(url);
+      const body = await res.text();
+      lastBytes = Math.max(lastBytes, body.length);
+      if (!res.ok || !body.trim()) continue;
+      let lines = [];
+      if (body.trimStart().startsWith("{")) {
+        const data = JSON.parse(body);
+        lines = (data.events || []).filter((e) => Array.isArray(e.segs))
+          .map((e) => e.segs.map((s) => s.utf8 || "").join("").trim()).filter(Boolean);
+      } else if (body.includes("<text")) {
+        lines = [...body.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)].map((m) => decodeXml(m[1]).trim()).filter(Boolean);
+      } else if (/^WEBVTT/m.test(body)) {
+        lines = body.split("\n").filter((l) => l.trim() && !l.includes("-->") && !/^WEBVTT/.test(l) && !/^\d+$/.test(l)).map((s) => s.trim());
+      }
+      if (lines.length) return { lines, bytes: body.length, fmt };
+    } catch { /* try next */ }
   }
-  try {
-    const res = await get(`https://www.youtube.com/results?search_query=${encodeURIComponent(QUERY)}`);
-    const html = await res.text();
-    const ids = [...html.matchAll(/"videoId":"([A-Za-z0-9_-]{11})"/g)].map((m) => m[1]);
-    return [...new Set(ids)].slice(0, LIMIT);
-  } catch (err) {
-    return { error: String(err) };
-  }
+  return { lines: [], bytes: lastBytes, fmt: null };
 }
 
-/* -------------------------- methods -------------------------- */
+/** Classify one (source, video): what's visible, and can we fetch JP content. */
+async function classify(playerResponse) {
+  const tracks = tracksOf(playerResponse);
+  if (!tracks) return { status: "no-captions", langs: [] };
+  const langs = [...new Set(tracks.map((t) => `${t.languageCode}${t.kind === "asr" ? "(asr)" : ""}`))];
+  const ja = pickJa(tracks);
+  if (!ja) return { status: "no-ja", langs };
+  const got = await fetchTrack(ja.baseUrl);
+  if (got.lines.length === 0) return { status: "ja-gated", langs, kind: ja.kind === "asr" ? "asr" : "manual", bytes: got.bytes };
+  return { status: "ok", langs, kind: ja.kind === "asr" ? "asr" : "manual", lines: got.lines.length, sample: got.lines[0], fmt: got.fmt };
+}
 
-async function methodInnertube(id) {
+/* -------------------------- player-response sources -------------------------- */
+
+async function innertube(id, client) {
+  const ctx = client === "ANDROID"
+    ? { clientName: "ANDROID", clientVersion: "19.09.37", androidSdkVersion: 34, hl: "ja", gl: "JP" }
+    : { clientName: "WEB", clientVersion: "2.20240726.00.00", hl: "ja", gl: "JP" };
   const res = await get(`https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_KEY}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      videoId: id,
-      context: { client: { clientName: "WEB", clientVersion: "2.20240726.00.00", hl: "ja", gl: "JP" } },
-    }),
+    headers: { "content-type": "application/json", "user-agent": client === "ANDROID" ? UA_ANDROID : UA_WEB },
+    body: JSON.stringify({ videoId: id, context: { client: ctx } }),
   });
   if (!res.ok) throw new Error(`player HTTP ${res.status}`);
-  const data = await res.json();
-  const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-  const track = pickJaTrack(tracks);
-  if (!track) throw new Error("no ja caption track");
-  const lines = await fetchTrackLines(track.baseUrl);
-  return { kind: track.kind === "asr" ? "asr" : "manual", lines };
+  return res.json();
 }
 
-async function methodWatchPage(id) {
+async function watchPage(id) {
   const res = await get(`https://www.youtube.com/watch?v=${id}`);
   if (!res.ok) throw new Error(`watch HTTP ${res.status}`);
-  const html = await res.text();
-  const pr = sliceJson(html, "ytInitialPlayerResponse");
-  const tracks = pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-  const track = pickJaTrack(tracks);
-  if (!track) throw new Error("no ja caption track");
-  const lines = await fetchTrackLines(track.baseUrl);
-  return { kind: track.kind === "asr" ? "asr" : "manual", lines };
+  return sliceJson(await res.text(), "ytInitialPlayerResponse");
 }
 
 function ytDlpAvailable() {
-  return spawnSync("yt-dlp", ["--version"], { encoding: "utf8" }).status === 0;
+  try { return spawnSync("yt-dlp", ["--version"], { encoding: "utf8" }).status === 0; } catch { return false; }
 }
 
-async function methodYtDlp(id) {
+async function ytDlp(id) {
   const dir = mkdtempSync(join(tmpdir(), "spike-"));
-  const r = spawnSync(
-    "yt-dlp",
-    ["--skip-download", "--write-subs", "--write-auto-subs", "--sub-langs", "ja.*,ja",
-     "--sub-format", "json3", "--no-warnings", "-o", join(dir, "%(id)s.%(ext)s"),
-     `https://www.youtube.com/watch?v=${id}`],
-    { encoding: "utf8", timeout: 60000 },
-  );
+  const r = spawnSync("yt-dlp", ["--skip-download", "--write-subs", "--write-auto-subs",
+    "--sub-langs", "ja.*,ja", "--sub-format", "json3", "--no-warnings",
+    "-o", join(dir, "%(id)s.%(ext)s"), `https://www.youtube.com/watch?v=${id}`],
+    { encoding: "utf8", timeout: 60000 });
   const files = readdirSync(dir).filter((f) => f.includes(".ja"));
-  if (files.length === 0) throw new Error(`no subtitle file (${(r.stderr || "").slice(0, 120)})`);
+  if (files.length === 0) return { status: "no-ja", langs: [], note: (r.stderr || "").split("\n").find((l) => l.includes("ERROR"))?.slice(0, 80) || "" };
   const data = JSON.parse(readFileSync(join(dir, files[0]), "utf8"));
-  const lines = (data.events || []).filter((e) => Array.isArray(e.segs))
-    .map((e) => e.segs.map((s) => s.utf8 || "").join("").trim()).filter(Boolean);
-  const kind = files[0].includes("auto") || /auto/.test(files[0]) ? "asr" : "manual";
-  return { kind, lines };
+  const lines = (data.events || []).filter((e) => Array.isArray(e.segs)).map((e) => e.segs.map((s) => s.utf8 || "").join("").trim()).filter(Boolean);
+  return lines.length ? { status: "ok", langs: ["ja"], kind: files[0].includes("auto") ? "asr" : "manual", lines: lines.length, sample: lines[0] } : { status: "ja-gated", langs: ["ja"] };
 }
 
-async function timed(fn) {
-  const t0 = Date.now();
+/* -------------------------- seed + run -------------------------- */
+
+async function seed() {
+  if (process.env.SPIKE_VIDEOS) return process.env.SPIKE_VIDEOS.split(",").map((s) => s.trim()).filter(Boolean).slice(0, LIMIT);
   try {
-    const r = await fn();
-    return { ok: true, ms: Date.now() - t0, ...r };
-  } catch (err) {
-    return { ok: false, ms: Date.now() - t0, error: String(err?.message || err) };
-  }
+    const html = await (await get(`https://www.youtube.com/results?search_query=${encodeURIComponent(QUERY)}`)).text();
+    return [...new Set([...html.matchAll(/"videoId":"([A-Za-z0-9_-]{11})"/g)].map((m) => m[1]))].slice(0, LIMIT);
+  } catch { return []; }
 }
 
-/* -------------------------- run -------------------------- */
-
-const methods = [
-  ["innertube", methodInnertube],
-  ["watch-page", methodWatchPage],
-];
 const hasYtDlp = ytDlpAvailable();
-if (hasYtDlp) methods.push(["yt-dlp", methodYtDlp]);
+const methods = [
+  ["innertube-web", (id) => innertube(id, "WEB").then(classify)],
+  ["innertube-android", (id) => innertube(id, "ANDROID").then(classify)],
+  ["watch-page", (id) => watchPage(id).then(classify)],
+];
+if (hasYtDlp) methods.push(["yt-dlp", (id) => ytDlp(id)]);
 
-console.log(`# Captions spike\n`);
+console.log(`# Captions spike (v2 diagnostic)\n`);
 console.log(`query: ${process.env.SPIKE_VIDEOS ? "(override list)" : QUERY} · limit: ${LIMIT} · yt-dlp: ${hasYtDlp ? "yes" : "no"}\n`);
 
-const videos = await seedVideos();
-if (!Array.isArray(videos) || videos.length === 0) {
-  console.log(`Could not seed test videos: ${JSON.stringify(videos)}`);
-  console.log("If search scraping is blocked, pass SPIKE_VIDEOS=id1,id2,...");
-}
-const ids = Array.isArray(videos) ? videos : [];
-console.log(`videos: ${ids.join(", ") || "(none)"}\n`);
+const ids = await seed();
+console.log(`videos: ${ids.join(", ") || "(none — search blocked? pass SPIKE_VIDEOS)"}\n`);
 
-const stats = Object.fromEntries(methods.map(([n]) => [n, { ok: 0, manual: 0, asr: 0, total: 0 }]));
+const agg = Object.fromEntries(methods.map(([n]) => [n, { ok: 0, jaSeen: 0, jaGated: 0, anyCaps: 0, total: 0 }]));
 const rows = [];
+const langSightings = new Set();
 
 for (const id of ids) {
   for (const [name, fn] of methods) {
-    const r = await timed(() => fn(id));
-    const s = stats[name];
-    s.total++;
-    if (r.ok) {
-      s.ok++;
-      if (r.kind === "asr") s.asr++; else s.manual++;
-    }
-    rows.push({ id, method: name, ok: r.ok, kind: r.kind || "", lines: r.lines?.length || 0,
-      sample: (r.lines?.[0] || "").slice(0, 24), error: r.error || "" });
-    console.log(`${r.ok ? "OK " : "ERR"} ${id} [${name}] ${r.ok ? `${r.kind} ${r.lines?.length} lines "${(r.lines?.[0] || "").slice(0, 20)}"` : r.error} (${r.ms}ms)`);
+    const t0 = Date.now();
+    let r;
+    try { r = await fn(id); } catch (e) { r = { status: "error", note: String(e?.message || e), langs: [] }; }
+    const ms = Date.now() - t0;
+    const a = agg[name];
+    a.total++;
+    (r.langs || []).forEach((l) => langSightings.add(l));
+    if (r.status === "ok") { a.ok++; a.jaSeen++; a.anyCaps++; }
+    else if (r.status === "ja-gated") { a.jaGated++; a.jaSeen++; a.anyCaps++; }
+    else if (r.status === "no-ja") a.anyCaps++;
+    rows.push({ id, name, ...r });
+    const detail = r.status === "ok" ? `${r.kind} ${r.lines} lines [${r.fmt}] "${(r.sample || "").slice(0, 18)}"`
+      : r.status === "no-ja" ? `has: ${r.langs.join(",") || "—"}`
+      : r.status === "ja-gated" ? `JA TRACK FOUND but content empty (${r.bytes || 0}B) — gated`
+      : r.status === "no-captions" ? "no captions field"
+      : r.note || r.status;
+    console.log(`${r.status === "ok" ? "OK " : "ERR"} ${id} [${name}] ${detail} (${ms}ms)`);
   }
 }
 
 /* -------------------------- verdict -------------------------- */
 
-function pct(s) { return s.total ? Math.round((s.ok / s.total) * 100) : 0; }
-const best = Object.entries(stats).sort((a, b) => pct(b[1]) - pct(a[1]))[0];
+const tot = (k) => methods.reduce((s, [n]) => s + agg[n][k], 0);
+const okAny = rows.some((r) => r.status === "ok");
+const jaSeenAny = tot("jaSeen") > 0;
+const jaGatedAny = tot("jaGated") > 0;
+const capsSeenAny = tot("anyCaps") > 0;
+const best = Object.entries(agg).sort((a, b) => b[1].ok - a[1].ok)[0];
+
 let verdict;
 if (!ids.length) {
-  verdict = "INCONCLUSIVE — could not seed videos (search blocked?). Re-run with SPIKE_VIDEOS.";
-} else if (best && pct(best[1]) >= 80) {
-  verdict = `SERVER-SIDE VIABLE — "${best[0]}" works on ${pct(best[1])}% of videos. ` +
-    `Keep server ingestion (T0.7/T0.8 as planned); extension stays Phase 2.`;
-} else if (best && pct(best[1]) >= 40) {
-  verdict = `SERVER-SIDE PARTIAL — best "${best[0]}" at ${pct(best[1])}%. ` +
-    `Usable with retries/fallback, but flaky; consider extension as a fallback path.`;
+  verdict = "INCONCLUSIVE — could not seed videos. Re-run with SPIKE_VIDEOS=id1,id2.";
+} else if (best && best[1].ok / best[1].total >= 0.5) {
+  verdict = `SERVER-SIDE VIABLE — "${best[0]}" downloaded JP captions on ${best[1].ok}/${best[1].total}. Build T0.7/T0.8 server-side with this method; extension stays Phase 2.`;
+} else if (jaSeenAny && !okAny) {
+  verdict = `SERVER-SIDE GATED — JP caption tracks are VISIBLE but their content downloads empty (${tot("jaGated")} gated). Metadata is reachable; the timedtext content needs a browser/session (PO token). → Browser EXTENSION as primary ingestion (it fetches captions in the user's authenticated context). Reorder T0.7/T0.8.`;
+} else if (capsSeenAny && !jaSeenAny) {
+  verdict = `INCONCLUSIVE (test set) — captions exist (langs seen: ${[...langSightings].join(", ")}) but none of the seeded videos had a JP track. Re-run with SPIKE_QUERY pointed at Japanese content, or SPIKE_VIDEOS of known JP-subbed videos.`;
+} else if (!capsSeenAny) {
+  verdict = `SERVER-SIDE BLOCKED — no caption metadata visible at all (likely IP/bot gating). Extension is the robust path.`;
 } else {
-  verdict = `SERVER-SIDE FRAGILE — no method above 40%. ` +
-    `Promote the browser extension to the primary ingestion path and reorder T0.7/T0.8.`;
+  verdict = `SERVER-SIDE FRAGILE — best "${best?.[0]}" at ${best ? best[1].ok : 0}/${best ? best[1].total : 0}. Lean on the extension.`;
 }
 
 const summary = [
-  `# Captions spike — verdict`,
+  `# Captions spike — verdict (v2)`,
   ``,
   `**${verdict}**`,
   ``,
-  `Query: \`${process.env.SPIKE_VIDEOS ? "(override list)" : QUERY}\` · videos tested: ${ids.length} · yt-dlp: ${hasYtDlp ? "yes" : "no"}`,
+  `Query: \`${process.env.SPIKE_VIDEOS ? "(override list)" : QUERY}\` · videos: ${ids.length} · caption langs seen across all: ${[...langSightings].join(", ") || "none"}`,
   ``,
-  `| Method | Success | Manual | ASR |`,
+  `| Method | JP downloaded | JP seen | JP gated | had captions |`,
+  `|---|---|---|---|---|`,
+  ...methods.map(([n]) => `| ${n} | ${agg[n].ok}/${agg[n].total} | ${agg[n].jaSeen} | ${agg[n].jaGated} | ${agg[n].anyCaps} |`),
+  ``,
+  `<details><summary>Per-video</summary>`,
+  ``,
+  `| Video | Method | Status | Langs / note |`,
   `|---|---|---|---|`,
-  ...methods.map(([n]) => `| ${n} | ${stats[n].ok}/${stats[n].total} (${pct(stats[n])}%) | ${stats[n].manual} | ${stats[n].asr} |`),
-  ``,
-  `<details><summary>Per-video results</summary>`,
-  ``,
-  `| Video | Method | OK | Kind | Lines | Sample | Error |`,
-  `|---|---|---|---|---|---|---|`,
-  ...rows.map((r) => `| ${r.id} | ${r.method} | ${r.ok ? "✓" : "✗"} | ${r.kind} | ${r.lines} | ${r.sample.replace(/\|/g, "/")} | ${r.error.replace(/\|/g, "/").slice(0, 60)} |`),
+  ...rows.map((r) => `| ${r.id} | ${r.name} | ${r.status} | ${((r.langs || []).join(",") || r.note || r.sample || "").toString().replace(/\|/g, "/").slice(0, 70)} |`),
   ``,
   `</details>`,
-  ``,
 ].join("\n");
 
 console.log("\n" + summary);
-
-if (process.env.GITHUB_STEP_SUMMARY) {
-  const { appendFileSync } = await import("node:fs");
-  appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
-}
-
+if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
 process.exit(0);
