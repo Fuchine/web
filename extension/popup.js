@@ -56,7 +56,8 @@ async function extractCaptions() {
 
       let caps = [];
       if (body.trimStart().startsWith("{")) {
-        const data = JSON.parse(body);
+        let data;
+        try { data = JSON.parse(body); } catch { continue; }
         caps = (data.events || [])
           .filter((e) => Array.isArray(e.segs))
           .map((e) => ({
