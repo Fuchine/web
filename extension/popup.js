@@ -136,14 +136,24 @@ async function doImport() {
       return;
     }
 
-    setStatus(`Importing ${result.captions.length} lines (${result.source})…`);
     const base = await getBase();
-    const res = await fetch(`${base}/api/import`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(result),
-    });
+    setStatus(`Captured ${result.captions.length} lines (${result.source}). Sending to ${base}…`);
+    let res;
+    try {
+      res = await fetch(`${base}/api/import`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(result),
+      });
+    } catch (netErr) {
+      setStatus(
+        `Captured ${result.captions.length} lines (${result.source}) ✓\n` +
+        `But couldn't reach Fuchine at ${base} — is the web app running there? ` +
+        `(${netErr && netErr.message ? netErr.message : netErr})`,
+      );
+      return;
+    }
 
     if (res.status === 401) {
       setStatus("Sign in to Fuchine first (open the web app), then retry.");
