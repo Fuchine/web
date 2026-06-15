@@ -118,9 +118,9 @@ no contexto autenticado do usuário e POSTa em `/api/import`. Fetch server-side
 fica como fallback.
 
 T0.7 (API de import) está pronto e testado E2E (validação, dedup/cache, fila,
-worker enriquecendo tokens+tradução). A **extensão** (`extension/`) tem o
-esqueleto: MV3 **sem build** (load unpacked), captura a legenda no mundo MAIN da
-página (sessão do usuário) e POSTa em `/api/import`. Ainda **não testada em
-browser real** (precisa de Chrome + instância logada); migra para WXT na F2.
-Próximo: testar a extensão de ponta a ponta e a UI de estudo (F1). T0.8 (fetch
-server-side) fica como fallback best-effort.
+worker enriquecendo tokens+tradução). A **extensão** (`extension/`, MV3 sem
+build) está **validada em browser real**: re-buscar a legenda pelo servidor é
+gated (0 bytes), mas interceptar a requisição do próprio player (mundo MAIN,
+`inject.js`) capturou 55 linhas de uma faixa JP manual. Ela POSTa em
+`/api/import`. Falta o round-trip ao vivo (app rodando localmente) e a migração
+para WXT (F2). Próximo: UI de estudo (F1). T0.8 (fetch server-side) é fallback.

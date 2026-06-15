@@ -97,3 +97,11 @@ to the import API (D7: the extension is just another door to the same API).
 Server-side fetch was confirmed gated on **both** datacenter (run 1) and
 residential (run 2) IPs, so this is not an IP-reputation artifact.
 
+**Run 3 — browser extension (real Chrome, signed-in), 2026-06-15:** re-fetching
+the track baseUrl returned `200`/`0 bytes` for every format **even in-browser**
+(the content endpoint needs a PO token). Intercepting the player's *own*
+timedtext request (`extension/inject.js`, MAIN world, document_start) **captured
+55 lines** of a manual JP track. → Extension ingestion is empirically validated;
+server re-fetch is not viable. The extension submits the captured lines to
+`POST /api/import`.
+
