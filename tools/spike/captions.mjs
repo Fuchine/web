@@ -162,8 +162,20 @@ async function ytDlp(id) {
 
 /* -------------------------- seed + run -------------------------- */
 
+/** Accept a bare 11-char id, a watch URL, or a youtu.be URL. */
+function extractId(s) {
+  const str = s.trim();
+  const m =
+    str.match(/[?&]v=([A-Za-z0-9_-]{11})/) ||
+    str.match(/youtu\.be\/([A-Za-z0-9_-]{11})/) ||
+    str.match(/\/(?:shorts|embed)\/([A-Za-z0-9_-]{11})/) ||
+    str.match(/^([A-Za-z0-9_-]{11})$/) ||
+    str.match(/([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : str;
+}
+
 async function seed() {
-  if (process.env.SPIKE_VIDEOS) return process.env.SPIKE_VIDEOS.split(",").map((s) => s.trim()).filter(Boolean).slice(0, LIMIT);
+  if (process.env.SPIKE_VIDEOS) return process.env.SPIKE_VIDEOS.split(",").map((s) => extractId(s)).filter(Boolean).slice(0, LIMIT);
   try {
     const html = await (await get(`https://www.youtube.com/results?search_query=${encodeURIComponent(QUERY)}`)).text();
     return [...new Set([...html.matchAll(/"videoId":"([A-Za-z0-9_-]{11})"/g)].map((m) => m[1]))].slice(0, LIMIT);

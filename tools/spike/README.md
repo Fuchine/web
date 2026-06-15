@@ -68,8 +68,32 @@ it. This is a strong signal that **cloud server-side ingestion is bot-gated**
 (residential IP + user session) is the robust primary ingestion path — matching
 the roadmap's contingency to promote the extension into Phase 0.
 
-**Still open:** run the same harness from a residential IP (`node
-tools/spike/captions.mjs` on a normal machine) to confirm whether innertube /
-watch-page work there. If they do, server-side is viable for self-hosters on
-residential IPs, with cookies/proxies needed only for the cloud product.
+**Run 2 — residential IP (Windows, Node 24), v2 diagnostic, query `日本語 ニュース`:**
+
+| Method | JP downloaded | JP seen | JP gated |
+|---|---|---|---|
+| innertube-web | 0/6 | 0 | 0 (returns no captions field) |
+| watch-page | 0/6 | 4 | **4 — track visible, content 0 bytes** |
+
+Verdict: **SERVER-SIDE GATED.** On a residential IP the watch page *does* expose
+the JP caption track metadata, but the timedtext **content download returns 0
+bytes** — the content endpoint now requires a browser session / PO token. Only
+auto (`ja(asr)`) tracks appeared in the news test set, but the gate is on the
+content endpoint, so manual tracks fetch the same way.
+
+### Decision
+
+**Browser extension = primary ingestion path** (promoted from Phase 2 to Phase
+0). The extension runs in the user's authenticated browser, where the YouTube
+player fetches captions legitimately; it submits the caption lines + timestamps
+to the import API (D7: the extension is just another door to the same API).
+
+- **T0.7** stays — the import API — but its primary input is captions *submitted
+  by the extension*, not fetched by the server.
+- **T0.8** (server-side caption-fetch job) is demoted to a best-effort fallback
+  (self-host on residential IP, or with cookies / a PO-token provider); it is no
+  longer on the F0 critical path.
+
+Server-side fetch was confirmed gated on **both** datacenter (run 1) and
+residential (run 2) IPs, so this is not an IP-reputation artifact.
 
