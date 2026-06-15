@@ -1,13 +1,21 @@
 {
   "manifest_version": 3,
   "name": "Fuchine Importer",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Import the current YouTube video (with its Japanese captions) into Fuchine.",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://*.youtube.com/*",
     "http://localhost:3000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
   ],
   "action": {
     "default_popup": "popup.html",
