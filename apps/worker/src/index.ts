@@ -2,12 +2,7 @@
 
 import { Worker } from "bullmq";
 import { createDb } from "@fuchine/db";
-import {
-  IMPORT_QUEUE,
-  connection,
-  bullConnection,
-  type ImportJob,
-} from "./queue";
+import { IMPORT_QUEUE, connection, bullConn, type ImportJob } from "./queue";
 import { importVideo } from "./pipeline";
 import { env } from "./env";
 
@@ -18,7 +13,7 @@ const worker = new Worker<ImportJob>(
   async (job) => {
     await importVideo(db, job.data);
   },
-  { connection: bullConnection, concurrency: 2 },
+  { connection: bullConn, concurrency: 2 },
 );
 
 worker.on("completed", (job) => {

@@ -10,11 +10,11 @@
   },
   "dependencies": {
     "@fuchine/db": "workspace:*",
+    "@fuchine/jobs": "workspace:*",
     "@fuchine/llm": "workspace:*",
     "@fuchine/nlp": "workspace:*",
     "bullmq": "^5.34.5",
-    "drizzle-orm": "^0.38.4",
-    "ioredis": "^5.4.2"
+    "drizzle-orm": "^0.38.4"
   },
   "devDependencies": {
     "tsx": "^4.19.2"

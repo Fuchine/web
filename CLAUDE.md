@@ -57,6 +57,8 @@ UI é em inglês.
 - `packages/db` — schema Drizzle + migrations + seeds (JMdict, frequência)
 - `packages/nlp` — interfaces Tokenizer/Dictionary + adapter ja/
 - `packages/llm` — providers de LLM + resolução de chave + cache
+- `packages/jobs` — contrato da fila BullMQ (nome + tipo do job + conexão Redis),
+  compartilhado entre web (produtor) e worker (consumidor)
 
 ## Convenções
 
@@ -95,17 +97,26 @@ Pacotes e seus pontos de entrada:
 - `apps/web` — Next.js (App Router). Auth.js (NextAuth v5) em `auth.ts`: Google
   OAuth + e-mail (magic link, opcional via SMTP), adapter Drizzle sobre as
   tabelas próprias, sessões em banco, e `createUser` provisiona `user_settings`.
-  Rota em `app/api/auth/[...nextauth]`. UI de estudo chega na F1.
-- `apps/worker` — Worker BullMQ + pipeline de import. Camada 0 usa `analyzeLine`
-  (tokens + dicionário resolvidos); camada 1 usa o provider real via env
-  (`LLM_PROVIDER=minimax` + `LLM_API_KEY`), degradando para JP-only se falhar.
-  Só o fetch de legendas do YouTube continua **stub** (depende do spike / T0.8).
+  Rotas: `app/api/auth/[...nextauth]` e `POST /api/import` (T0.7) — valida URL,
+  deduplica (cache compartilhado), grava as legendas enviadas e enfileira o job
+  (`lib/import.ts` é a lógica testável; `lib/queue.ts` o produtor). UI na F1.
+- `apps/worker` — Worker BullMQ + pipeline de import. Enriquece as legendas
+  enviadas pela extensão: camada 0 (`analyzeLine` → tokens + dicionário) e
+  camada 1 (`translateBatch` via env `LLM_PROVIDER=minimax` + `LLM_API_KEY`,
+  degradando para JP-only se falhar). Fetch server-side é só fallback (gated).
 
 `docker-compose.yml` sobe Postgres + Redis. Comandos: `pnpm dev`,
 `pnpm typecheck`, `pnpm db:generate`, `pnpm db:migrate`.
 
-Progresso no roadmap: **T0.1–T0.6 e T0.9 prontos** (translateBatch/explainLine
-reais, testados no contrato). Falta só **T0.7/T0.8** (API de import + job que
-busca legenda), que dependem do spike de legendas (tarefa do dono do projeto).
-O import E2E só roda quando o fetch de legendas existir; a tradução em si já está
-pronta e ligada ao worker.
+Progresso no roadmap: **T0.1–T0.7 e T0.9 prontos**. O spike de legendas
+(`tools/spike/`, automatizado em GitHub Actions) deu veredito **server-side
+gated** em IP de datacenter e residencial: os metadados da legenda aparecem mas
+o conteúdo (timedtext) exige sessão de browser/PO token. **Decisão: a extensão
+de browser é a ingestão primária** (sobe da F2 para a F0); ela captura a legenda
+no contexto autenticado do usuário e POSTa em `/api/import`. Fetch server-side
+fica como fallback.
+
+T0.7 (API de import) está pronto e testado E2E (validação, dedup/cache, fila,
+worker enriquecendo tokens+tradução). Próximo: **extensão de browser** (WXT) que
+chama `/api/import`, e a UI de estudo (F1). T0.8 (fetch server-side) fica como
+fallback best-effort, fora do caminho crítico.

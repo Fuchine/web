@@ -1,20 +1,14 @@
-import { Queue, type ConnectionOptions } from "bullmq";
-import IORedis from "ioredis";
+import {
+  createRedis,
+  bullConnection,
+  IMPORT_QUEUE,
+  type ImportJob,
+  type RedisConnection,
+} from "@fuchine/jobs";
 import { env } from "./env";
 
-export const IMPORT_QUEUE = "import";
+export { IMPORT_QUEUE, type ImportJob } from "@fuchine/jobs";
 
-/** One job per video import. `videoId` is the row already created by the API. */
-export type ImportJob = { videoId: string };
-
-// BullMQ requires maxRetriesPerRequest: null on the connection.
-export const connection = new IORedis(env.redisUrl, {
-  maxRetriesPerRequest: null,
-});
-
-// BullMQ accepts an ioredis instance; the cast bridges the bundled ioredis types.
-export const bullConnection = connection as unknown as ConnectionOptions;
-
-export const importQueue = new Queue<ImportJob>(IMPORT_QUEUE, {
-  connection: bullConnection,
-});
+// Shared Redis connection for the consumer.
+export const connection: RedisConnection = createRedis(env.redisUrl);
+export const bullConn = bullConnection(connection);

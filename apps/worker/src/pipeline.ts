@@ -1,8 +1,13 @@
-// Import pipeline (ARQUITETURA §4.2). Runs once per video, idempotent:
-// re-running a job must not duplicate rows. Layer 2 (explainLine) is on
-// demand in the app, not here.
+// Import pipeline (ARQUITETURA §4.2). Runs once per video, idempotent.
+//
+// Primary flow (post-spike): captions are submitted by the browser extension
+// and already persisted as subtitle_lines; this job enriches them — layer 0
+// (tokens + dictionary) and layer 1 (translation). If no lines exist yet, it
+// falls back to a server-side caption fetch (gated for most videos — see
+// tools/spike), kept as a best-effort path. Layer 2 (explainLine) is on demand
+// in the app, not here.
 
-import { and, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { type Database, videos, subtitleLines } from "@fuchine/db";
 import { analyzeLine } from "@fuchine/nlp";
 import { createProvider, type LlmProvider, type ProviderName } from "@fuchine/llm";
@@ -11,18 +16,19 @@ import { env } from "./env";
 
 export type Caption = { idx: number; startMs: number; endMs: number; text: string };
 
-/** Injectable seams: caption source and translation provider (testability). */
+/** Injectable seams: caption source (fallback) and translation provider. */
 export type ImportDeps = {
   fetchCaptions?: (sourceId: string) => Promise<Caption[]>;
   provider?: LlmProvider;
 };
 
 /**
- * Fetch the Japanese caption track + metadata via official YouTube channels (D1).
- * F0 placeholder — wire the captions spike here. Returns ordered lines.
+ * Server-side caption fetch (D1). The spike showed this is gated for most
+ * videos; kept as a best-effort fallback when the extension hasn't supplied
+ * captions. Returns ordered lines.
  */
 async function defaultFetchCaptions(_sourceId: string): Promise<Caption[]> {
-  // TODO(import): YouTube metadata + JP caption track. Never store media (D1).
+  // TODO(import): best-effort fetch (needs cookies / PO token). Usually empty.
   return [];
 }
 
@@ -40,29 +46,35 @@ export async function importVideo(
     .limit(1);
   if (!video) throw new Error(`Video ${job.videoId} not found`);
 
-  await db
-    .update(videos)
-    .set({ status: "processing" })
-    .where(eq(videos.id, video.id));
+  await db.update(videos).set({ status: "processing" }).where(eq(videos.id, video.id));
 
   try {
-    const captions = await fetchCaptions(video.sourceId);
+    let lines = await loadLines(db, video.id);
 
-    // --- Layer 0: tokenize + resolve dictionary entries locally (free). ---
-    const rows = [];
-    for (const c of captions) {
-      rows.push({
-        videoId: video.id,
-        idx: c.idx,
-        tStartMs: c.startMs,
-        tEndMs: c.endMs,
-        textOriginal: c.text,
-        tokens: await analyzeLine(c.text, video.language, db),
-      });
+    // Fallback: no captions submitted — try a server-side fetch.
+    if (lines.length === 0) {
+      const captions = await fetchCaptions(video.sourceId);
+      if (captions.length > 0) {
+        await db
+          .insert(subtitleLines)
+          .values(
+            captions.map((c) => ({
+              videoId: video.id,
+              idx: c.idx,
+              tStartMs: c.startMs,
+              tEndMs: c.endMs,
+              textOriginal: c.text,
+            })),
+          )
+          .onConflictDoNothing();
+        lines = await loadLines(db, video.id);
+      }
     }
-    if (rows.length > 0) {
-      // Idempotent: unique (video_id, idx) means a replay is a no-op.
-      await db.insert(subtitleLines).values(rows).onConflictDoNothing();
+
+    // --- Layer 0: tokenize + resolve dictionary entries (local, free). ---
+    for (const line of lines) {
+      const tokens = await analyzeLine(line.textOriginal, video.language, db);
+      await db.update(subtitleLines).set({ tokens }).where(eq(subtitleLines.id, line.id));
     }
 
     // --- Layer 1: batch translation (cheap). Failure degrades, not breaks. ---
@@ -76,22 +88,15 @@ export async function importVideo(
           model: env.llmModel,
         });
       const translations = await provider.translateBatch(
-        captions.map((c) => c.text),
+        lines.map((l) => l.textOriginal),
         { from: video.language, to: "en" },
       );
-      await Promise.all(
-        captions.map((c, i) =>
-          db
-            .update(subtitleLines)
-            .set({ textTranslation: translations[i] ?? null })
-            .where(
-              and(
-                eq(subtitleLines.videoId, video.id),
-                eq(subtitleLines.idx, c.idx),
-              ),
-            ),
-        ),
-      );
+      for (let i = 0; i < lines.length; i++) {
+        await db
+          .update(subtitleLines)
+          .set({ textTranslation: translations[i] ?? null })
+          .where(eq(subtitleLines.id, lines[i]!.id));
+      }
     } catch (err) {
       // CONTRATO §3.5: keep the video, leave translations null, still done.
       console.error(`[import] translation failed for ${video.id}:`, err);
@@ -102,4 +107,12 @@ export async function importVideo(
     await db.update(videos).set({ status: "failed" }).where(eq(videos.id, video.id));
     throw err;
   }
+}
+
+function loadLines(db: Database, videoId: string) {
+  return db
+    .select()
+    .from(subtitleLines)
+    .where(eq(subtitleLines.videoId, videoId))
+    .orderBy(asc(subtitleLines.idx));
 }
