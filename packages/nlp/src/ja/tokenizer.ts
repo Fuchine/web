@@ -1,28 +1,28 @@
-import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
-import kuromoji, {
-  type IpadicFeatures,
-  type Tokenizer as KuromojiTokenizer,
-} from "kuromoji";
+import type { IpadicFeatures, Tokenizer as KuromojiTokenizer } from "kuromoji";
 import type { Token, Tokenizer } from "../interfaces";
 import { kataToHira } from "./kana";
 
-// kuromoji ships its IPADIC under the package's `dict/` directory.
-const require = createRequire(import.meta.url);
-const DIC_PATH = join(dirname(require.resolve("kuromoji/package.json")), "dict");
-
-// Building the tokenizer loads the dictionary (~a few hundred ms), so do it
-// once and reuse the instance across calls.
+// kuromoji (and its IPADIC) is loaded lazily on first tokenize() so that merely
+// importing this module (e.g. via getDictionary in the web app) never pulls the
+// dictionary into the bundle. Only the worker actually tokenizes.
 let buildPromise: Promise<KuromojiTokenizer<IpadicFeatures>> | null = null;
 
-function buildKuromoji(): Promise<KuromojiTokenizer<IpadicFeatures>> {
+async function buildKuromoji(): Promise<KuromojiTokenizer<IpadicFeatures>> {
   if (!buildPromise) {
-    buildPromise = new Promise((resolve, reject) => {
-      kuromoji.builder({ dicPath: DIC_PATH }).build((err, tokenizer) => {
-        if (err) reject(err);
-        else resolve(tokenizer);
+    buildPromise = (async () => {
+      const { createRequire } = await import("node:module");
+      const { dirname, join } = await import("node:path");
+      const kuromoji = (await import("kuromoji")).default;
+      const require = createRequire(import.meta.url);
+      const dicPath = join(dirname(require.resolve("kuromoji/package.json")), "dict");
+      return new Promise<KuromojiTokenizer<IpadicFeatures>>((resolve, reject) => {
+        kuromoji.builder({ dicPath }).build((err, tokenizer) => {
+          if (err) reject(err);
+          else if (!tokenizer) reject(new Error("kuromoji returned no tokenizer"));
+          else resolve(tokenizer);
+        });
       });
-    });
+    })();
   }
   return buildPromise;
 }
