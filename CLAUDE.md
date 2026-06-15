@@ -59,6 +59,7 @@ UI é em inglês.
 - `packages/llm` — providers de LLM + resolução de chave + cache
 - `packages/jobs` — contrato da fila BullMQ (nome + tipo do job + conexão Redis),
   compartilhado entre web (produtor) e worker (consumidor)
+- `extension` — extensão de browser (ingestão primária); fora do workspace pnpm
 
 ## Convenções
 
@@ -117,6 +118,9 @@ no contexto autenticado do usuário e POSTa em `/api/import`. Fetch server-side
 fica como fallback.
 
 T0.7 (API de import) está pronto e testado E2E (validação, dedup/cache, fila,
-worker enriquecendo tokens+tradução). Próximo: **extensão de browser** (WXT) que
-chama `/api/import`, e a UI de estudo (F1). T0.8 (fetch server-side) fica como
-fallback best-effort, fora do caminho crítico.
+worker enriquecendo tokens+tradução). A **extensão** (`extension/`) tem o
+esqueleto: MV3 **sem build** (load unpacked), captura a legenda no mundo MAIN da
+página (sessão do usuário) e POSTa em `/api/import`. Ainda **não testada em
+browser real** (precisa de Chrome + instância logada); migra para WXT na F2.
+Próximo: testar a extensão de ponta a ponta e a UI de estudo (F1). T0.8 (fetch
+server-side) fica como fallback best-effort.
