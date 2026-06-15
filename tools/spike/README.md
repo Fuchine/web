@@ -48,3 +48,28 @@ SPIKE_VIDEOS=dQw4w9WgXcQ,abc... node tools/spike/captions.mjs   # skip search
 
 The recommended method's name (innertube / watch-page / yt-dlp) is what T0.8
 should implement first.
+
+## Findings
+
+**Run 1 — GitHub Actions (datacenter IP), 2026-06-15, query `日本語 ニュース`, 6 videos:**
+
+| Method | Success |
+|---|---|
+| innertube | 0/6 — `captionTracks` absent in player response |
+| watch-page | 0/6 — `captionTracks` absent in `ytInitialPlayerResponse` |
+| yt-dlp | 0/6 — `Sign in to confirm you're not a bot` |
+
+Verdict printed: **SERVER-SIDE FRAGILE**. **Important caveat:** search seeding
+worked (connectivity + parsing are fine), so the failures are YouTube **gating
+caption data for unauthenticated datacenter IPs** — GitHub runners are the
+worst case for this, not a representative self-host. yt-dlp's bot wall confirms
+it. This is a strong signal that **cloud server-side ingestion is bot-gated**
+(needs residential proxies or cookies), and that the **browser extension**
+(residential IP + user session) is the robust primary ingestion path — matching
+the roadmap's contingency to promote the extension into Phase 0.
+
+**Still open:** run the same harness from a residential IP (`node
+tools/spike/captions.mjs` on a normal machine) to confirm whether innertube /
+watch-page work there. If they do, server-side is viable for self-hosters on
+residential IPs, with cookies/proxies needed only for the cloud product.
+
