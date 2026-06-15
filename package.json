@@ -15,7 +15,8 @@
     "lint": "turbo run lint",
     "db:generate": "pnpm --filter @fuchine/db generate",
     "db:migrate": "pnpm --filter @fuchine/db migrate",
-    "db:studio": "pnpm --filter @fuchine/db studio"
+    "db:studio": "pnpm --filter @fuchine/db studio",
+    "spike:captions": "node tools/spike/captions.mjs"
   },
   "devDependencies": {
     "turbo": "^2.3.4",

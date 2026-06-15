@@ -1,0 +1,48 @@
+name: Captions spike
+
+# Runs the server-side caption-fetch experiment on a real-internet runner and
+# writes a verdict to the job summary. Triggers on changes to the harness, and
+# can be run manually with a custom query or an explicit video list.
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: "YouTube search query (Japanese) to self-seed test videos"
+        default: "日本語 ニュース"
+      videos:
+        description: "Comma-separated video IDs (overrides search)"
+        default: ""
+      limit:
+        description: "How many videos to test"
+        default: "6"
+  push:
+    paths:
+      - "tools/spike/**"
+      - ".github/workflows/spike-captions.yml"
+
+jobs:
+  spike:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install yt-dlp
+        run: pipx install yt-dlp || python3 -m pip install --user yt-dlp || true
+
+      - name: Run captions spike
+        env:
+          SPIKE_QUERY: ${{ github.event.inputs.query }}
+          SPIKE_VIDEOS: ${{ github.event.inputs.videos }}
+          SPIKE_LIMIT: ${{ github.event.inputs.limit }}
+        run: node tools/spike/captions.mjs | tee spike-output.txt
+
+      - name: Upload raw output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spike-output
+          path: spike-output.txt
