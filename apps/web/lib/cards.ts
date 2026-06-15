@@ -1,0 +1,131 @@
+// Mining + SRS review (F1, T1.6/T1.7). Auth-agnostic and testable.
+
+import { and, asc, eq, lte } from "drizzle-orm";
+import { type Database, sentenceCards, subtitleLines, videos, reviewLogs } from "@fuchine/db";
+import { newCardState, reviewCard, previewIntervals, type CardState, type ReviewGrade } from "@fuchine/core";
+
+export type Result = { status: number; body: Record<string, unknown> };
+
+/** Reconstruct the FSRS CardState from a sentence_cards row. */
+function stateOf(c: {
+  stability: number; difficulty: number; due: Date; lastReview: Date | null;
+  state: number; reps: number; lapses: number; elapsedDays: number; scheduledDays: number;
+}): CardState {
+  return {
+    stability: c.stability, difficulty: c.difficulty, due: c.due, lastReview: c.lastReview,
+    state: c.state, reps: c.reps, lapses: c.lapses, elapsedDays: c.elapsedDays, scheduledDays: c.scheduledDays,
+  };
+}
+
+/** Mine a subtitle line into a review card. Deduped per (user, line, type). */
+export async function mineSentence(
+  db: Database,
+  userId: string,
+  body: { subtitleLineId?: string; cardType?: string; notes?: string },
+): Promise<Result> {
+  if (!body?.subtitleLineId) return { status: 400, body: { error: "subtitleLineId is required" } };
+  const cardType = body.cardType?.trim() || "listening";
+
+  const [line] = await db
+    .select({ id: subtitleLines.id, videoId: subtitleLines.videoId })
+    .from(subtitleLines)
+    .where(eq(subtitleLines.id, body.subtitleLineId))
+    .limit(1);
+  if (!line) return { status: 404, body: { error: "subtitle line not found" } };
+
+  const init = newCardState();
+  const inserted = await db
+    .insert(sentenceCards)
+    .values({
+      userId, subtitleLineId: line.id, videoId: line.videoId, cardType, notes: body.notes ?? null,
+      stability: init.stability, difficulty: init.difficulty, due: init.due, state: init.state,
+      reps: init.reps, lapses: init.lapses, elapsedDays: init.elapsedDays, scheduledDays: init.scheduledDays,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  if (inserted.length > 0) return { status: 201, body: { card: inserted[0], created: true } };
+
+  // Already mined — return the existing card so the UI can offer to view it.
+  const [existing] = await db
+    .select()
+    .from(sentenceCards)
+    .where(and(
+      eq(sentenceCards.userId, userId),
+      eq(sentenceCards.subtitleLineId, line.id),
+      eq(sentenceCards.cardType, cardType),
+    ))
+    .limit(1);
+  return { status: 200, body: { card: existing, created: false } };
+}
+
+/** Cards due now for the user, with the clip + sentence and preview intervals. */
+export async function getReviewQueue(db: Database, userId: string, limit = 20) {
+  const rows = await db
+    .select({
+      cardId: sentenceCards.id, videoId: sentenceCards.videoId, cardType: sentenceCards.cardType,
+      notes: sentenceCards.notes, due: sentenceCards.due,
+      stability: sentenceCards.stability, difficulty: sentenceCards.difficulty, lastReview: sentenceCards.lastReview,
+      state: sentenceCards.state, reps: sentenceCards.reps, lapses: sentenceCards.lapses,
+      elapsedDays: sentenceCards.elapsedDays, scheduledDays: sentenceCards.scheduledDays,
+      textOriginal: subtitleLines.textOriginal, textTranslation: subtitleLines.textTranslation,
+      tStartMs: subtitleLines.tStartMs, tEndMs: subtitleLines.tEndMs,
+      source: videos.source, sourceId: videos.sourceId,
+    })
+    .from(sentenceCards)
+    .innerJoin(subtitleLines, eq(subtitleLines.id, sentenceCards.subtitleLineId))
+    .innerJoin(videos, eq(videos.id, sentenceCards.videoId))
+    .where(and(eq(sentenceCards.userId, userId), lte(sentenceCards.due, new Date())))
+    .orderBy(asc(sentenceCards.due))
+    .limit(limit);
+
+  return rows.map((r) => ({
+    cardId: r.cardId,
+    videoId: r.videoId,
+    cardType: r.cardType,
+    notes: r.notes,
+    due: r.due,
+    clip: { source: r.source, sourceId: r.sourceId, startMs: r.tStartMs, endMs: r.tEndMs },
+    sentence: { text: r.textOriginal, translation: r.textTranslation },
+    intervals: previewIntervals(stateOf(r)),
+  }));
+}
+
+/** Apply a grade: reschedule via FSRS, persist the new state and a review log. */
+export async function reviewCardById(
+  db: Database,
+  userId: string,
+  cardId: string,
+  grade: number,
+): Promise<Result> {
+  if (![1, 2, 3, 4].includes(grade)) {
+    return { status: 400, body: { error: "grade must be 1 (Again), 2 (Hard), 3 (Good), or 4 (Easy)" } };
+  }
+
+  const [card] = await db
+    .select()
+    .from(sentenceCards)
+    .where(and(eq(sentenceCards.id, cardId), eq(sentenceCards.userId, userId)))
+    .limit(1);
+  if (!card) return { status: 404, body: { error: "card not found" } };
+
+  const now = new Date();
+  const { card: next, log } = reviewCard(stateOf(card), grade as ReviewGrade, now);
+
+  await db
+    .update(sentenceCards)
+    .set({
+      stability: next.stability, difficulty: next.difficulty, due: next.due, lastReview: now,
+      state: next.state, reps: next.reps, lapses: next.lapses,
+      elapsedDays: next.elapsedDays, scheduledDays: next.scheduledDays,
+    })
+    .where(eq(sentenceCards.id, cardId));
+
+  await db.insert(reviewLogs).values({
+    cardId, userId, grade: log.grade, state: log.state, due: log.due,
+    stability: log.stability, difficulty: log.difficulty,
+    elapsedDays: log.elapsedDays, lastElapsedDays: log.lastElapsedDays, scheduledDays: log.scheduledDays,
+  });
+
+  return { status: 200, body: { cardId, due: next.due, state: next.state, reps: next.reps } };
+}

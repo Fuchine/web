@@ -99,9 +99,12 @@ Pacotes e seus pontos de entrada:
   OAuth + e-mail (magic link, opcional via SMTP), adapter Drizzle sobre as
   tabelas próprias, sessões em banco, e `createUser` provisiona `user_settings`.
   Rotas: `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
-  estudo (F1): `GET /api/videos` (biblioteca) e `GET /api/videos/[id]` (vídeo +
-  `subtitle_lines` com tokens, payload do player). Lógica testável em `lib/`
-  (`import.ts`, `study.ts`); fila lazy em `lib/queue.ts`. UI vem do Claude Design.
+  estudo (F1): `GET /api/videos` (biblioteca), `GET /api/videos/[id]` (payload do
+  player), `POST /api/cards` (minerar, dedup), `GET /api/review/queue` (cards due
+  + clipe + intervalos FSRS) e `POST /api/review/[cardId]` (aplica nota, grava
+  log). Lógica testável em `lib/` (`import.ts`, `study.ts`, `cards.ts`); fila
+  lazy em `lib/queue.ts`. Falta a explicação (camada 2) e o dicionário, e a UI
+  (Claude Design).
 - `apps/worker` — Worker BullMQ + pipeline de import. Enriquece as legendas
   enviadas pela extensão: camada 0 (`analyzeLine` → tokens + dicionário) e
   camada 1 (`translateBatch` via env `LLM_PROVIDER=minimax` + `LLM_API_KEY`,
