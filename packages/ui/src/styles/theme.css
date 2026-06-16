@@ -34,6 +34,7 @@
   --color-on-indigo: var(--on-indigo);
 
   --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
   --color-error: var(--error);
 
   --radius-sm: 8px;
