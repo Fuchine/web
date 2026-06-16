@@ -1,8 +1,12 @@
 /* Tailwind v4 entry. Maps the Fuchine tokens (light + dark CSS vars) onto
    Tailwind's theme so utilities like `bg-accent` / `text-fg` resolve to the
    variables — which means `[data-theme=dark]` switching just works.
-   `@theme inline` keeps the utilities referencing var() instead of literals. */
+   `@theme inline` keeps the utilities referencing var() instead of literals.
 
+   The font @import must be the very first statement (CSS rule), so it lives
+   here at the top of the entry, before Tailwind expands. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600&family=Noto+Serif+JP:wght@300;400;500;600&family=Noto+Sans+JP:wght@400;500;600&display=swap');
 @import "tailwindcss";
 @import "./tokens.css";
 
