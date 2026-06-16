@@ -23,4 +23,13 @@ export type { SectionHeadingProps } from "./components/SectionHeading/SectionHea
 export { AppShell } from "./components/AppShell/AppShell";
 export type { AppShellProps, AppShellAccount, NavItem } from "./components/AppShell/AppShell";
 
+export { BrandPanel } from "./components/BrandPanel/BrandPanel";
+export type { BrandPanelProps } from "./components/BrandPanel/BrandPanel";
+
+export { VideoCard } from "./components/VideoCard/VideoCard";
+export type { VideoCardProps } from "./components/VideoCard/VideoCard";
+
+export { Login } from "./components/Login/Login";
+export type { LoginProps, LoginMode, LoginValues } from "./components/Login/Login";
+
 export { cn } from "./lib/cn";
