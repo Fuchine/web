@@ -1,3 +1,10 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Build scripts allowed to run on install (newer pnpm reads this here, not in
+# package.json). esbuild (tsx/vite), sharp (next/image), msgpackr (bullmq).
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - msgpackr-extract
