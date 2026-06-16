@@ -11,6 +11,9 @@ out/
 # Next.js generated
 next-env.d.ts
 
+# Storybook build output
+storybook-static/
+
 # Env
 .env
 .env.local

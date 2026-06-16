@@ -59,6 +59,9 @@ UI é em inglês.
 - `packages/llm` — providers de LLM + resolução de chave + cache
 - `packages/jobs` — contrato da fila BullMQ (nome + tipo do job + conexão Redis),
   compartilhado entre web (produtor) e worker (consumidor)
+- `packages/ui` — design system (handoff do Claude Design): componentes React +
+  Tailwind v4 (tokens 藍 em `src/styles/`) documentados no Storybook. Abordagem
+  component-first: cada componente validado no Storybook antes de compor telas.
 - `extension` — extensão de browser (ingestão primária); fora do workspace pnpm
 
 ## Convenções
