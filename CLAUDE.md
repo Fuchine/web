@@ -20,6 +20,9 @@ UI é em inglês.
   `ai_explanations.content` e o campo `text_translation`.
 - `docs/INVENTARIO_TELAS.md` e `docs/PROMPT_PACK_TELAS.md` — telas do produto
   (o design em si é gerado fora, no Claude Design).
+- `screens.md` — guia para gerar telas (handoff para IA): sistema visual,
+  fluxo component-first, tokens/utilitários, componentes prontos em
+  `@fuchine/ui` e os shapes de API por tela.
 - `packages/db/src/schema.ts` — schema Drizzle das 13 tabelas (já verificado).
 
 ## Decisões que NÃO podem ser violadas
