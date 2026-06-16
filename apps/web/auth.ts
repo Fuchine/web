@@ -21,6 +21,19 @@ if (process.env.EMAIL_SERVER) {
       from: process.env.EMAIL_FROM,
     }),
   );
+} else if (process.env.NODE_ENV !== "production") {
+  // Dev convenience: passwordless sign-in with no SMTP/Google setup — the magic
+  // link is printed to the `next dev` terminal. Works with database sessions.
+  // Never active in production (no EMAIL_SERVER there means email is simply off).
+  providers.push(
+    Nodemailer({
+      server: { host: "localhost", port: 587 },
+      from: "dev@fuchine.local",
+      async sendVerificationRequest({ url }) {
+        console.log(`\n🔑 Fuchine dev sign-in link (open it in this browser):\n${url}\n`);
+      },
+    }),
+  );
 }
 
 // Auth.js (NextAuth v5). Persisted via the Drizzle adapter against our own

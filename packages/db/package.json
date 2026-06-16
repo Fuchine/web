@@ -19,6 +19,7 @@
     "seed:fixture": "tsx src/seed/index.ts seeds/fixtures/jmdict-sample.json seeds/fixtures/frequency-sample.tsv"
   },
   "dependencies": {
+    "dotenv": "^16.4.7",
     "drizzle-orm": "^0.38.4",
     "postgres": "^3.4.5"
   },
