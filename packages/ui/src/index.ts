@@ -14,4 +14,13 @@ export type { BadgeProps, BadgeVariant } from "./components/Badge/Badge";
 export { Card } from "./components/Card/Card";
 export type { CardProps } from "./components/Card/Card";
 
+export { Avatar } from "./components/Avatar/Avatar";
+export type { AvatarProps } from "./components/Avatar/Avatar";
+
+export { SectionHeading } from "./components/SectionHeading/SectionHeading";
+export type { SectionHeadingProps } from "./components/SectionHeading/SectionHeading";
+
+export { AppShell } from "./components/AppShell/AppShell";
+export type { AppShellProps, AppShellAccount, NavItem } from "./components/AppShell/AppShell";
+
 export { cn } from "./lib/cn";
