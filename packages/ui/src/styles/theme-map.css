@@ -1,0 +1,45 @@
+/* Shared Tailwind theme mapping: tokens (light + dark CSS vars) → Tailwind
+   theme, so utilities resolve to var() and [data-theme=dark] just switches.
+   Imported by both the Storybook entry (theme.css) and the web app's globals,
+   each of which owns its own `@import "tailwindcss"`. */
+
+@import "./tokens.css";
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
+  --color-surface: var(--surface);
+  --color-fg: var(--text);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-field: var(--field-bg);
+  --color-field-2: var(--field-bg-2);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-press: var(--accent-press);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-2: var(--accent-soft-2);
+  --color-accent-line: var(--accent-line);
+  --color-accent-ring: var(--accent-ring);
+  --color-on-accent: var(--on-accent);
+  --color-link: var(--link);
+
+  --color-indigo: var(--indigo);
+  --color-indigo-2: var(--indigo-2);
+  --color-indigo-deep: var(--indigo-deep);
+  --color-on-indigo: var(--on-indigo);
+
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-error: var(--error);
+
+  --radius-sm: 8px;
+  --radius: 11px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+
+  --ease-ma: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
