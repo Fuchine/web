@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "word_entries_lemma_reading_uq" ON "word_entries" USING btree ("language","lemma","reading");

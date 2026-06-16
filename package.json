@@ -1,0 +1,26 @@
+{
+  "name": "fuchine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Open-core platform for learning Japanese through video immersion.",
+  "license": "AGPL-3.0-only",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "db:generate": "pnpm --filter @fuchine/db generate",
+    "db:migrate": "pnpm --filter @fuchine/db migrate",
+    "db:studio": "pnpm --filter @fuchine/db studio",
+    "spike:captions": "node tools/spike/captions.mjs"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.4",
+    "typescript": "^5.7.3",
+    "@types/node": "^22.10.5"
+  }
+}

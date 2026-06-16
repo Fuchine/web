@@ -1,0 +1,23 @@
+{
+  "name": "@fuchine/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fuchine/db": "workspace:*",
+    "@fuchine/jobs": "workspace:*",
+    "@fuchine/llm": "workspace:*",
+    "@fuchine/nlp": "workspace:*",
+    "bullmq": "^5.34.5",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.38.4"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}

@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# Next.js generated
+next-env.d.ts
+
+# Storybook build output
+storybook-static/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Test / coverage
+coverage/
+
+# Seeds data (large dictionary dumps fetched at setup)
+packages/db/seeds/data/

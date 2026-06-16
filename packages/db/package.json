@@ -1,0 +1,30 @@
+{
+  "name": "@fuchine/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "generate": "drizzle-kit generate",
+    "migrate": "drizzle-kit migrate",
+    "studio": "drizzle-kit studio",
+    "seed": "tsx --max-old-space-size=4096 src/seed/index.ts",
+    "seed:fixture": "tsx src/seed/index.ts seeds/fixtures/jmdict-sample.json seeds/fixtures/frequency-sample.tsv"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.38.4",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30.2",
+    "tsx": "^4.19.2"
+  }
+}
