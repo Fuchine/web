@@ -32,4 +32,14 @@ export type { VideoCardProps } from "./components/VideoCard/VideoCard";
 export { Login } from "./components/Login/Login";
 export type { LoginProps, LoginMode, LoginValues } from "./components/Login/Login";
 
+// Player (T1.3 — rest state)
+export { Player } from "./components/Player/Player";
+export type {
+  PlayerProps,
+  PlayerVideo as PlayerVideoData,
+  PlayerSubtitleLine,
+} from "./components/Player/Player";
+export { RATES } from "./components/Player/PlayerControlBar";
+export type { PlaybackRate, PlayerControlBarProps } from "./components/Player/PlayerControlBar";
+
 export { cn } from "./lib/cn";
