@@ -85,7 +85,7 @@ export function LibraryView({
                     durationLabel={duration(v.durationS)}
                     level={v.level ?? undefined}
                     comprehension={v.comprehension ?? undefined}
-                    onPlay={() => router.push(`/watch/${v.id}`)}
+                    onPlay={() => router.push(`/videos/${v.id}`)}
                   />
                   {status && (
                     <div className="mt-[10px]">
