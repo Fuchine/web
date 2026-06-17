@@ -7,7 +7,7 @@ export type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 export type Token = {
   surface: string; // form as it appears in text: 日本語
   lemma: string; // base form, used for dictionary lookup
-  reading: string; // reading in hiragana: にほんご
+  reading: string | null; // reading in hiragana (にほんご); null/"" when none (e.g. punctuation)
   pos: string; // part of speech
   wordEntryId: string | null; // resolved dictionary entry, or null
 };
