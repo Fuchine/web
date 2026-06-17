@@ -1,0 +1,161 @@
+/* ============================================================
+   Fuchine — Settings (content only; sidebar/main from dashboard.css)
+   ============================================================ */
+
+.set-content { max-width: 760px; padding-bottom: 72px; }
+
+.set-head { margin-bottom: 30px; }
+.set-head h1 { font-size: 27px; font-weight: 600; letter-spacing: -0.02em; color: var(--text); margin: 0; }
+.set-head p { font-size: 14px; color: var(--text-muted); margin: 8px 0 0; line-height: 1.5; }
+
+/* group */
+.set-group { margin-bottom: 30px; }
+.set-gh { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; padding: 0 2px; }
+.set-gi {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: var(--accent-soft-2); color: var(--link);
+  display: grid; place-items: center;
+}
+.set-gi svg { width: 15px; height: 15px; }
+.set-gh h2 {
+  font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-muted); margin: 0;
+}
+
+.set-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+/* row */
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.set-row.last, .set-row:last-child { border-bottom: none; }
+.set-rl { min-width: 0; }
+.set-rt { font-size: 14.5px; font-weight: 550; color: var(--text); letter-spacing: -0.005em; }
+.set-rd { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; line-height: 1.45; max-width: 46ch; }
+.set-rc { flex: none; display: flex; align-items: center; gap: 10px; }
+
+.static-val { font-size: 14px; font-weight: 550; color: var(--text); }
+
+/* account row */
+.acc-row { padding: 18px 20px; }
+.acc-id { display: flex; align-items: center; gap: 13px; }
+.acc-av {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: linear-gradient(150deg, var(--indigo-2), var(--indigo-deep));
+  color: var(--on-indigo); display: grid; place-items: center; font-size: 16px; font-weight: 600;
+}
+.acc-name { font-size: 15px; font-weight: 600; color: var(--text); }
+.acc-mail { font-size: 12.5px; color: var(--text-muted); margin-top: 1px; }
+.plan-badge {
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--link); background: var(--accent-soft-2);
+  border: 1px solid var(--accent-line); border-radius: 999px; padding: 4px 11px;
+}
+
+/* ---- Switch ---- */
+.switch {
+  width: 42px; height: 25px; flex: none;
+  border-radius: 999px;
+  border: none;
+  background: var(--border-strong);
+  cursor: pointer; position: relative;
+  transition: background 0.18s var(--ease);
+  padding: 0;
+}
+.switch .knob {
+  position: absolute; top: 3px; left: 3px;
+  width: 19px; height: 19px; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform 0.18s var(--ease);
+}
+.switch.on { background: var(--accent); }
+.switch.on .knob { transform: translateX(17px); }
+
+/* ---- Segmented ---- */
+.seg {
+  display: inline-flex;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 2px;
+}
+.seg-b {
+  border: none; background: transparent;
+  font: inherit; font-size: 13px; font-weight: 550; color: var(--text-muted);
+  padding: 6px 13px; border-radius: 7px; cursor: pointer; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition: background 0.14s var(--ease), color 0.14s var(--ease);
+}
+.seg-b:hover { color: var(--text); }
+.seg-b.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+
+/* ---- Select ---- */
+.sel { position: relative; display: inline-flex; align-items: center; }
+.sel select {
+  appearance: none; -webkit-appearance: none;
+  font: inherit; font-size: 13.5px; font-weight: 550; color: var(--text);
+  background: var(--field-bg); border: 1px solid var(--border-strong);
+  border-radius: 9px; padding: 8px 34px 8px 13px; cursor: pointer;
+  transition: border-color 0.15s;
+}
+.sel select:hover { border-color: var(--text-faint); }
+.sel select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3.5px var(--accent-ring); }
+.sel svg { position: absolute; right: 11px; width: 15px; height: 15px; color: var(--text-faint); pointer-events: none; }
+
+/* ---- Stepper ---- */
+.stepper {
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--field-bg);
+  overflow: hidden;
+}
+.stepper button {
+  width: 34px; height: 36px; border: none; background: transparent;
+  font-size: 17px; color: var(--text-muted); cursor: pointer; line-height: 1;
+  transition: background 0.14s, color 0.14s;
+}
+.stepper button:hover { background: var(--bg-2); color: var(--text); }
+.stepper span {
+  min-width: 44px; text-align: center;
+  font-size: 14px; font-weight: 600; color: var(--text);
+  font-variant-numeric: tabular-nums;
+  border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+  padding: 8px 0;
+}
+
+/* ghost button (small) */
+.btn-ghost.sm {
+  height: 36px; padding: 0 14px; font-size: 13px;
+  border-radius: 9px; gap: 7px;
+}
+.btn-ghost.sm svg { width: 15px; height: 15px; }
+.btn-ghost.danger { color: var(--error); border-color: color-mix(in oklch, var(--error) 35%, var(--border)); }
+.btn-ghost.danger:hover { border-color: var(--error); background: color-mix(in oklch, var(--error) 6%, var(--surface)); }
+
+.set-foot {
+  margin-top: 36px; text-align: center;
+  font-size: 12.5px; color: var(--text-faint);
+}
+.set-foot a { color: var(--link); text-decoration: none; }
+.set-foot a:hover { text-decoration: underline; }
+
+@media (max-width: 640px) {
+  .set-row { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .set-rc { width: 100%; }
+  .seg { width: 100%; }
+  .seg-b { flex: 1; text-align: center; }
+}

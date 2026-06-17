@@ -1,0 +1,122 @@
+/* ============================================================
+   Fuchine — shared design tokens + base
+   "Ma minimalism": calm, spacious, restrained.
+   Used by every screen. Screen-specific layout lives elsewhere.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600&family=Noto+Serif+JP:wght@300;400;500;600&family=Noto+Sans+JP:wght@400;500;600&display=swap');
+
+:root {
+  /* --- Light theme (default) --- */
+  --bg:            #FAF8F4;   /* warm off-white */
+  --bg-2:          #F4F1EB;   /* faint warm panel */
+  --surface:       #FFFFFF;
+  --text:          #211E1A;   /* near-black, warm */
+  --text-muted:    #6E6962;   /* warm gray */
+  --text-faint:    #9C968C;   /* faintest */
+  --border:        #E6E0D7;   /* warm hairline */
+  --border-strong: #D6CFC3;
+  --field-bg:      #FFFFFF;
+  --field-bg-2:    #FCFBF8;
+
+  /* 藍 — indigo scale (base #1F3A5F) */
+  --accent:        oklch(0.355 0.074 252);   /* ≈ #1F3A5F */
+  --accent-hover:  oklch(0.315 0.074 252);
+  --accent-press:  oklch(0.272 0.070 252);
+  --accent-ring:   oklch(0.355 0.074 252 / 0.24);
+  --accent-soft:   oklch(0.952 0.020 252);   /* very light indigo fill */
+  --accent-soft-2: oklch(0.928 0.030 252);   /* slightly stronger fill */
+  --accent-line:   oklch(0.872 0.040 252);   /* light indigo hairline */
+  --on-accent:     #F2F5FB;
+  --link:          oklch(0.452 0.106 252);   /* ≈ #2C5389 */
+  --link-hover:    oklch(0.398 0.108 252);
+
+  /* 藍 — deep indigo brand field */
+  --indigo:        #1F3A5F;
+  --indigo-2:      #264870;
+  --indigo-deep:   #112038;
+  --on-indigo:     #ECF0F6;
+  --on-indigo-dim: #A9B5CC;
+  --on-indigo-faint:#6E7B96;
+  --caption-hi:    #779FB0;
+
+  /* status hues — muted, calm */
+  --ok:            oklch(0.52 0.07 155);   /* studied / done — quiet green */
+  --ok-soft:       oklch(0.945 0.022 155);
+  --error:         oklch(0.55 0.135 27);   /* calm red, separate from indigo */
+
+  --radius-sm: 8px;
+  --radius:    11px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+
+  --shadow-sm: 0 1px 2px rgba(33,30,26,0.04);
+  --shadow:    0 4px 24px -8px rgba(33,30,26,0.10), 0 1px 3px rgba(33,30,26,0.04);
+  --shadow-lg: 0 18px 50px -20px rgba(31,58,95,0.20), 0 2px 8px rgba(33,30,26,0.05);
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg:            #15130F;
+  --bg-2:          #1C1A15;
+  --surface:       #1C1A15;
+  --text:          #ECE8E0;
+  --text-muted:    #A7A199;
+  --text-faint:    #6E6961;
+  --border:        #2C2922;
+  --border-strong: #3A362D;
+  --field-bg:      #1C1A15;
+  --field-bg-2:    #211E18;
+
+  --accent:        oklch(0.520 0.108 252);
+  --accent-hover:  oklch(0.565 0.110 252);
+  --accent-press:  oklch(0.480 0.106 252);
+  --accent-ring:   oklch(0.520 0.108 252 / 0.34);
+  --accent-soft:   oklch(0.300 0.050 252 / 0.45);
+  --accent-soft-2: oklch(0.340 0.058 252 / 0.55);
+  --accent-line:   oklch(0.420 0.060 252 / 0.55);
+  --on-accent:     #F2F5FB;
+  --link:          oklch(0.745 0.098 252);
+  --link-hover:    oklch(0.795 0.092 252);
+
+  --indigo:        #16273E;
+  --indigo-2:      #1C3252;
+  --indigo-deep:   #0A1626;
+  --on-indigo:     #E6EAF2;
+  --on-indigo-dim: #A2AEC6;
+  --on-indigo-faint:#69748E;
+  --caption-hi:    #6E92C4;
+
+  --ok:            oklch(0.70 0.09 155);
+  --ok-soft:       oklch(0.30 0.04 155 / 0.40);
+  --error:         oklch(0.68 0.115 28);
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow:    0 8px 32px -10px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-lg: 0 18px 50px -20px rgba(0,0,0,0.65), 0 2px 8px rgba(0,0,0,0.4);
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv05' 1, 'ss01' 1;
+}
+
+#root { height: 100%; }
+
+.jp {
+  font-family: 'Inter', 'Noto Sans JP', sans-serif;
+  line-height: 1.75;
+}
