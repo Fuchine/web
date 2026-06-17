@@ -50,34 +50,55 @@ async function extractCaptions() {
   const finalize = (caps) => caps.filter((c) => c.text.length > 0).map((c, i) => ({ idx: i, ...c }));
 
   try {
+    // YouTube is a single-page app: window.ytInitialPlayerResponse is captured
+    // from the initial document load and is NOT refreshed on in-app navigation
+    // between videos. Reading metadata from it imports the *first* video's
+    // title/channel/duration/captions for every later video (only the URL,
+    // read live below, changes). Read the current video from the player API,
+    // which updates on navigation, and fall back to the (possibly stale)
+    // initial response only when the player isn't available.
     const pr = window.ytInitialPlayerResponse;
     const vd = pr?.videoDetails || {};
+    const player = document.getElementById("movie_player");
+    const live = (player && player.getVideoData && player.getVideoData()) || {};
+    const videoId = live.video_id || vd.videoId || null;
     const meta = {
-      url: location.href.split("&")[0],
-      title: vd.title,
-      channel: vd.author,
-      durationS: Number(vd.lengthSeconds) || null,
+      url: videoId ? `https://www.youtube.com/watch?v=${videoId}` : location.href.split("&")[0],
+      title: live.title || vd.title,
+      channel: live.author || vd.author,
+      durationS:
+        (player && player.getDuration && Math.round(player.getDuration())) ||
+        Number(vd.lengthSeconds) ||
+        null,
       language: "ja",
     };
     const captured = (window.__fuchine && window.__fuchine.tracks) || [];
 
-    // 1) Intercepted player request (preferred).
+    // 1) Intercepted player request (preferred). __fuchine.tracks accumulates
+    //    across every video watched in the tab, so match the current video id
+    //    strictly — never fall back to another video's captured track.
     let ja = captured.filter((t) => /[?&](?:lang|tlang)=ja/.test(t.url));
-    if (vd.videoId && ja.some((t) => t.url.includes(vd.videoId))) {
-      ja = ja.filter((t) => t.url.includes(vd.videoId));
-    }
+    if (videoId) ja = ja.filter((t) => t.url.includes(videoId));
     const best = ja.filter((t) => !/[?&]kind=asr/.test(t.url)).pop() || ja.pop();
     if (best) {
       const caps = finalize(parse(best.body));
       if (caps.length) return { ...meta, captions: caps, source: "intercepted" };
     }
 
-    // 2) Re-fetch the baseUrl (often gated).
-    const tracks = pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+    // 2) Re-fetch the baseUrl (often gated). Only trust the initial player
+    //    response's track list when it actually describes the current video —
+    //    on SPA navigation it belongs to an earlier one.
+    const prMatches = !videoId || !vd.videoId || vd.videoId === videoId;
+    const tracks = prMatches
+      ? pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks || []
+      : [];
     const track =
       tracks.find((t) => (t.languageCode || "").startsWith("ja") && t.kind !== "asr") ||
       tracks.find((t) => (t.languageCode || "").startsWith("ja"));
     if (!track) {
+      // Stale player response means the only captions we have are another
+      // video's — tell the user to enable CC so the player fetches this one's.
+      if (!prMatches) return { error: "needs-cc", tried: [], captured: captured.length };
       return { error: "no-ja", langs: tracks.map((t) => t.languageCode), captured: captured.length };
     }
     const sep = track.baseUrl.includes("?") ? "&" : "?";
