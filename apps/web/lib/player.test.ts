@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickCurrentLine, formatTimecode, lineHasAudio, isSfxLine } from "./player";
+import { pickCurrentLine, formatTimecode, lineHasAudio, isSfxLine, type PlayerLine } from "@fuchine/core";
 
 const LINES = [
   { id: "a", idx: 0, tStartMs: 1000, tEndMs: 2500, textOriginal: "a", textTranslation: "A", tokens: [] },
