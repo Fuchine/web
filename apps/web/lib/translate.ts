@@ -37,6 +37,10 @@ export function isTranslationFailure(
   lines: { textOriginal: string }[],
   translations: (string | null)[],
 ): boolean {
+  // Misaligned result (should never happen per CONTRATO §3.2) → treat as failure
+  // so we never persist a partial/wrong translation; the caller can retry.
+  if (translations.length !== lines.length) return true;
+
   const allNull = translations.every((t) => t == null);
   const hasRealText = lines.some(
     (l) => l.textOriginal.trim().length > 0 && !l.textOriginal.trimStart().startsWith("♪"),

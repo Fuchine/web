@@ -19,4 +19,9 @@ describe("isTranslationFailure", () => {
       false,
     );
   });
+  it("is failure when lengths mismatch (defensive)", () => {
+    expect(isTranslationFailure([line("布巾。"), line("よく拭きます。")], ["Cloth."])).toBe(
+      true,
+    );
+  });
 });
