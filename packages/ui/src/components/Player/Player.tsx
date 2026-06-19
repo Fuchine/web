@@ -307,6 +307,24 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     void fetchExplanation(line.id);
   }, [activeRailTab, currentLineIdx, lines, explanations, explainLoading, fetchExplanation]);
 
+  // Prefetch explanations for the current line + next one in the background.
+  // Uses the cache-first layer so no redundant LLM calls are made.
+  useEffect(() => {
+    if (!onFetchExplanation || currentLineIdx < 0) return;
+    const toFetch = [currentLineIdx, currentLineIdx + 1].filter(
+      (idx) => idx >= 0 && idx < lines.length,
+    );
+    for (const idx of toFetch) {
+      const line = lines[idx] as PlayerSubtitleLine | undefined;
+      if (!line || explanations.has(line.id)) continue;
+      void onFetchExplanation(line.id).then((ex) => {
+        setExplanations((prev) => new Map(prev).set(line.id, ex));
+      }).catch(() => {
+        /* silent — prefetch failures are non-critical */
+      });
+    }
+  }, [currentLineIdx, lines, explanations, onFetchExplanation]);
+
   const openExplain = useCallback(() => setActiveRailTab("explain"), []);
 
   const nav: NavItem[] = useMemo(
