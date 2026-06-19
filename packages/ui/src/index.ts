@@ -39,6 +39,11 @@ export type {
   PlayerVideo as PlayerVideoData,
   PlayerSubtitleLine,
 } from "./components/Player/Player";
+export { PlayerExplain } from "./components/Player/PlayerExplain";
+export type {
+  PlayerExplainProps,
+  ExplainFocal,
+} from "./components/Player/PlayerExplain";
 export { RATES } from "./components/Player/PlayerControlBar";
 export type { PlaybackRate, PlayerControlBarProps } from "./components/Player/PlayerControlBar";
 

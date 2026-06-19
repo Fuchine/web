@@ -263,3 +263,64 @@
 [data-theme="dark"] .player-page .player-video {
   background: linear-gradient(160deg, #1c2236 0%, #0f1626 48%, #060a14 100%);
 }
+
+/* ---- Explain panel ---- */
+.player-page .explain { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.player-page .ex-scroll { flex: 1; overflow-y: auto; padding: 18px 20px 22px; }
+
+.player-page .ex-sentence {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 15px 16px;
+  box-shadow: 0 1px 2px rgba(33,30,26,0.04);
+}
+.player-page .ex-ja {
+  font-family: 'Inter', 'Noto Sans JP', sans-serif;
+  font-size: 20px; font-weight: 500; line-height: 1.6; color: var(--text); letter-spacing: 0.01em;
+}
+.player-page .ex-ja .ex-hl { background: var(--accent-soft-2); color: var(--link); border-radius: 5px; padding: 0 3px; }
+.player-page .ex-en { font-size: 13.5px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
+
+.player-page .ex-meta {
+  display: flex; align-items: center; gap: 8px; margin: 18px 2px 12px;
+  font-size: 11.5px; font-weight: 550; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint);
+}
+.player-page .ex-meta svg { color: var(--link); }
+.player-page .ex-meta .ex-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--border-strong); }
+
+.player-page .ex-parts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.player-page .ex-part { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--bg-2); }
+.player-page .ex-part.accent { border-color: var(--accent-line); background: var(--accent-soft); }
+.player-page .ex-part-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.player-page .ex-tok { font-family: 'Inter', 'Noto Sans JP', sans-serif; font-size: 16px; font-weight: 600; color: var(--text); }
+.player-page .ex-chip {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--text-muted); background: var(--bg-2);
+  border: 1px solid var(--border); border-radius: 5px; padding: 2px 6px;
+}
+.player-page .ex-part.accent .ex-chip { color: var(--link); background: var(--surface); border-color: var(--accent-line); }
+.player-page .ex-gloss { font-size: 13px; color: var(--text-muted); }
+.player-page .ex-note { margin: 8px 0 0; font-size: 13px; line-height: 1.55; color: var(--text); }
+
+.player-page .ex-prose { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.player-page .ex-prose-label { font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 8px; }
+.player-page .ex-prose p { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--text); text-wrap: pretty; }
+
+.player-page .ex-state { padding: 20px 2px; font-size: 13.5px; color: var(--text-muted); display: flex; flex-direction: column; gap: 10px; }
+.player-page .ex-state.ex-error { color: var(--text); }
+.player-page .ex-retry {
+  align-self: flex-start; height: 32px; padding: 0 12px;
+  border: 1px solid var(--border-strong); background: var(--surface); border-radius: 8px;
+  font: inherit; font-size: 12.5px; font-weight: 550; color: var(--text); cursor: pointer;
+}
+.player-page .ex-retry:hover { border-color: var(--text-faint); }
+
+.player-page .ex-foot { flex: none; display: flex; gap: 8px; padding: 13px 16px; border-top: 1px solid var(--border); background: var(--bg-2); }
+.player-page .ex-fbtn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 38px;
+  border: 1px solid var(--border-strong); background: var(--surface); border-radius: 9px;
+  font: inherit; font-size: 13px; font-weight: 550; color: var(--text); cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.player-page .ex-fbtn:hover:not(:disabled) { border-color: var(--text-faint); }
+.player-page .ex-fbtn:disabled { opacity: 0.5; cursor: default; }
+.player-page .ex-fbtn.primary { color: var(--link); background: var(--accent-soft-2); border-color: var(--accent-line); }

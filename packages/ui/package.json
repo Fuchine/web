@@ -21,7 +21,8 @@
     "react-dom": "^19.0.0"
   },
   "dependencies": {
-    "@fuchine/core": "workspace:*"
+    "@fuchine/core": "workspace:*",
+    "@fuchine/db": "workspace:*"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "^8.4.7",
