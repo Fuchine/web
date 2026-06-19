@@ -276,7 +276,7 @@ export function ImportModal({ onClose }: ImportModalProps) {
     }
     if (!video) return;
 
-    if (!isExtensionInstalled()) {
+    if (!extReady) {
       setErrorMsg("The Fuchine extension isn't installed.");
       go("failed");
       return;
@@ -625,7 +625,6 @@ function Done({
   onStartStudy,
 }: {
   video: VideoPreview;
-  importedVideoId?: string | null;
   onStartStudy: () => void;
 }) {
   return (
