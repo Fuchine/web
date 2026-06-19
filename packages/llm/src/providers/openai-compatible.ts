@@ -2,7 +2,7 @@
 // /chat/completions API — MiniMax (api.minimax.io/v1, model "minimax-m3"),
 // OpenAI, local vLLM/Ollama-OpenAI, etc. Provider choice is configuration (D5).
 
-import type { Explanation, JlptLevel, LlmProvider, SubtitleLineCtx } from "../contract";
+import type { Explanation, ExplanationPart, PartTag, LlmProvider, SubtitleLineCtx } from "../contract";
 import { ProviderError, RateLimitError } from "../errors";
 import {
   buildExplainMessages,
@@ -26,8 +26,10 @@ export type OpenAICompatibleConfig = {
 };
 
 const TRANSLATE_CHUNK = 40;
-const JLPT_LEVELS: readonly string[] = ["N5", "N4", "N3", "N2", "N1"];
-const MAX_GRAMMAR_POINTS = 4;
+const PART_TAGS: readonly string[] = [
+  "noun", "verb", "adjective", "adverb", "particle", "grammar", "expression",
+];
+const MAX_BREAKDOWN_PARTS = 8;
 
 export class OpenAICompatibleProvider implements LlmProvider {
   private readonly chat: ChatFn;
@@ -193,32 +195,29 @@ function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function coerceLevel(value: unknown): JlptLevel | null {
-  return typeof value === "string" && JLPT_LEVELS.includes(value)
-    ? (value as JlptLevel)
-    : null;
+function coerceTag(value: unknown): PartTag {
+  return typeof value === "string" && PART_TAGS.includes(value)
+    ? (value as PartTag)
+    : "expression";
 }
 
-/** Coerce an arbitrary parsed object into a valid Explanation (CONTRATO §4.4). */
+/** Coerce an arbitrary parsed object into a valid v2 Explanation. */
 export function coerceExplanation(raw: unknown): Explanation {
   const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const points = Array.isArray(obj.grammarPoints) ? obj.grammarPoints : [];
-  const grammarPoints = points
-    .slice(0, MAX_GRAMMAR_POINTS)
-    .map((p) => {
+  const parts = Array.isArray(obj.breakdown) ? obj.breakdown : [];
+  const breakdown: ExplanationPart[] = parts
+    .slice(0, MAX_BREAKDOWN_PARTS)
+    .map((p): ExplanationPart => {
       const g = p && typeof p === "object" ? (p as Record<string, unknown>) : {};
       return {
-        pattern: asString(g.pattern),
-        level: coerceLevel(g.level),
-        explanation: asString(g.explanation),
+        surface: asString(g.surface),
+        tag: coerceTag(g.tag),
+        gloss: asString(g.gloss),
+        note: asString(g.note),
+        accent: g.accent === true,
       };
     })
-    .filter((g) => g.pattern.length > 0 || g.explanation.length > 0);
+    .filter((p) => p.surface.length > 0);
 
-  const nuance =
-    typeof obj.nuance === "string" && obj.nuance.trim().length > 0
-      ? obj.nuance
-      : null;
-
-  return { summary: asString(obj.summary), grammarPoints, nuance };
+  return { breakdown, plainTerms: asString(obj.plainTerms) };
 }

@@ -5,10 +5,10 @@
 import type { Token, Explanation } from "@fuchine/db";
 
 export type { Token, Explanation };
-export type { GrammarPoint, JlptLevel } from "@fuchine/db";
+export type { ExplanationPart, PartTag } from "@fuchine/db";
 
-/** Initial prompt_version. Bump when output shape or prompt quality changes. */
-export const PROMPT_VERSION = 1;
+/** prompt_version 2: breakdown + plainTerms shape (was summary/grammarPoints/nuance). */
+export const PROMPT_VERSION = 2;
 
 /** Cache "kind". Only "line" exists in the MVP; the rest are reserved. */
 export type ExplanationKind = "line" | "word" | "grammar_drill";

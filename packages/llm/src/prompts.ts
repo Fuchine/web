@@ -58,7 +58,7 @@ export function buildTranslateOneMessages(
   ];
 }
 
-/** explainLine (layer 2): a line in context -> the Explanation object. */
+/** explainLine (layer 2): a line in context -> the v2 Explanation object. */
 export function buildExplainMessages(
   ctx: SubtitleLineCtx,
   explanationLanguage: string,
@@ -68,17 +68,19 @@ export function buildExplainMessages(
     `You explain ${languageName(ctx.learningLanguage)} sentences for a learner, ` +
     `writing in ${lang}. Return ONLY a JSON object with this exact shape:\n` +
     `{\n` +
-    `  "summary": string,            // what the sentence means, in ${lang}\n` +
-    `  "grammarPoints": [            // at most 4; [] if nothing notable\n` +
-    `    { "pattern": string,        // the grammar form, in Japanese (e.g. 〜てしまう)\n` +
-    `      "level": "N5"|"N4"|"N3"|"N2"|"N1"|null,\n` +
-    `      "explanation": string }   // in ${lang}\n` +
+    `  "breakdown": [            // ordered, at most 8 salient parts of the sentence\n` +
+    `    { "surface": string,    // the span in Japanese (may cover several tokens, e.g. 歩いて います)\n` +
+    `      "tag": "noun"|"verb"|"adjective"|"adverb"|"particle"|"grammar"|"expression",\n` +
+    `      "gloss": string,      // a short label in ${lang} (e.g. "every morning")\n` +
+    `      "note": string,       // ONE sentence explaining this part, in ${lang}\n` +
+    `      "accent": boolean }   // true for THE single most important part, else omit/false\n` +
     `  ],\n` +
-    `  "nuance": string|null         // register/slang/cultural note in ${lang}, or null\n` +
+    `  "plainTerms": string      // 1-3 sentences, in ${lang}, explaining what the whole line means and why it reads naturally\n` +
     `}\n` +
-    `Prioritize points a learner likely does not know; skip trivial particles. ` +
-    `Do NOT include romaji (readings already come from tokens). ` +
-    `If the line is untranslatable noise, say so in summary with grammarPoints [] and nuance null.`;
+    `Walk the sentence left to right. Merge trivial tokens; skip pure punctuation. ` +
+    `Prioritize what a learner likely does not know. Do NOT include romaji (readings ` +
+    `already come from tokens). If the line is untranslatable noise, return an empty ` +
+    `breakdown [] and say so in plainTerms.`;
 
   const tokenHint = ctx.tokens
     .map((t) => `${t.surface}(${t.reading || "?"}/${t.pos})`)

@@ -1,6 +1,14 @@
 // Shared JSONB payload types. Source of truth for the shapes: CONTRATO_IA.md.
 
-export type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
+// Coarse part-of-speech / role tag for a breakdown item (drives the UI chip).
+export type PartTag =
+  | "noun"
+  | "verb"
+  | "adjective"
+  | "adverb"
+  | "particle"
+  | "grammar"
+  | "expression";
 
 // One token of a subtitle line. Produced by packages/nlp (layer 0).
 // Stored in subtitle_lines.tokens.
@@ -12,18 +20,19 @@ export type Token = {
   wordEntryId: string | null; // resolved dictionary entry, or null
 };
 
-// One grammar point inside an explanation.
-export type GrammarPoint = {
-  pattern: string; // japanese grammar form, e.g. 〜てしまう
-  level: JlptLevel | null;
-  explanation: string; // written in explanation_language
+// One part of an explanation breakdown (a span of the sentence).
+export type ExplanationPart = {
+  surface: string; // the span in Japanese; may cover several tokens (歩いて います)
+  tag: PartTag; // coarse category for the UI chip
+  gloss: string; // short label in explanation_language ("every morning")
+  note: string; // one-sentence explanation in explanation_language
+  accent?: boolean; // the single most important part to highlight
 };
 
-// Output of explainLine. Stored in ai_explanations.content.
+// Output of explainLine (prompt_version 2). Stored in ai_explanations.content.
 export type Explanation = {
-  summary: string; // sentence meaning, in explanation_language
-  grammarPoints: GrammarPoint[]; // always present; may be empty
-  nuance: string | null; // register / slang / cultural note; null if nothing notable
+  breakdown: ExplanationPart[]; // ordered walk of the sentence's salient parts (cap 8)
+  plainTerms: string; // "in plain terms" prose, in explanation_language
 };
 
 // One sense of a dictionary entry. Stored in word_entries.definitions.
