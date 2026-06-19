@@ -69,6 +69,18 @@ O chamador passa **todas** as linhas do vídeo, em ordem. Internamente a funçã
 
 Tradução é camada 1; se ela falhar inteira (provider fora do ar), o import **não** falha. O pipeline captura o erro, salva o vídeo com `text_translation = null` em todas as linhas e `status = concluído`. A camada 0 (tokens + dicionário) já torna o vídeo útil, e um job de retry pode preencher as traduções depois. Isso realiza a mitigação de risco do §11 da arquitetura: degrada com aviso, não quebra.
 
+### 3.6. Quando roda — lazy por chunk (atualização 2026-06-18)
+
+A camada 1 deixou de rodar no import. Agora a tradução é **sob demanda, por
+chunk de 30 linhas**, disparada pelo player conforme o usuário assiste
+(`apps/web/lib/translate.ts`, `POST /api/videos/[id]/translate`). A tabela
+`subtitle_translation_chunks` registra os chunks já traduzidos, desambiguando
+`text_translation = null` ("SFX/vazio") de "ainda não traduzido". A **assinatura
+de `translateBatch` não muda** (recebe a lista de linhas do chunk) e o
+`prompt_version` não muda (o shape de saída é o mesmo). Alvo fixo `en` (a coluna
+é compartilhada por vídeo). Falha do provider degrada: o chunk não recebe
+marcador e pode ser re-tentado depois.
+
 ---
 
 ## 4. `explainLine` — explicação da linha (camada 2)
