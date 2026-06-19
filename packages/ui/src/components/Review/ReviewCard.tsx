@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { cn } from "../../lib/cn";
 import { ReviewSource } from "./ReviewSource";
+import { splitSentence } from "./cloze";
 
 export interface TargetWord {
   surface: string;
@@ -20,20 +21,6 @@ export interface ReviewCardProps {
   notes: string | null;
   onPlayClip: () => void;
   onEditNotes?: (notes: string) => void;
-}
-
-function splitSentence(text: string, target: TargetWord): {
-  before: string;
-  blank: string;
-  after: string;
-} {
-  const idx = text.lastIndexOf(target.surface);
-  if (idx === -1) return { before: text, blank: "", after: "" };
-  return {
-    before: text.slice(0, idx),
-    blank: target.surface,
-    after: text.slice(idx + target.surface.length),
-  };
 }
 
 function VolumeIcon() {
@@ -61,9 +48,7 @@ export function ReviewCard({
   onPlayClip,
   onEditNotes,
 }: ReviewCardProps) {
-  const { before, blank, after } = target
-    ? splitSentence(sentence.text, target)
-    : { before: "", blank: "", after: sentence.text };
+  const parts = target ? splitSentence(sentence.text, target) : null;
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(notes ?? "");
@@ -87,20 +72,22 @@ export function ReviewCard({
       </div>
 
       <div className="card-sentence jp">
-        {before}
-        {target ? (
-          revealed ? (
-            <ruby className="target">
-              {target.surface}
-              <rt>{target.reading}</rt>
-            </ruby>
-          ) : (
-            <span className="blank">［ ＿＿ ］</span>
-          )
-        ) : (
-          sentence.text
-        )}
-        {after}
+        {target && parts
+          ? parts.map((part, i) =>
+              part.isTarget ? (
+                revealed ? (
+                  <ruby key={i} className="target">
+                    {target.surface}
+                    <rt>{target.reading}</rt>
+                  </ruby>
+                ) : (
+                  <span key={i} className="blank">［ ＿＿ ］</span>
+                )
+              ) : (
+                <span key={i}>{part.text}</span>
+              ),
+            )
+          : sentence.text}
       </div>
 
       <div className="card-en">{sentence.translation}</div>
