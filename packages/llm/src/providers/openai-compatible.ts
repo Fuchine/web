@@ -138,6 +138,7 @@ function defaultChat(config: Required<Omit<OpenAICompatibleConfig, "chat">>): Ch
           Authorization: `Bearer ${config.apiKey}`,
         },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30_000), // real network abort, not a Promise.race hack
       });
     } catch (err) {
       throw new ProviderError(`Network error: ${(err as Error).message}`);

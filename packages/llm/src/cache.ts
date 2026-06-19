@@ -102,7 +102,7 @@ async function callWithRetry<T>(fn: () => Promise<T>): Promise<T> {
   const MAX_RETRIES = 3;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      return await withTimeout(fn(), 25_000); // 25s per attempt (MiniMax can take ~15s)
+      return await fn(); // no artificial timeout — network errors surface via retry
     } catch (err) {
       if (attempt === MAX_RETRIES) throw err;
       const delay = err instanceof RateLimitError
@@ -112,15 +112,6 @@ async function callWithRetry<T>(fn: () => Promise<T>): Promise<T> {
     }
   }
   throw new Error("unreachable");
-}
-
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`LLM call timed out after ${ms}ms`)), ms),
-    ),
-  ]);
 }
 
 function sleep(ms: number): Promise<void> {
