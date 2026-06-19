@@ -1,7 +1,7 @@
 // Study read-side queries (F1). Auth-agnostic and testable; routes add auth.
 
 import { asc, count, desc, eq } from "drizzle-orm";
-import { type Database, videos, subtitleLines } from "@fuchine/db";
+import { type Database, videos, subtitleLines, subtitleTranslationChunks } from "@fuchine/db";
 
 /** Library: every video with its line count, newest first. */
 export async function listVideos(db: Database) {
@@ -48,5 +48,10 @@ export async function getVideoWithLines(db: Database, videoId: string) {
     .where(eq(subtitleLines.videoId, videoId))
     .orderBy(asc(subtitleLines.idx));
 
-  return { video, lines };
+  const chunks = await db
+    .select({ chunkIdx: subtitleTranslationChunks.chunkIdx })
+    .from(subtitleTranslationChunks)
+    .where(eq(subtitleTranslationChunks.videoId, videoId));
+
+  return { video, lines, translatedChunks: chunks.map((c) => c.chunkIdx) };
 }

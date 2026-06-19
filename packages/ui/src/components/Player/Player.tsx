@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "../../lib/cn";
 import { AppShell, type NavItem } from "../AppShell/AppShell";
-import { pickCurrentLine, formatTimecode as fmt, lineHasAudio } from "@fuchine/core";
+import { pickCurrentLine, formatTimecode as fmt, lineHasAudio, chunkIndexForLine } from "@fuchine/core";
 import { PlayerTopBar } from "./PlayerTopBar";
 import { PlayerStage, type PlayerVideoHandle } from "./PlayerStage";
 import { PlayerTranscript, type TranscriptLine, type TranscriptToken } from "./PlayerTranscript";
@@ -31,6 +31,10 @@ export interface PlayerProps {
   video: PlayerVideo;
   lines: PlayerSubtitleLine[];
   account?: { name: string; sub?: string; initials?: string };
+  /** Chunks already translated (from the server payload). */
+  translatedChunks?: number[];
+  /** Fetch & persist translations for a chunk; resolves with the updated rows. */
+  onFetchChunk?: (chunkIdx: number) => Promise<{ id: string; textTranslation: string | null }[]>;
   onBack: () => void;
   onNavigate?: (key: string) => void;
   className?: string;
@@ -40,12 +44,15 @@ const POLL_MS = 250;
 const SCROLL_GRACE_MS = 1200;
 const CLICK_GRACE_MS = 600;
 
-function toFocal(line: PlayerSubtitleLine | undefined): FocalLine | null {
+function toFocal(
+  line: PlayerSubtitleLine | undefined,
+  translations: Map<string, string | null>,
+): FocalLine | null {
   if (!line) return null;
   return {
     id: line.id,
     textOriginal: line.textOriginal,
-    textTranslation: line.textTranslation,
+    textTranslation: translations.get(line.id) ?? null,
     tokens: line.tokens.map<FocalToken>((t) => ({
       surface: t.surface,
       lemma: t.lemma,
@@ -56,18 +63,21 @@ function toFocal(line: PlayerSubtitleLine | undefined): FocalLine | null {
   };
 }
 
-function toTranscript(lines: PlayerSubtitleLine[]): TranscriptLine[] {
+function toTranscript(
+  lines: PlayerSubtitleLine[],
+  translations: Map<string, string | null>,
+): TranscriptLine[] {
   return lines.map<TranscriptLine>((l) => ({
     id: l.id,
     idx: l.idx,
     tStartMs: l.tStartMs,
     textOriginal: l.textOriginal,
-    textTranslation: l.textTranslation,
+    textTranslation: translations.get(l.id) ?? null,
     tokens: l.tokens.map<TranscriptToken>((t) => ({ surface: t.surface, reading: t.reading })),
   }));
 }
 
-export function Player({ video, lines, account, onBack, onNavigate, className }: PlayerProps) {
+export function Player({ video, lines, account, translatedChunks, onFetchChunk, onBack, onNavigate, className }: PlayerProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMs, setCurrentMs] = useState(0);
@@ -79,6 +89,11 @@ export function Player({ video, lines, account, onBack, onNavigate, className }:
   const [showTranslation, setShowTranslation] = useState(true);
   const [showFurigana, setShowFurigana] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [translations, setTranslations] = useState<Map<string, string | null>>(
+    () => new Map(lines.map((l) => [l.id, l.textTranslation])),
+  );
+  const doneChunksRef = useRef<Set<number>>(new Set(translatedChunks ?? []));
+  const inFlightChunksRef = useRef<Set<number>>(new Set());
 
   const handleRef = useRef<PlayerVideoHandle | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
@@ -157,6 +172,35 @@ export function Player({ video, lines, account, onBack, onNavigate, className }:
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [lines.length]);
+
+  // Lazy translation: ensure the current chunk + 1 ahead are translated.
+  useEffect(() => {
+    if (!onFetchChunk || currentLineIdx < 0) return;
+    const cur = lines[currentLineIdx] as PlayerSubtitleLine | undefined;
+    if (!cur) return;
+    const lastLine = lines[lines.length - 1] as PlayerSubtitleLine | undefined;
+    const maxChunk = lastLine ? chunkIndexForLine(lastLine.idx) : 0;
+    const base = chunkIndexForLine(cur.idx);
+    for (const c of [base, base + 1]) {
+      if (c < 0 || c > maxChunk || doneChunksRef.current.has(c) || inFlightChunksRef.current.has(c)) continue;
+      inFlightChunksRef.current.add(c);
+      onFetchChunk(c)
+        .then((rows) => {
+          setTranslations((prev) => {
+            const next = new Map(prev);
+            for (const r of rows) next.set(r.id, r.textTranslation);
+            return next;
+          });
+          doneChunksRef.current.add(c);
+        })
+        .catch(() => {
+          /* degrade: keep JP only; a later trigger may retry this chunk */
+        })
+        .finally(() => {
+          inFlightChunksRef.current.delete(c);
+        });
+    }
+  }, [currentLineIdx, lines, onFetchChunk]);
 
   const seekToLine = useCallback(
     (idx: number) => {
@@ -263,9 +307,9 @@ export function Player({ video, lines, account, onBack, onNavigate, className }:
     );
   }
 
-  const transcriptLines = toTranscript(lines);
+  const transcriptLines = toTranscript(lines, translations);
   const currentLine = currentLineIdx >= 0 ? (lines[currentLineIdx] as PlayerSubtitleLine) : undefined;
-  const focal = toFocal(currentLine);
+  const focal = toFocal(currentLine, translations);
 
   return (
     <AppShell nav={nav} account={account}>

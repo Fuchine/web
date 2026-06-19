@@ -156,6 +156,24 @@ export const subtitleLines = pgTable(
   ],
 );
 
+// Progressive translation: marks which 30-line chunks of a video have been
+// translated. Disambiguates subtitle_lines.text_translation = null
+// ("SFX/blank") from "not translated yet". One row per (video, chunk).
+export const subtitleTranslationChunks = pgTable(
+  "subtitle_translation_chunks",
+  {
+    videoId: uuid("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+    chunkIdx: integer("chunk_idx").notNull(),
+    status: text("status").notNull().default("done"), // "done"; failed/pending reserved
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.videoId, t.chunkIdx] })],
+);
+
 export const wordEntries = pgTable(
   "word_entries",
   {

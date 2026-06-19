@@ -41,6 +41,7 @@ export default async function VideoPage({
           wordEntryId: string | null;
         }[],
       }))}
+      translatedChunks={result.translatedChunks}
       account={{
         name: session.user.name ?? session.user.email ?? "You",
         sub: session.user.email ?? undefined,
