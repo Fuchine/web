@@ -22,6 +22,7 @@ export interface PlayerFocalSubtitlesProps {
   line: FocalLine;
   showTranslation: boolean;
   showFurigana: boolean;
+  onExplain?: () => void;
   className?: string;
 }
 
@@ -45,6 +46,7 @@ export function PlayerFocalSubtitles({
   line,
   showTranslation,
   showFurigana,
+  onExplain,
   className,
 }: PlayerFocalSubtitlesProps) {
   const isSfx = line.textOriginal.trimStart().startsWith("♪");
@@ -66,6 +68,11 @@ export function PlayerFocalSubtitles({
       </div>
       {showTranslation && line.textTranslation && (
         <div className="focal-subs-en">{line.textTranslation}</div>
+      )}
+      {onExplain && (
+        <div className="focal-actions">
+          <button type="button" className="focal-btn" onClick={onExplain}>Explain</button>
+        </div>
       )}
     </div>
   );

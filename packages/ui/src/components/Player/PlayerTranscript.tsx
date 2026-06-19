@@ -41,15 +41,6 @@ function TextIcon() {
   );
 }
 
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="16" height="16">
-      <circle cx="11" cy="11" r="6" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M20 20l-3.5-3.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 const Row = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { active: boolean; children: ReactNode }>(
   function Row({ active, children, className, ...rest }, ref) {
     return (
@@ -79,12 +70,7 @@ export function PlayerTranscript({
   className,
 }: PlayerTranscriptProps): ReactNode {
   return (
-    <aside className={cn("rail", className)} aria-label="Transcript">
-      <div className="rail-tabs">
-        <button type="button" className="rail-tab on" aria-current="page" tabIndex={-1}>
-          <SearchIcon /> Transcript
-        </button>
-      </div>
+    <>
       <div className="tr-sub">
         <div className="tr-tools">
           <button
@@ -149,6 +135,6 @@ export function PlayerTranscript({
           );
         })}
       </div>
-    </aside>
+    </>
   );
 }

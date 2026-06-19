@@ -324,3 +324,12 @@
 .player-page .ex-fbtn:hover:not(:disabled) { border-color: var(--text-faint); }
 .player-page .ex-fbtn:disabled { opacity: 0.5; cursor: default; }
 .player-page .ex-fbtn.primary { color: var(--link); background: var(--accent-soft-2); border-color: var(--accent-line); }
+
+/* ---- Focal Explain button ---- */
+.player-page .focal-actions { margin-top: 14px; display: flex; justify-content: center; }
+.player-page .focal-btn {
+  height: 34px; padding: 0 16px; border: 1px solid var(--border-strong);
+  background: var(--surface); border-radius: 9px; font: inherit; font-size: 13px;
+  font-weight: 550; color: var(--text); cursor: pointer;
+}
+.player-page .focal-btn:hover { border-color: var(--text-faint); }

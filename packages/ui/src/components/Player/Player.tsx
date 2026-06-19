@@ -9,6 +9,8 @@ import { PlayerStage, type PlayerVideoHandle } from "./PlayerStage";
 import { PlayerTranscript, type TranscriptLine, type TranscriptToken } from "./PlayerTranscript";
 import type { FocalLine, FocalToken } from "./PlayerFocalSubtitles";
 import { RATES, type PlaybackRate } from "./PlayerControlBar";
+import { PlayerExplain, type ExplainFocal } from "./PlayerExplain";
+import type { Explanation } from "@fuchine/db";
 
 export type PlayerVideo = {
   id: string;
@@ -35,6 +37,8 @@ export interface PlayerProps {
   translatedChunks?: number[];
   /** Fetch & persist translations for a chunk; resolves with the updated rows. */
   onFetchChunk?: (chunkIdx: number) => Promise<{ id: string; textTranslation: string | null }[]>;
+  /** Fetch (and cache) the layer-2 explanation for a line. force = regenerate. */
+  onFetchExplanation?: (lineId: string, opts?: { force?: boolean }) => Promise<Explanation>;
   onBack: () => void;
   onNavigate?: (key: string) => void;
   className?: string;
@@ -77,7 +81,11 @@ function toTranscript(
   }));
 }
 
-export function Player({ video, lines, account, translatedChunks, onFetchChunk, onBack, onNavigate, className }: PlayerProps) {
+function toExplainFocal(focal: FocalLine): ExplainFocal {
+  return { textOriginal: focal.textOriginal, textTranslation: focal.textTranslation, focusSurface: null };
+}
+
+export function Player({ video, lines, account, translatedChunks, onFetchChunk, onFetchExplanation, onBack, onNavigate, className }: PlayerProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMs, setCurrentMs] = useState(0);
@@ -89,6 +97,10 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const [showTranslation, setShowTranslation] = useState(true);
   const [showFurigana, setShowFurigana] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [activeRailTab, setActiveRailTab] = useState<"transcript" | "explain">("transcript");
+  const [explanations, setExplanations] = useState<Map<string, Explanation>>(() => new Map());
+  const [explainLoading, setExplainLoading] = useState(false);
+  const [explainError, setExplainError] = useState<string | null>(null);
   const [translations, setTranslations] = useState<Map<string, string | null>>(
     () => new Map(lines.map((l) => [l.id, l.textTranslation])),
   );
@@ -270,6 +282,33 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     setLoadError(`Video failed to load (code ${code})`);
   }, []);
 
+  const fetchExplanation = useCallback(
+    async (lineId: string, force = false) => {
+      if (!onFetchExplanation) return;
+      setExplainLoading(true);
+      setExplainError(null);
+      try {
+        const ex = await onFetchExplanation(lineId, { force });
+        setExplanations((prev) => new Map(prev).set(lineId, ex));
+      } catch {
+        setExplainError("Could not generate an explanation right now.");
+      } finally {
+        setExplainLoading(false);
+      }
+    },
+    [onFetchExplanation],
+  );
+
+  // When the Explain tab is open, ensure the focal line is explained.
+  useEffect(() => {
+    if (activeRailTab !== "explain" || currentLineIdx < 0) return;
+    const line = lines[currentLineIdx] as PlayerSubtitleLine | undefined;
+    if (!line || explanations.has(line.id) || explainLoading) return;
+    void fetchExplanation(line.id);
+  }, [activeRailTab, currentLineIdx, lines, explanations, explainLoading, fetchExplanation]);
+
+  const openExplain = useCallback(() => setActiveRailTab("explain"), []);
+
   const nav: NavItem[] = useMemo(
     () => [
       { key: "library", label: "Library", active: true, onSelect: () => { onNavigate?.("library"); onBack(); } },
@@ -331,6 +370,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
             onReady={onReady}
             onStateChange={onStateChange}
             onError={onError}
+            onExplain={openExplain}
             controlBar={{
               isPlaying,
               currentMs,
@@ -349,18 +389,48 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
               formatTimecode: fmt,
             }}
           />
-          <PlayerTranscript
-            lines={transcriptLines}
-            currentLineIdx={currentLineIdx}
-            showTranslation={showTranslation}
-            showFurigana={showFurigana}
-            onLineClick={seekToLine}
-            onToggleTranslation={() => setShowTranslation((v) => !v)}
-            onToggleFurigana={() => setShowFurigana((v) => !v)}
-            formatTimecode={fmt}
-            railRef={railRef}
-            lineRefs={lineRefs}
-          />
+          <aside className="rail" aria-label="Study panel">
+            <div className="rail-tabs">
+              <button
+                type="button"
+                className={cn("rail-tab", activeRailTab === "transcript" && "on")}
+                aria-current={activeRailTab === "transcript" ? "page" : undefined}
+                onClick={() => setActiveRailTab("transcript")}
+              >
+                Transcript
+              </button>
+              <button
+                type="button"
+                className={cn("rail-tab", activeRailTab === "explain" && "on")}
+                aria-current={activeRailTab === "explain" ? "page" : undefined}
+                onClick={() => setActiveRailTab("explain")}
+              >
+                Explain
+              </button>
+            </div>
+            {activeRailTab === "transcript" ? (
+              <PlayerTranscript
+                lines={transcriptLines}
+                currentLineIdx={currentLineIdx}
+                showTranslation={showTranslation}
+                showFurigana={showFurigana}
+                onLineClick={seekToLine}
+                onToggleTranslation={() => setShowTranslation((v) => !v)}
+                onToggleFurigana={() => setShowFurigana((v) => !v)}
+                formatTimecode={fmt}
+                railRef={railRef}
+                lineRefs={lineRefs}
+              />
+            ) : (
+              <PlayerExplain
+                focal={focal ? toExplainFocal(focal) : null}
+                explanation={currentLine ? explanations.get(currentLine.id) ?? null : null}
+                loading={explainLoading}
+                error={explainError}
+                onRegenerate={() => currentLine && void fetchExplanation(currentLine.id, true)}
+              />
+            )}
+          </aside>
         </div>
       </div>
     </AppShell>

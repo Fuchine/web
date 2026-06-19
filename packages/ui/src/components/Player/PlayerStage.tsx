@@ -16,6 +16,7 @@ export interface PlayerStageProps {
   onStateChange: PlayerVideoProps["onStateChange"];
   onError: PlayerVideoProps["onError"];
   controlBar: Omit<PlayerControlBarProps, "showTranslation" | "className">;
+  onExplain?: () => void;
   className?: string;
 }
 
@@ -29,6 +30,7 @@ export function PlayerStage({
   onStateChange,
   onError,
   controlBar,
+  onExplain,
   className,
 }: PlayerStageProps): ReactNode {
   return (
@@ -45,6 +47,7 @@ export function PlayerStage({
           line={focalLine}
           showTranslation={showTranslation}
           showFurigana={showFurigana}
+          onExplain={onExplain}
         />
       ) : (
         <div className="focal-subs-empty" aria-hidden="true" />
