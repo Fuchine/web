@@ -11,7 +11,18 @@ anything:
 pnpm --filter @fuchine/db seed:fixture
 ```
 
-## Full dictionary
+## Full dictionary (one command)
+
+Downloads the latest jmdict-simplified English release automatically (cached in
+`seeds/data/`, gitignored) and seeds every entry:
+
+```bash
+export DATABASE_URL=postgres://fuchine:fuchine@localhost:5432/fuchine
+pnpm --filter @fuchine/db seed:jmdict            # ~298k word_entries rows
+pnpm --filter @fuchine/db seed:jmdict freq.tsv   # with an optional frequency list
+```
+
+## Full dictionary (manual file)
 
 1. **JMdict** — download a [jmdict-simplified](https://github.com/scriptin/jmdict-simplified/releases)
    release (the English build, e.g. `jmdict-eng-3.x.x.json.zip`), unzip it, and
