@@ -15,10 +15,12 @@ export default async function Home() {
     id: v.id,
     title: v.title,
     channel: v.channel,
+    source: v.source,
+    sourceId: v.sourceId,
     durationS: v.durationS,
     status: v.status,
     level: v.levelEstimate ? (LEVEL[v.levelEstimate] ?? null) : null,
-    comprehension: null, // computed from user_word_stats later
+    comprehension: null,
   }));
 
   return (

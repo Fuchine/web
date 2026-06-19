@@ -1,4 +1,5 @@
 import { cn } from "../../lib/cn";
+import { Skeleton } from "../Skeleton/Skeleton";
 
 export interface VideoCardProps {
   title: string;
@@ -12,6 +13,8 @@ export interface VideoCardProps {
   /** 0–100 watch progress; shows a bar on the thumbnail */
   progress?: number;
   thumbnailUrl?: string;
+  /** Show skeleton placeholder while thumbnail is loading */
+  thumbnailLoading?: boolean;
   /** 1–6 calm tonal placeholder when there's no thumbnail */
   tone?: 1 | 2 | 3 | 4 | 5 | 6;
   comprehensionStyle?: "ring" | "text";
@@ -59,7 +62,7 @@ const DotsIcon = () => (
 /** A calm video tile: thumbnail, level, title, channel, comprehension. */
 export function VideoCard({
   title, channel, durationLabel, level, comprehension, progress,
-  thumbnailUrl, tone = 1, comprehensionStyle = "ring", onPlay, onOverflow, className,
+  thumbnailUrl, thumbnailLoading, tone = 1, comprehensionStyle = "ring", onPlay, onOverflow, className,
 }: VideoCardProps) {
   return (
     <div className={cn("group relative flex w-full flex-col text-left", className)}>
@@ -70,11 +73,13 @@ export function VideoCard({
       >
         <div
           className="relative aspect-video w-full overflow-hidden rounded border border-border transition-[transform,box-shadow] duration-200 ease-[var(--ease)] group-hover:-translate-y-[2px] group-hover:shadow-[var(--shadow)]"
-          style={thumbnailUrl ? undefined : { background: TONES[tone] }}
+          style={thumbnailUrl || thumbnailLoading ? undefined : { background: TONES[tone] }}
         >
-          {thumbnailUrl && (
+          {thumbnailLoading ? (
+            <Skeleton className="h-full w-full" />
+          ) : thumbnailUrl ? (
             <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" />
-          )}
+          ) : null}
           {level != null && (
             <span className="absolute left-[7px] top-[7px] z-[1] rounded-md border border-white/15 bg-[rgba(12,20,38,0.55)] px-[7px] py-[2px] text-[10.5px] font-[600] tracking-[0.03em] text-[#EAF0FA] backdrop-blur-[2px]">
               LVL {level}
