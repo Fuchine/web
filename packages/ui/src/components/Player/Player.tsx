@@ -309,25 +309,22 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     void fetchExplanation(line.id);
   }, [activeRailTab, currentLineIdx, lines, explanations, explainLoading, fetchExplanation]);
 
-  // Prefetch explanations for the current line + next one in the background.
-  // Uses the cache-first layer so no redundant LLM calls are made.
+  // Prefetch: only the NEXT line, one at a time.
+  // Current line is handled by the explicit fetch (activeRailTab effect).
   useEffect(() => {
     if (!onFetchExplanation || currentLineIdx < 0) return;
-    const toFetch = [currentLineIdx, currentLineIdx + 1].filter(
-      (idx) => idx >= 0 && idx < lines.length,
-    );
-    for (const idx of toFetch) {
-      const line = lines[idx] as PlayerSubtitleLine | undefined;
-      if (!line || explanations.has(line.id) || pendingExplainRef.current.has(line.id)) continue;
-      pendingExplainRef.current.add(line.id);
-      void onFetchExplanation(line.id).then((ex) => {
-        setExplanations((prev) => new Map(prev).set(line.id, ex));
-      }).catch(() => {
-        /* silent — prefetch failures are non-critical */
-      }).finally(() => {
-        pendingExplainRef.current.delete(line.id);
-      });
-    }
+    const nextIdx = currentLineIdx + 1;
+    if (nextIdx >= lines.length) return;
+    const line = lines[nextIdx] as PlayerSubtitleLine | undefined;
+    if (!line || explanations.has(line.id) || pendingExplainRef.current.has(line.id)) return;
+    pendingExplainRef.current.add(line.id);
+    void onFetchExplanation(line.id).then((ex) => {
+      setExplanations((prev) => new Map(prev).set(line.id, ex));
+    }).catch(() => {
+      /* silent — prefetch failures are non-critical */
+    }).finally(() => {
+      pendingExplainRef.current.delete(line.id);
+    });
   }, [currentLineIdx, lines, explanations, onFetchExplanation]);
 
   const openExplain = useCallback(() => setActiveRailTab("explain"), []);
