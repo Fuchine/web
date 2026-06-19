@@ -155,6 +155,10 @@ importers:
       drizzle-orm:
         specifier: ^0.38.4
         version: 0.38.4(@types/react@19.2.17)(postgres@3.4.9)(react@19.2.7)
+    devDependencies:
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.19.21)(lightningcss@1.32.0)
 
   packages/nlp:
     dependencies:
@@ -177,6 +181,9 @@ importers:
       '@fuchine/core':
         specifier: workspace:*
         version: link:../core
+      '@fuchine/db':
+        specifier: workspace:*
+        version: link:../db
     devDependencies:
       '@storybook/addon-essentials':
         specifier: ^8.4.7

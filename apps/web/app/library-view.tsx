@@ -7,6 +7,8 @@ export type LibraryVideo = {
   id: string;
   title: string;
   channel: string | null;
+  source: string;
+  sourceId: string;
   durationS: number | null;
   status: "pending" | "processing" | "done" | "failed";
   level: number | null;
@@ -20,6 +22,10 @@ const I = {
   dict: (<svg viewBox="0 0 24 24" fill="none"><path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V4zM7 4v14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>),
   phrases: (<svg viewBox="0 0 24 24" fill="none"><path d="M7 8h10M7 12h6M5 4h14a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-4 4V5a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>),
 };
+
+function youtubeThumbnail(sourceId: string) {
+  return `https://img.youtube.com/vi/${sourceId}/mqdefault.jpg`;
+}
 
 function duration(s: number | null): string | undefined {
   if (!s || s <= 0) return undefined;
@@ -85,6 +91,7 @@ export function LibraryView({
                     durationLabel={duration(v.durationS)}
                     level={v.level ?? undefined}
                     comprehension={v.comprehension ?? undefined}
+                    thumbnailUrl={v.source === "youtube" ? youtubeThumbnail(v.sourceId) : undefined}
                     onPlay={() => router.push(`/videos/${v.id}`)}
                   />
                   {status && (

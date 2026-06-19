@@ -28,6 +28,17 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {};
 export const TextComprehension: Story = { args: { comprehensionStyle: "text", comprehension: 33, tone: 3 } };
 export const InProgress: Story = { args: { progress: 42, tone: 2, comprehension: 51 } };
+export const WithThumbnail: Story = {
+  args: {
+    thumbnailUrl: "https://img.youtube.com/vi/dQw4w9WgXcQ/mqdefault.jpg",
+  },
+};
+export const ThumbnailLoading: Story = {
+  args: {
+    thumbnailLoading: true,
+    tone: 1,
+  },
+};
 
 export const Grid: Story = {
   parameters: { layout: "padded" },

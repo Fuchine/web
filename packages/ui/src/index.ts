@@ -29,6 +29,9 @@ export type { BrandPanelProps } from "./components/BrandPanel/BrandPanel";
 export { VideoCard } from "./components/VideoCard/VideoCard";
 export type { VideoCardProps } from "./components/VideoCard/VideoCard";
 
+export { Skeleton } from "./components/Skeleton/Skeleton";
+export type { SkeletonProps } from "./components/Skeleton/Skeleton";
+
 export { Login } from "./components/Login/Login";
 export type { LoginProps, LoginMode, LoginValues } from "./components/Login/Login";
 
