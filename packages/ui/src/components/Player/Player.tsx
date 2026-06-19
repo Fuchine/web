@@ -178,9 +178,11 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     if (!onFetchChunk || currentLineIdx < 0) return;
     const cur = lines[currentLineIdx] as PlayerSubtitleLine | undefined;
     if (!cur) return;
+    const lastLine = lines[lines.length - 1] as PlayerSubtitleLine | undefined;
+    const maxChunk = lastLine ? chunkIndexForLine(lastLine.idx) : 0;
     const base = chunkIndexForLine(cur.idx);
     for (const c of [base, base + 1]) {
-      if (c < 0 || doneChunksRef.current.has(c) || inFlightChunksRef.current.has(c)) continue;
+      if (c < 0 || c > maxChunk || doneChunksRef.current.has(c) || inFlightChunksRef.current.has(c)) continue;
       inFlightChunksRef.current.add(c);
       onFetchChunk(c)
         .then((rows) => {
