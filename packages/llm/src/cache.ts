@@ -10,6 +10,7 @@ import {
   type LlmProvider,
   type SubtitleLineCtx,
 } from "./contract";
+import { RateLimitError } from "./errors";
 
 export type CacheKey = {
   subtitleLineId: string;
@@ -69,6 +70,7 @@ export async function saveExplanation(
 /**
  * Cache-first explanation: serve from `ai_explanations` if present, otherwise
  * call the provider and store the result. The whole point of layer 2.
+ * On provider failure, retries up to 3 times with exponential backoff.
  */
 export async function explainLineCached(
   db: Database,
@@ -89,9 +91,29 @@ export async function explainLineCached(
     if (cached) return cached;
   }
 
-  const fresh = await provider.explainLine(ctx, {
-    explanationLanguage: opts.explanationLanguage,
-  });
+  const fresh = await callWithRetry(() =>
+    provider.explainLine(ctx, { explanationLanguage: opts.explanationLanguage }),
+  );
   await saveExplanation(db, key, fresh, opts.model ?? null);
   return fresh;
+}
+
+async function callWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+  const MAX_RETRIES = 3;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === MAX_RETRIES) throw err;
+      const delay = err instanceof RateLimitError
+        ? (2 ** attempt) * 2000 // 2s, 4s, 8s for rate limits
+        : (2 ** attempt) * 500;  // 0.5s, 1s, 2s for other errors
+      await sleep(delay);
+    }
+  }
+  throw new Error("unreachable");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
