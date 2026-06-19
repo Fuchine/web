@@ -35,15 +35,21 @@ Three contexts that can't see each other directly are coordinated by the
 extension's service worker:
 
 ```
-App (/import)                Extension (MV3)                 YouTube tab
-  paste URL, Import   ──post──▶ bridge.js (app origin)
-  read data-fuchine-ext        └─ chrome.runtime ──▶ background.js
-                                                       └─ tabs.create(watch?v=ID&fuchine_import=1) ──▶ yt-auto.js
-                                                                                                        enable CC,
-                                                                                                        capture track,
-                                                                                                        POST /api/import
-  navigate /videos/:id ◀─post── bridge.js ◀── background.js ◀──── IMPORT_RESULT ◀──────────────────────┘
+App (/import)              Extension (MV3)                          YouTube tab
+ paste URL, Import ─post─▶ bridge.js (app origin)
+ read data-fuchineExt       └─ chrome.runtime ─▶ background.js (service worker)
+                                                  1. tabs.create(watch?v=ID)        ─▶ inject.js (MAIN,
+                                                  2. executeScript(MAIN): enable CC      already captures
+                                                  3. executeScript(MAIN): extractCaptions  timedtext → __fuchine)
+                                                  4. POST /api/import (background fetch)
+ navigate /videos/:id ◀─post─ bridge.js ◀─runtime─ background.js   5. close tab, return result
 ```
+
+The background **orchestrates capture via `chrome.scripting.executeScript`** —
+the same proven mechanism `popup.js` uses today — instead of a youtube-side
+auto-capture script. This avoids MAIN↔ISOLATED message hops (the captured track
+lives on `window.__fuchine` in the MAIN world) and reuses `extractCaptions`
+verbatim.
 
 ### Communication contract
 
@@ -57,14 +63,15 @@ App (/import)                Extension (MV3)                 YouTube tab
   pattern.)
 - **Extension → app:** `bridge.js` posts back `{ source: "fuchine-ext", type:
   "IMPORT_RESULT", videoId, ok, lines?, error? }`.
-- **Capture + POST:** done by the YouTube tab (it has the captions + the session
-  cookie), reusing the existing `extractCaptions`. No server-side fetch.
+- **Capture + POST:** the background opens a YouTube tab, enables CC and runs
+  `extractCaptions` in its MAIN world via `executeScript`, then POSTs the result
+  to `/api/import` with the session cookie. No server-side caption fetch.
 - **No extension installed:** the modal falls back to an install CTA
   (`/extension`) plus a manual "Open on YouTube" path.
 
 The YouTube tab is opened **visible** (not a hidden background tab): visible is
-where capture is reliable. The tab auto-captures and signals done; the user just
-sees it open and close.
+where capture is reliable. The tab is closed once capture succeeds; the user
+just sees it open and close.
 
 ## Components
 
@@ -75,10 +82,20 @@ sees it open and close.
   documented placeholder for production), world ISOLATED, `run_at:
   document_start` → `bridge.js`.
 - Add `background.service_worker: "background.js"`.
-- New content script on youtube.com (ISOLATED) → `yt-auto.js`.
-- `host_permissions` already covers localhost.
+- Add the `"tabs"` permission (for `chrome.tabs.create`/`remove`).
+- `host_permissions` already covers localhost + youtube.
 
-**`bridge.js`** (new — runs on the app page)
+**`capture.js`** (new — shared, no-build module)
+- Extract `extractCaptions` + parsing (currently inlined in `popup.js`) plus a
+  small `enableCaptions` helper into a classic script defining globals.
+- Loaded by the popup via `<script src="capture.js">` before `popup.js`, and by
+  the service worker via `importScripts("capture.js")`. Both pass
+  `func: extractCaptions` / `func: enableCaptions` to `executeScript`.
+
+**`popup.js`** (modify) — use `capture.js` instead of its inlined copy; behavior
+unchanged.
+
+**`bridge.js`** (new — runs on the app page, ISOLATED)
 - `document_start`: set `document.documentElement.dataset.fuchineExt =
   chrome.runtime.getManifest().version`.
 - Listen for `window.postMessage` `{ source: "fuchine-app", type: "IMPORT",
@@ -86,24 +103,17 @@ sees it open and close.
 - Listen for `chrome.runtime.onMessage` results; `window.postMessage` them back
   to the app.
 
-**`background.js`** (new — service worker, the glue)
-- On `IMPORT`: `chrome.tabs.create({ url:
-  "https://www.youtube.com/watch?v=<id>&fuchine_import=1" })`.
-- Track `{ videoId → appTabId }` to route the result back.
-- On `IMPORT_RESULT` from the YouTube tab: relay to the app tab's `bridge.js`
-  and close the YouTube tab.
-
-**`yt-auto.js`** (new — runs on youtube.com, ISOLATED)
-- Acts **only when** the URL has `fuchine_import=1`.
-- Enable CC via the player API; poll `window.__fuchine.tracks` (populated by the
-  existing `inject.js`); build the payload; `POST /api/import` with
-  `credentials: "include"`.
-- Send `IMPORT_RESULT` to the background. On timeout / no-JA / error, send an
-  error result.
-
-**`capture.js`** (new — shared module)
-- Extract `extractCaptions` + parsing (currently inlined in `popup.js`) into a
-  module shared by `popup.js` and `yt-auto.js`, to avoid duplication.
+**`background.js`** (new — service worker, the orchestrator)
+- `importScripts("capture.js")`.
+- On `IMPORT { videoId }` from `bridge.js`: remember the sender's `tab.id`, then
+  `chrome.tabs.create({ url: "https://www.youtube.com/watch?v=<id>" })`.
+- After the YouTube tab loads: `executeScript(MAIN, enableCaptions)`, wait ~2.5s
+  for the player to fetch the track, then `executeScript(MAIN, extractCaptions)`.
+- POST the captured payload to `<base>/api/import` (`credentials: "include"`);
+  build `{ ok, lines?, error? }`.
+- `chrome.tabs.sendMessage` the result to the originating app tab, then
+  `chrome.tabs.remove` the YouTube tab.
+- On no-JA / needs-cc / 401 / timeout → an error result with a clear message.
 
 ### App (`apps/web`)
 
