@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "../../lib/cn";
-import { AppShell, type NavItem } from "../AppShell/AppShell";
+import { AppShell } from "../AppShell/AppShell";
+import { buildAppNav } from "../AppShell/nav";
 import { pickCurrentLine, formatTimecode as fmt, lineHasAudio, chunkIndexForLine } from "@fuchine/core";
 import { PlayerTopBar } from "./PlayerTopBar";
 import { PlayerStage, type PlayerVideoHandle } from "./PlayerStage";
@@ -47,6 +48,7 @@ export interface PlayerProps {
 const POLL_MS = 250;
 const SCROLL_GRACE_MS = 1200;
 const CLICK_GRACE_MS = 600;
+const PREFETCH_AHEAD = 4;
 
 function toFocal(
   line: PlayerSubtitleLine | undefined,
@@ -106,7 +108,10 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   );
   const doneChunksRef = useRef<Set<number>>(new Set(translatedChunks ?? []));
   const inFlightChunksRef = useRef<Set<number>>(new Set());
-  const pendingExplainRef = useRef<Set<string>>(new Set());
+  const pendingExplainRef = useRef<Map<string, Promise<Explanation>>>(new Map());
+  const prefetchRunningRef = useRef(false);
+  const explanationsRef = useRef(explanations);
+  explanationsRef.current = explanations;
 
   const handleRef = useRef<PlayerVideoHandle | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
@@ -283,19 +288,67 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     setLoadError(`Video failed to load (code ${code})`);
   }, []);
 
-  const fetchExplanation = useCallback(
-    async (lineId: string, force = false) => {
+  // Single dedup'd primitive: at most one in-flight request per line. A focal
+  // click and a background prefetch for the same line share one promise, so a
+  // click never re-fires what prefetch already started. Cache-first on a hit.
+  const ensureExplanation = useCallback(
+    (lineId: string): Promise<Explanation> | undefined => {
+      if (!onFetchExplanation) return undefined;
+      const cached = explanationsRef.current.get(lineId);
+      if (cached) return Promise.resolve(cached);
+      const inFlight = pendingExplainRef.current.get(lineId);
+      if (inFlight) return inFlight;
+      const p = onFetchExplanation(lineId)
+        .then((ex) => {
+          // Update the ref synchronously (not just via setState, which lands a
+          // render later): the prefetch pump's next loop iteration runs before
+          // React commits, and would otherwise re-fetch the line it just
+          // finished — present in neither the pending map nor stale ref.
+          explanationsRef.current = new Map(explanationsRef.current).set(lineId, ex);
+          setExplanations((prev) => new Map(prev).set(lineId, ex));
+          return ex;
+        })
+        .finally(() => {
+          pendingExplainRef.current.delete(lineId);
+        });
+      pendingExplainRef.current.set(lineId, p);
+      return p;
+    },
+    [onFetchExplanation],
+  );
+
+  // Focal line: drive the panel's loading/error state while latching onto any
+  // in-flight prefetch for the same line.
+  const fetchFocalExplanation = useCallback(
+    async (lineId: string) => {
+      const p = ensureExplanation(lineId);
+      if (!p) return;
+      setExplainLoading(true);
+      setExplainError(null);
+      try {
+        await p;
+      } catch {
+        setExplainError("Could not generate an explanation right now.");
+      } finally {
+        setExplainLoading(false);
+      }
+    },
+    [ensureExplanation],
+  );
+
+  // Regenerate: force a fresh generation, bypassing cache and dedup.
+  const regenerateExplanation = useCallback(
+    async (lineId: string) => {
       if (!onFetchExplanation) return;
       setExplainLoading(true);
       setExplainError(null);
       try {
-        const ex = await onFetchExplanation(lineId, { force });
+        const ex = await onFetchExplanation(lineId, { force: true });
         setExplanations((prev) => new Map(prev).set(lineId, ex));
       } catch {
         setExplainError("Could not generate an explanation right now.");
       } finally {
         setExplainLoading(false);
-        pendingExplainRef.current.delete(lineId);
       }
     },
     [onFetchExplanation],
@@ -305,37 +358,51 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   useEffect(() => {
     if (activeRailTab !== "explain" || currentLineIdx < 0) return;
     const line = lines[currentLineIdx] as PlayerSubtitleLine | undefined;
-    if (!line || explanations.has(line.id) || explainLoading) return;
-    void fetchExplanation(line.id);
-  }, [activeRailTab, currentLineIdx, lines, explanations, explainLoading, fetchExplanation]);
+    if (!line || explanations.has(line.id)) return;
+    void fetchFocalExplanation(line.id);
+  }, [activeRailTab, currentLineIdx, lines, explanations, fetchFocalExplanation]);
 
-  // Prefetch: only the NEXT line, one at a time.
-  // Current line is handled by the explicit fetch (activeRailTab effect).
+  // Prefetch a window of upcoming lines so they're warm before the user clicks.
+  // Sequential (one at a time): the provider serializes requests per key, so
+  // fanning out only queues them. The pump re-reads the live position each step,
+  // so a seek reprioritizes the window toward where the user actually is.
+  const pumpPrefetch = useCallback(async () => {
+    if (!onFetchExplanation || prefetchRunningRef.current) return;
+    prefetchRunningRef.current = true;
+    try {
+      for (;;) {
+        const base = currentLineIdxRef.current;
+        if (base < 0) break;
+        let target: PlayerSubtitleLine | null = null;
+        for (let d = 1; d <= PREFETCH_AHEAD; d++) {
+          const idx = base + d;
+          if (idx >= lines.length) break;
+          const line = lines[idx] as PlayerSubtitleLine;
+          if (explanationsRef.current.has(line.id) || pendingExplainRef.current.has(line.id)) continue;
+          target = line;
+          break;
+        }
+        if (!target) break;
+        try {
+          await ensureExplanation(target.id);
+        } catch {
+          /* prefetch failures are non-critical */
+        }
+      }
+    } finally {
+      prefetchRunningRef.current = false;
+    }
+  }, [onFetchExplanation, lines, ensureExplanation]);
+
   useEffect(() => {
-    if (!onFetchExplanation || currentLineIdx < 0) return;
-    const nextIdx = currentLineIdx + 1;
-    if (nextIdx >= lines.length) return;
-    const line = lines[nextIdx] as PlayerSubtitleLine | undefined;
-    if (!line || explanations.has(line.id) || pendingExplainRef.current.has(line.id)) return;
-    pendingExplainRef.current.add(line.id);
-    void onFetchExplanation(line.id).then((ex) => {
-      setExplanations((prev) => new Map(prev).set(line.id, ex));
-    }).catch(() => {
-      /* silent — prefetch failures are non-critical */
-    }).finally(() => {
-      pendingExplainRef.current.delete(line.id);
-    });
-  }, [currentLineIdx, lines, explanations, onFetchExplanation]);
+    void pumpPrefetch();
+  }, [currentLineIdx, pumpPrefetch]);
 
   const openExplain = useCallback(() => setActiveRailTab("explain"), []);
 
-  const nav: NavItem[] = useMemo(
-    () => [
-      { key: "library", label: "Library", active: true, onSelect: () => { onNavigate?.("library"); onBack(); } },
-      { key: "review", label: "Review", soon: true },
-      { key: "settings", label: "Settings", soon: true },
-    ],
-    [onBack, onNavigate],
+  const nav = useMemo(
+    () => buildAppNav({ activeKey: "home", onNavigate: (key) => onNavigate?.(key) }),
+    [onNavigate],
   );
 
   if (loadError) {
@@ -447,7 +514,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
                 explanation={currentLine ? explanations.get(currentLine.id) ?? null : null}
                 loading={explainLoading}
                 error={explainError}
-                onRegenerate={() => currentLine && void fetchExplanation(currentLine.id, true)}
+                onRegenerate={() => currentLine && void regenerateExplanation(currentLine.id)}
               />
             )}
           </aside>

@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react";
 import { cn } from "../../lib/cn";
+import { Skeleton } from "../Skeleton/Skeleton";
 import type { Explanation } from "@fuchine/db";
 
 const TAG_LABEL: Record<string, string> = {
@@ -53,6 +54,33 @@ function BookmarkIcon() {
   );
 }
 
+function ExplainSkeleton(): ReactNode {
+  return (
+    <div aria-busy="true" aria-label="Generating explanation">
+      <div className="ex-meta">
+        <SparkIcon />
+        <span>Generating breakdown…</span>
+      </div>
+      <ul className="ex-parts">
+        {[0, 1, 2].map((i) => (
+          <li key={i} className="ex-part">
+            <div className="ex-part-head">
+              <Skeleton className="h-4 w-16 rounded-md" />
+              <Skeleton className="h-3.5 w-12 rounded" />
+            </div>
+            <Skeleton className="mt-2.5 h-3 w-full rounded" />
+          </li>
+        ))}
+      </ul>
+      <div className="ex-prose">
+        <div className="ex-prose-label">In plain terms</div>
+        <Skeleton className="h-3 w-full rounded" />
+        <Skeleton className="mt-2 h-3 w-4/5 rounded" />
+      </div>
+    </div>
+  );
+}
+
 function renderSentence(text: string, focus?: string | null): ReactNode {
   if (!focus || !text.includes(focus)) return text;
   const i = text.indexOf(focus);
@@ -86,7 +114,7 @@ export function PlayerExplain({
           <div className="ex-state">Select a line to explain it.</div>
         )}
 
-        {focal && loading && <div className="ex-state">Generating explanation…</div>}
+        {focal && loading && <ExplainSkeleton />}
 
         {focal && error && !loading && (
           <div className="ex-state ex-error">
