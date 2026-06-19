@@ -232,6 +232,7 @@ export function ImportModal({ onClose }: ImportModalProps) {
   const [importedVideoId, setImportedVideoId] = useState<string | null>(null);
   const [extReady, setExtReady] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null!);
+  const importingRef = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -275,21 +276,29 @@ export function ImportModal({ onClose }: ImportModalProps) {
       return;
     }
     if (!video) return;
+    if (importingRef.current) return;
 
-    if (!extReady) {
+    // Check live (not the post-mount `extReady` snapshot) so a "Try again"
+    // after installing the extension mid-session works.
+    if (!isExtensionInstalled()) {
       setErrorMsg("The Fuchine extension isn't installed.");
       go("failed");
       return;
     }
 
+    importingRef.current = true;
     go("processing");
-    const result = await requestImport(video.id);
-    if (result.ok) {
-      setImportedVideoId(video.id);
-      go("done");
-    } else {
-      setErrorMsg(result.error ?? "Import failed.");
-      go("failed");
+    try {
+      const result = await requestImport(video.id);
+      if (result.ok) {
+        setImportedVideoId(video.id);
+        go("done");
+      } else {
+        setErrorMsg(result.error ?? "Import failed.");
+        go("failed");
+      }
+    } finally {
+      importingRef.current = false;
     }
   }
 
@@ -559,8 +568,7 @@ const PIPELINE = [
 function Processing() {
   const [step, setStep] = useState(0);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useState(() => {
+  useEffect(() => {
     const interval = setInterval(() => {
       setStep((s) => {
         if (s >= PIPELINE.length) {
@@ -571,7 +579,7 @@ function Processing() {
       });
     }, 1300);
     return () => clearInterval(interval);
-  });
+  }, []);
 
   const pct = Math.min(
     100,

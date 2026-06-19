@@ -76,8 +76,13 @@ async function doImport(videoId, base) {
   }
 }
 
+const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+
 chrome.runtime.onMessage.addListener((msg, sender) => {
   if (!msg || msg.type !== "IMPORT" || typeof msg.videoId !== "string") return;
+  // Reject anything that isn't a bare 11-char YouTube id, so a crafted message
+  // can't inject extra query params into the watch URL.
+  if (!VIDEO_ID_RE.test(msg.videoId)) return;
   const appTabId = sender.tab && sender.tab.id;
   const base = sender.url ? new URL(sender.url).origin : "http://localhost:3000";
   if (appTabId == null) return;
@@ -85,11 +90,14 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   doImport(msg.videoId, base)
     .catch((err) => ({ ok: false, error: String((err && err.message) || err) }))
     .then((result) => {
-      chrome.tabs.sendMessage(appTabId, {
-        type: "IMPORT_RESULT",
-        videoId: msg.videoId,
-        ...result,
-      });
+      // Swallow "no receiving end" if the app tab was closed mid-import.
+      chrome.tabs
+        .sendMessage(appTabId, {
+          type: "IMPORT_RESULT",
+          videoId: msg.videoId,
+          ...result,
+        })
+        .catch(() => {});
     });
   // No async response needed on this channel; result is delivered via sendMessage.
 });

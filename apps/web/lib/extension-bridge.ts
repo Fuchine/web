@@ -41,6 +41,9 @@ export function requestImport(videoId: string, timeoutMs = 90_000): Promise<Impo
       clearTimeout(timer);
     }
     const onMsg = (e: MessageEvent) => {
+      // Only trust messages our own bridge.js posts (same window, same origin) —
+      // otherwise any same-page script could spoof a successful import.
+      if (e.source !== window || e.origin !== window.location.origin) return;
       const r = parseImportResult(e.data, videoId);
       if (!r) return;
       cleanup();

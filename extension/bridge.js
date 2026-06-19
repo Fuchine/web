@@ -17,7 +17,20 @@
     const m = event.data;
     if (!m || m.source !== APP_SOURCE || m.type !== "IMPORT") return;
     if (typeof m.videoId !== "string") return;
-    chrome.runtime.sendMessage({ type: "IMPORT", videoId: m.videoId });
+    chrome.runtime.sendMessage({ type: "IMPORT", videoId: m.videoId }).catch(() => {
+      // Service worker unreachable (e.g. just restarted) — tell the app fast
+      // instead of letting it wait out the full timeout.
+      window.postMessage(
+        {
+          source: EXT_SOURCE,
+          type: "IMPORT_RESULT",
+          videoId: m.videoId,
+          ok: false,
+          error: "Extension unavailable — please try again.",
+        },
+        window.location.origin,
+      );
+    });
   });
 
   // 2b) Background → app.
