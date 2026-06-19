@@ -22,6 +22,8 @@ export type { SectionHeadingProps } from "./components/SectionHeading/SectionHea
 
 export { AppShell } from "./components/AppShell/AppShell";
 export type { AppShellProps, AppShellAccount, NavItem } from "./components/AppShell/AppShell";
+export { buildAppNav, NAV_ICONS } from "./components/AppShell/nav";
+export type { BuildAppNavOptions } from "./components/AppShell/nav";
 
 export { BrandPanel } from "./components/BrandPanel/BrandPanel";
 export type { BrandPanelProps } from "./components/BrandPanel/BrandPanel";

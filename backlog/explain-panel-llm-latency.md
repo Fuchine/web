@@ -156,10 +156,37 @@ LLM_MODEL=minimax-m2.7-highspeed
 
 ---
 
+## Resolução (2026-06-19)
+
+A latência por chamada (~15s) é propriedade do modelo, não dá pra reduzir no
+faturamento — trocar o plano de tokens por API pay-per-use **não** acelera uma
+chamada, só libera concorrência (prefetch paralelo). **Decisão: ficar no plano
+de tokens**, que torna o prefetch barato (já está pago). Migrar pra API só se a
+velocidade de leitura superar o aquecimento serializado (~4 linhas/min).
+
+A correção é arquitetural: garantir que a explicação já esteja pronta quando o
+usuário clica. Implementado em `Player.tsx` + `PlayerExplain.tsx`:
+
+1. **Prefetch por janela atrelado à posição** — bomba sequencial (concorrência
+   1, respeita a serialização da key) que aquece as próximas `PREFETCH_AHEAD`
+   (=4) linhas; re-lê a posição viva a cada passo, então um seek repriorioriza a
+   janela.
+2. **Dedup unificado** — `pendingExplainRef` virou `Map<lineId, Promise>`: um
+   clique focal faz *latch* na request de prefetch em voo em vez de disparar
+   uma segunda. Fecha o gap do clique frio.
+3. **Skeleton** — `ExplainSkeleton` substitui o texto "Generating…" enquanto
+   espera (story `Loading`).
+
+Ganho esperado no fluxo de imersão (1-3 linhas/min): ~90% dos cliques
+instantâneos, espera média 15s → ~1-2s.
+
 ## Tracking
 
-- [ ] Implementar geração offline de explicações no import
-- [ ] Adicionar streaming de resposta do LLM
-- [ ] Considerar Redis para cache de explicações
-- [ ] Adicionar skeleton/loading state no painel enquanto espera
+- [ ] Implementar geração offline de explicações no import (descartado — queima
+      orçamento de tokens em linhas nunca vistas + import lento)
+- [ ] Adicionar streaming de resposta do LLM (polimento de 2ª rodada; complicado
+      pelo contrato JSON único)
+- [ ] Considerar Redis para cache de explicações (pular — PG ~10ms não é o gargalo)
+- [x] Adicionar skeleton/loading state no painel enquanto espera
+- [x] Prefetch por janela atrelado à posição do player + dedup com latch
 - [ ] Dashboard de uso do MiniMax (custo por vídeo, etc.)
