@@ -1,5 +1,8 @@
 import type { Preview } from "@storybook/react";
 import "../src/styles/theme.css";
+import "../src/styles/popup.css";
+import "../src/styles/review.css";
+import "../src/styles/player.css";
 
 const preview: Preview = {
   parameters: {

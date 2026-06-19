@@ -6,12 +6,12 @@ import { AppShell } from "../AppShell/AppShell";
 import { buildAppNav } from "../AppShell/nav";
 import { pickCurrentLine, formatTimecode as fmt, lineHasAudio, chunkIndexForLine } from "@fuchine/core";
 import { PlayerTopBar } from "./PlayerTopBar";
-import { PlayerStage, type PlayerVideoHandle } from "./PlayerStage";
+import { PlayerStage, type PlayerVideoHandle, type DictPopupState } from "./PlayerStage";
 import { PlayerTranscript, type TranscriptLine, type TranscriptToken } from "./PlayerTranscript";
 import type { FocalLine, FocalToken } from "./PlayerFocalSubtitles";
 import { RATES, type PlaybackRate } from "./PlayerControlBar";
 import { PlayerExplain, type ExplainFocal } from "./PlayerExplain";
-import type { Explanation } from "@fuchine/db";
+import type { Explanation, WordEntry } from "@fuchine/db";
 
 export type PlayerVideo = {
   id: string;
@@ -116,9 +116,27 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const handleRef = useRef<PlayerVideoHandle | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
   const lineRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+  const tokenWordRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const previousLineIdxRef = useRef<number>(currentLineIdx);
   const currentLineIdxRef = useRef<number>(currentLineIdx);
   currentLineIdxRef.current = currentLineIdx;
+
+  // ---- Dict popup state ----
+  const [openWordId, setOpenWordId] = useState<string | null>(null);
+  const [dictPopup, setDictPopup] = useState<DictPopupState | null>(null);
+  const [dictEntry, setDictEntry] = useState<WordEntry | null>(null);
+  const [dictLoading, setDictLoading] = useState(false);
+  const [dictError, setDictError] = useState<string | null>(null);
+  const [savedWord, setSavedWord] = useState(false);
+
+  // ---- Mining state ----
+  const [minedCard, setMinedCard] = useState<{ cardId: string; lineId: string; created: boolean } | null>(null);
+  const [miningEntry, setMiningEntry] = useState<{
+    text: string; translation: string | null;
+    target: { surface: string; reading: string | null };
+  } | null>(null);
+  const [isMining, setIsMining] = useState(false);
 
   useEffect(() => {
     if (!isReady || !isPlaying) return;
@@ -398,7 +416,133 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     void pumpPrefetch();
   }, [currentLineIdx, pumpPrefetch]);
 
-  const openExplain = useCallback(() => setActiveRailTab("explain"), []);
+  // ---- Dict popup: position + fetch ----
+  useLayoutEffect(() => {
+    if (!openWordId) {
+      setDictPopup(null);
+      setDictEntry(null);
+      setDictLoading(false);
+      setDictError(null);
+      setSavedWord(false);
+      return;
+    }
+    // Compute position
+    const compute = () => {
+      const stage = stageRef.current;
+      const tokenEl = tokenWordRefs.current.get(openWordId);
+      if (!stage || !tokenEl) return;
+      const s = stage.getBoundingClientRect();
+      const r = tokenEl.getBoundingClientRect();
+      const popW = 324, pad = 18, gap = 12;
+      const center = r.left - s.left + r.width / 2;
+      let left = center - popW / 2;
+      left = Math.max(pad, Math.min(left, s.width - popW - pad));
+      setDictPopup({ wordId: openWordId, surface: "", position: { left, bottom: s.height - (r.top - s.top) + gap, arrowLeft: center - left, w: popW } });
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, [openWordId]);
+
+  // Fetch dict entry when popup opens
+  useEffect(() => {
+    if (!openWordId) return;
+    setDictLoading(true);
+    setDictError(null);
+    setDictEntry(null);
+    fetch(`/api/dictionary?id=${encodeURIComponent(openWordId)}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(r.status === 404 ? "not found" : "fetch failed");
+        return r.json();
+      })
+      .then((data: { entry: WordEntry }) => setDictEntry(data.entry))
+      .catch((err: Error) => setDictError(err.message === "not found" ? "No dictionary entry." : "Could not load definition."))
+      .finally(() => setDictLoading(false));
+  }, [openWordId]);
+
+  // When dict popup closes, reset saved state
+  useEffect(() => {
+    if (!openWordId) setSavedWord(false);
+  }, [openWordId]);
+
+  const openExplain = useCallback(() => {
+    setOpenWordId(null);
+    setActiveRailTab("explain");
+  }, []);
+
+  const handleWordClick = useCallback((wordId: string, _surface: string) => {
+    if (wordId === openWordId) { setOpenWordId(null); return; }
+    setOpenWordId(wordId);
+  }, [openWordId]);
+
+  const handleDictExplain = useCallback(() => {
+    setOpenWordId(null);
+    setActiveRailTab("explain");
+  }, []);
+
+  const handleDictSaveWord = useCallback(() => {
+    if (!openWordId) return;
+    setSavedWord((v) => !v);
+    // Track click in userWordStats via a no-op POST for now
+    // (full implementation will track clicks in userWordStats)
+  }, [openWordId]);
+
+  const handleDictClose = useCallback(() => {
+    setOpenWordId(null);
+  }, []);
+
+  const handleWordRef = useCallback((wordId: string, el: HTMLElement | null) => {
+    if (el) tokenWordRefs.current.set(wordId, el);
+    else tokenWordRefs.current.delete(wordId);
+  }, []);
+
+  const handleMine = useCallback(() => {
+    const line = currentLineIdx >= 0 ? (lines[currentLineIdx] as PlayerSubtitleLine) : undefined;
+    if (!line || isMining) return;
+    const targetToken = line.tokens.find((t) => t.wordEntryId != null);
+    setMiningEntry({
+      text: line.textOriginal,
+      translation: translations.get(line.id) ?? null,
+      target: {
+        surface: targetToken?.surface ?? "",
+        reading: targetToken?.reading ?? null,
+      },
+    });
+    setIsMining(true);
+    setMinedCard(null);
+    fetch("/api/cards", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subtitleLineId: line.id }),
+    })
+      .then((r) => r.json())
+      .then((data: { card?: { id: string; subtitleLineId: string }; created?: boolean }) => {
+        if (data.card) {
+          setMinedCard({ cardId: data.card.id, lineId: data.card.subtitleLineId, created: Boolean(data.created) });
+        }
+      })
+      .catch(() => {
+        /* degrade silently — no toast on network failure for MVP */
+      })
+      .finally(() => setIsMining(false));
+  }, [currentLineIdx, isMining, lines, translations]);
+
+  const handleMinedUndo = useCallback(() => {
+    // Undo: DELETE the card we just created
+    if (!minedCard?.created) { setMinedCard(null); return; }
+    fetch(`/api/cards/${minedCard.cardId}`, { method: "DELETE" })
+      .catch(() => {})
+      .finally(() => setMinedCard(null));
+  }, [minedCard]);
+
+  const handleMinedViewDeck = useCallback(() => {
+    setMinedCard(null);
+    onNavigate?.("review");
+  }, [onNavigate]);
+
+  const handleMinedClose = useCallback(() => {
+    setMinedCard(null);
+  }, []);
 
   const nav = useMemo(
     () => buildAppNav({ activeKey: "home", onNavigate: (key) => onNavigate?.(key) }),
@@ -437,6 +581,16 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const currentLine = currentLineIdx >= 0 ? (lines[currentLineIdx] as PlayerSubtitleLine) : undefined;
   const focal = toFocal(currentLine, translations);
 
+  // Adapt WordEntry (API shape) to DictPopup entry shape
+  const dictPopupEntry = dictEntry ? {
+    word: dictEntry.lemma,
+    reading: dictEntry.reading,
+    pos: dictEntry.pos,
+    frequencyRank: dictEntry.frequencyRank ? Math.min(5, Math.max(1, Math.ceil(dictEntry.frequencyRank / 6000))) : 0,
+    definitions: dictEntry.definitions,
+    lemma: dictEntry.reading ? { word: dictEntry.lemma, reading: dictEntry.reading } : null,
+  } : null;
+
   return (
     <AppShell nav={nav} account={account}>
       <div className={cn("player-page", className)}>
@@ -450,14 +604,35 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
         />
         <div className="player-body">
           <PlayerStage
+            stageRef={stageRef}
             videoId={video.sourceId}
             focalLine={focal}
             showTranslation={showTranslation}
             showFurigana={showFurigana}
+            activeWordId={openWordId}
+            dictPopup={dictPopup}
+            dictEntry={dictPopupEntry}
+            dictLoading={dictLoading}
+            dictError={dictError}
+            dictSaved={savedWord}
+            minedCard={minedCard}
+            miningEntry={miningEntry}
+            miningVideo={video}
+            miningTime={currentLine ? fmt(currentLine.tStartMs / 1000) : "0:00"}
             onReady={onReady}
             onStateChange={onStateChange}
             onError={onError}
+            onWordClick={handleWordClick}
+            onWordRef={handleWordRef}
+            onDictExplain={handleDictExplain}
+            onDictSaveWord={handleDictSaveWord}
+            onDictClose={handleDictClose}
             onExplain={openExplain}
+            onMine={handleMine}
+            isMining={isMining}
+            onMinedUndo={handleMinedUndo}
+            onMinedViewDeck={handleMinedViewDeck}
+            onMinedClose={handleMinedClose}
             controlBar={{
               isPlaying,
               currentMs,

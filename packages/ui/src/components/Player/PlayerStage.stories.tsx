@@ -36,11 +36,22 @@ function Demo() {
   return (
     <div className="bg-bg" style={{ padding: 24 }}>
       <PlayerStage
+        stageRef={null as unknown as React.RefObject<HTMLDivElement>}
         videoId="dQw4w9WgXcQ"
         startAt={0}
         focalLine={FOCAL}
         showTranslation={tr}
         showFurigana={furi}
+        activeWordId={null}
+        dictPopup={null}
+        dictEntry={null}
+        dictLoading={false}
+        dictError={null}
+        dictSaved={false}
+        minedCard={null}
+        miningEntry={null}
+        miningVideo={{ title: "", channel: null }}
+        miningTime="0:00"
         onReady={(h) => setHandle(h)}
         onStateChange={(s) => setPlaying(s === "playing")}
         onError={() => undefined}
@@ -51,6 +62,7 @@ function Demo() {
           playbackRate: rate,
           loopLine: loop,
           formatTimecode: fmt,
+          disabled: false,
           onPlayPause: () => (playing ? handle?.pause() : handle?.play()),
           onSkip: (d) => handle && setMs((m) => Math.max(0, Math.min(862_000, m + d))),
           onSeek: (target) => handle?.seekTo(target / 1000),
@@ -62,7 +74,13 @@ function Demo() {
             setRate(next);
             handle?.setPlaybackRate(next);
           },
+          onVolume: () => undefined,
+          onFullscreen: () => undefined,
         }}
+        onWordClick={() => {}}
+        onWordRef={() => {}}
+        onExplain={() => {}}
+        onMine={() => {}}
       />
     </div>
   );

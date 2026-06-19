@@ -10,11 +10,11 @@ let buildPromise: Promise<KuromojiTokenizer<IpadicFeatures>> | null = null;
 async function buildKuromoji(): Promise<KuromojiTokenizer<IpadicFeatures>> {
   if (!buildPromise) {
     buildPromise = (async () => {
-      const { createRequire } = await import("node:module");
-      const { dirname, join } = await import("node:path");
+      /* webpackIgnore: true */ const { createRequire } = await import("module");
+      /* webpackIgnore: true */ const { dirname, join } = await import("path");
       const kuromoji = (await import("kuromoji")).default;
-      const require = createRequire(import.meta.url);
-      const dicPath = join(dirname(require.resolve("kuromoji/package.json")), "dict");
+      const req = createRequire(import.meta.url);
+      const dicPath = join(dirname(req.resolve("kuromoji/package.json")), "dict");
       return new Promise<KuromojiTokenizer<IpadicFeatures>>((resolve, reject) => {
         kuromoji.builder({ dicPath }).build((err, tokenizer) => {
           if (err) reject(err);

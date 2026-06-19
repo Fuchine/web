@@ -184,6 +184,9 @@ importers:
       '@fuchine/db':
         specifier: workspace:*
         version: link:../db
+      '@fuchine/nlp':
+        specifier: workspace:*
+        version: link:../nlp
     devDependencies:
       '@storybook/addon-essentials':
         specifier: ^8.4.7

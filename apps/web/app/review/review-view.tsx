@@ -1,17 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@fuchine/ui";
-type ReviewItem = {
-  cardId: string;
-  videoId: string;
-  cardType: string;
-  notes: string | null;
-  due: Date;
-  clip: { source: string; sourceId: string; startMs: number; endMs: number };
-  sentence: { text: string; translation: string | null };
-  intervals: Record<string, Date>;
-};
+import { Button, ReviewSession, type ReviewSessionProps, type ReviewItem } from "@fuchine/ui";
 
 function youtubeThumbnail(sourceId: string) {
   return `https://img.youtube.com/vi/${sourceId}/mqdefault.jpg`;
@@ -30,8 +20,13 @@ const PlayIcon = () => (
 );
 
 export function ReviewView({ initialQueue }: { initialQueue: ReviewItem[] }) {
+  const [mode, setMode] = useState<"list" | "session">("list");
   const [queue] = useState(initialQueue as ReviewItem[]);
   const calm = queue.length === 0;
+
+  if (mode === "session") {
+    return <ReviewSession queue={initialQueue as ReviewSessionProps["queue"]} onComplete={() => setMode("list")} />;
+  }
 
   return (
     <div className="px-8 py-9">
@@ -74,7 +69,7 @@ export function ReviewView({ initialQueue }: { initialQueue: ReviewItem[] }) {
         </div>
 
         {!calm && (
-          <Button variant="primary" icon={<PlayIcon />}>
+          <Button variant="primary" icon={<PlayIcon />} onClick={() => setMode("session")}>
             Review now
           </Button>
         )}

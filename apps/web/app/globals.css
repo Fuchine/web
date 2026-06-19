@@ -6,3 +6,9 @@
 
 /* shared Fuchine tokens + Tailwind theme mapping (light + dark) */
 @import "@fuchine/ui/theme-map.css";
+
+/* Popup overlay styles (DictPopup, MinedCard) */
+@import "@fuchine/ui/popup.css";
+
+/* Review session styles */
+@import "@fuchine/ui/review.css";

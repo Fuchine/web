@@ -52,4 +52,12 @@ export type {
 export { RATES } from "./components/Player/PlayerControlBar";
 export type { PlaybackRate, PlayerControlBarProps } from "./components/Player/PlayerControlBar";
 
+// T1.4 — dict popup + T1.6 — sentence mining
+export { DictPopup } from "./components/DictPopup/DictPopup";
+export { MinedCard } from "./components/MinedCard/MinedCard";
+
+// T1.7 — Review Session
+export { ReviewSession } from "./components/Review/ReviewSession";
+export type { ReviewSessionProps, ReviewItem } from "./components/Review/ReviewSession";
+
 export { cn } from "./lib/cn";

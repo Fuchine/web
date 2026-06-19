@@ -9,7 +9,10 @@
     ".": "./src/index.ts",
     "./styles.css": "./src/styles/theme.css",
     "./theme-map.css": "./src/styles/theme-map.css",
-    "./tokens.css": "./src/styles/tokens.css"
+    "./tokens.css": "./src/styles/tokens.css",
+    "./popup.css": "./src/styles/popup.css",
+    "./review.css": "./src/styles/review.css",
+    "./player.css": "./src/styles/player.css"
   },
   "scripts": {
     "storybook": "storybook dev -p 6006 --no-open",
@@ -22,7 +25,8 @@
   },
   "dependencies": {
     "@fuchine/core": "workspace:*",
-    "@fuchine/db": "workspace:*"
+    "@fuchine/db": "workspace:*",
+    "@fuchine/nlp": "workspace:*"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "^8.4.7",
