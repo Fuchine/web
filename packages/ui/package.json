@@ -24,7 +24,8 @@
   },
   "dependencies": {
     "@fuchine/core": "workspace:*",
-    "@fuchine/db": "workspace:*"
+    "@fuchine/db": "workspace:*",
+    "@fuchine/nlp": "workspace:*"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "^8.4.7",
