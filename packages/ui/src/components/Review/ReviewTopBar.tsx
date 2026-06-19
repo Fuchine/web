@@ -1,4 +1,4 @@
-interface ReviewTopBarProps {
+export interface ReviewTopBarProps {
   current: number;
   total: number;
   againCount: number;
