@@ -4,16 +4,33 @@
 importScripts("capture.js"); // defines extractCaptions, enableCaptions
 
 const CAPTURE_WAIT_MS = 2500;
+const LOAD_TIMEOUT_MS = 30000;
 
 function waitForComplete(tabId) {
-  return new Promise((resolve) => {
-    function listener(id, info) {
-      if (id === tabId && info.status === "complete") {
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
-      }
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    function finish(fn, arg) {
+      if (settled) return;
+      settled = true;
+      chrome.tabs.onUpdated.removeListener(listener);
+      clearTimeout(timer);
+      fn(arg);
     }
+    function listener(id, info) {
+      if (id === tabId && info.status === "complete") finish(resolve);
+    }
+    const timer = setTimeout(
+      () => finish(reject, new Error("YouTube tab took too long to load")),
+      LOAD_TIMEOUT_MS,
+    );
     chrome.tabs.onUpdated.addListener(listener);
+    // Guard the race: the tab may already be "complete" before the listener was added.
+    chrome.tabs
+      .get(tabId)
+      .then((tab) => {
+        if (tab && tab.status === "complete") finish(resolve);
+      })
+      .catch(() => {});
   });
 }
 
