@@ -1,0 +1,744 @@
+/* Fuchine — Import video modal. CSS module. */
+
+.stage {
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 22, 34, 0.30);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  padding: 36px;
+}
+
+/* ============================================================
+   Dialog shell
+   ============================================================ */
+.modal {
+  width: 100%;
+  max-width: 456px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: modalIn 0.42s var(--ease) 0.05s both;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+.modalHead {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 18px 18px 18px 20px;
+}
+
+.hmark {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--accent-soft-2);
+  color: var(--link);
+  display: grid;
+  place-items: center;
+}
+
+.hmark svg {
+  width: 17px;
+  height: 17px;
+}
+
+.htitle {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.hclose {
+  margin-left: auto;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--text-faint);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.hclose:hover {
+  background: var(--bg-2);
+  color: var(--text-muted);
+}
+
+.hclose svg {
+  width: 17px;
+  height: 17px;
+}
+
+.modalBody {
+  padding: 6px 24px 24px;
+}
+
+/* ============================================================
+   Paste field (empty)
+   ============================================================ */
+.pasteLabel {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 4px 0 18px;
+  line-height: 1.55;
+}
+
+.pasteField {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.ytIcon {
+  position: absolute;
+  left: 15px;
+  width: 19px;
+  height: 19px;
+  color: var(--text-faint);
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+}
+
+.ytIcon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.pasteInput {
+  width: 100%;
+  height: 50px;
+  padding: 0 15px 0 46px;
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--text);
+  background: var(--field-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease);
+}
+
+.pasteInput::placeholder {
+  color: var(--text-faint);
+}
+
+.pasteInput:hover {
+  border-color: var(--text-faint);
+}
+
+.pasteInput:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3.5px var(--accent-ring);
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.modalFoot {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.modalFoot.end {
+  justify-content: flex-end;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  height: 46px;
+  padding: 0 20px;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 550;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.16s var(--ease), border-color 0.16s, color 0.16s, transform 0.1s;
+}
+
+.btn svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+
+.btn:active {
+  transform: translateY(0.5px);
+}
+
+.btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.btnBlock {
+  width: 100%;
+}
+
+.btnGrow {
+  flex: 1;
+}
+
+.btnPrimary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btnPrimary:active {
+  background: var(--accent-press);
+}
+
+.btnGhost {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.btnGhost:hover {
+  border-color: var(--text-faint);
+}
+
+.spinnerLg {
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+
+.spinnerSm {
+  width: 15px;
+  height: 15px;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   Validating
+   ============================================================ */
+.validating {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 26px 4px 30px;
+}
+
+.vText {}
+
+.vTitle {
+  font-size: 15px;
+  font-weight: 550;
+  color: var(--text);
+  margin: 0 0 3px;
+}
+
+.vSub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.vUrl {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+/* ============================================================
+   Video preview card
+   ============================================================ */
+.preview {
+  display: flex;
+  gap: 15px;
+  padding: 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 16px;
+}
+
+.thumb {
+  flex: none;
+  width: 152px;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+  background: linear-gradient(155deg, var(--indigo-2), var(--indigo-deep));
+}
+
+.thumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbSm {
+  width: 64px;
+}
+
+.previewMeta {
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.pTitle {
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--text);
+  margin: 0 0 7px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.pChan {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* subtitle confirmation */
+.subsFound {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 13px;
+  background: var(--ok-soft);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+
+.ic {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ok);
+  color: var(--surface);
+  display: grid;
+  place-items: center;
+}
+
+.ic svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.4;
+}
+
+.sfText {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.sfText b {
+  font-weight: 600;
+}
+
+/* track selector */
+.trackSelect {
+  margin-bottom: 16px;
+}
+
+.tsLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin: 0 0 7px;
+}
+
+.trackDd {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.trackDd select {
+  width: 100%;
+  height: 42px;
+  padding: 0 38px 0 13px;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--text);
+  background: var(--field-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+
+.trackDd select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3.5px var(--accent-ring);
+}
+
+.chev {
+  position: absolute;
+  right: 13px;
+  width: 16px;
+  height: 16px;
+  color: var(--text-faint);
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+}
+
+.chev svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* extension note */
+.extensionNote {
+  background: var(--accent-soft-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.extensionNote p {
+  margin: 0 0 8px;
+}
+
+.extensionLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--link);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.extensionLink:hover {
+  color: var(--link-hover);
+}
+
+/* ============================================================
+   Rejection
+   ============================================================ */
+.notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 12px 8px 20px;
+}
+
+.notice.reject .nIc {
+  background: var(--bg-2);
+  color: var(--text-muted);
+}
+
+.notice.reject .nIc svg {
+  width: 24px;
+  height: 24px;
+}
+
+.notice .nTitle {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.notice .nBody {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0;
+  max-width: 32ch;
+}
+
+.nIc {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+}
+
+.rejectVid {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 18px;
+}
+
+.rvTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+}
+
+/* ============================================================
+   Processing
+   ============================================================ */
+.processing {
+  padding: 8px 0 6px;
+}
+
+.procHead {
+  font-size: 14px;
+  font-weight: 550;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.procSub {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin: 0 0 20px;
+}
+
+.procBar {
+  height: 6px;
+  border-radius: 4px;
+  background: var(--accent-soft-2);
+  overflow: hidden;
+  margin-bottom: 22px;
+}
+
+.procBar > i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  transition: width 0.5s var(--ease);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 4px;
+}
+
+.sIc {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.sLabel {
+  font-size: 14px;
+}
+
+.sAside {
+  margin-left: auto;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sAside svg {
+  width: 15px;
+  height: 15px;
+}
+
+.done .sIc {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.done .sLabel {
+  color: var(--text-muted);
+}
+
+.done .sAside {
+  color: var(--ok);
+}
+
+.active .sIc {
+  background: var(--accent-soft-2);
+  color: var(--accent);
+}
+
+.active .sLabel {
+  color: var(--text);
+  font-weight: 550;
+}
+
+.active .sAside {
+  color: var(--link);
+}
+
+.pending .sIc {
+  background: var(--bg-2);
+  color: var(--text-faint);
+}
+
+.pending .sLabel {
+  color: var(--text-faint);
+}
+
+.sNum {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ============================================================
+   Done
+   ============================================================ */
+.doneState .nIc {
+  background: var(--ok-soft);
+  color: var(--ok);
+  border-radius: 50%;
+}
+
+.doneState .nIc svg {
+  width: 26px;
+  height: 26px;
+  stroke-width: 2;
+}
+
+.successPop {
+  animation: pop 0.4s var(--ease) 0.08s both;
+}
+
+@keyframes pop {
+  from { transform: scale(0.7); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.doneMeta {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  background: var(--bg-2);
+  border-radius: var(--radius);
+  margin-bottom: 18px;
+  width: 100%;
+}
+
+.dmT {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text);
+  text-align: left;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dmS {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  text-align: left;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   Failed
+   ============================================================ */
+.notice.fail .nIc {
+  background: color-mix(in oklch, var(--error) 12%, transparent);
+  color: var(--error);
+}
+
+.notice.fail .nIc svg {
+  width: 24px;
+  height: 24px;
+}
+
+.notice.fail .nTitle {
+  color: var(--text);
+}
+
+.failReason {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  margin-top: 14px;
+  padding: 8px 12px;
+  background: var(--bg-2);
+  border-radius: 8px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/* fade between states */
+.stateFade {
+  animation: stateFade 0.32s var(--ease) 0.04s both;
+}
+
+@keyframes stateFade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
