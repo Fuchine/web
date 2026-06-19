@@ -9,7 +9,9 @@
     ".": "./src/index.ts",
     "./styles.css": "./src/styles/theme.css",
     "./theme-map.css": "./src/styles/theme-map.css",
-    "./tokens.css": "./src/styles/tokens.css"
+    "./tokens.css": "./src/styles/tokens.css",
+    "./popup.css": "./src/styles/popup.css",
+    "./review.css": "./src/styles/review.css"
   },
   "scripts": {
     "storybook": "storybook dev -p 6006 --no-open",
