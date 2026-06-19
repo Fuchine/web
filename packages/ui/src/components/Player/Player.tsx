@@ -106,6 +106,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   );
   const doneChunksRef = useRef<Set<number>>(new Set(translatedChunks ?? []));
   const inFlightChunksRef = useRef<Set<number>>(new Set());
+  const pendingExplainRef = useRef<Set<string>>(new Set());
 
   const handleRef = useRef<PlayerVideoHandle | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
@@ -294,6 +295,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
         setExplainError("Could not generate an explanation right now.");
       } finally {
         setExplainLoading(false);
+        pendingExplainRef.current.delete(lineId);
       }
     },
     [onFetchExplanation],
@@ -316,11 +318,14 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     );
     for (const idx of toFetch) {
       const line = lines[idx] as PlayerSubtitleLine | undefined;
-      if (!line || explanations.has(line.id)) continue;
+      if (!line || explanations.has(line.id) || pendingExplainRef.current.has(line.id)) continue;
+      pendingExplainRef.current.add(line.id);
       void onFetchExplanation(line.id).then((ex) => {
         setExplanations((prev) => new Map(prev).set(line.id, ex));
       }).catch(() => {
         /* silent — prefetch failures are non-critical */
+      }).finally(() => {
+        pendingExplainRef.current.delete(line.id);
       });
     }
   }, [currentLineIdx, lines, explanations, onFetchExplanation]);
