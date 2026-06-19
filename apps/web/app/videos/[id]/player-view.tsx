@@ -45,7 +45,7 @@ export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "o
       onFetchChunk={onFetchChunk}
       onFetchExplanation={onFetchExplanation}
       onBack={() => router.push("/")}
-      onNavigate={(key) => router.push(key === "library" ? "/" : `/${key}`)}
+      onNavigate={(key) => router.push(key === "home" ? "/" : `/${key}`)}
     />
   );
 }
