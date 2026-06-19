@@ -102,7 +102,7 @@ async function callWithRetry<T>(fn: () => Promise<T>): Promise<T> {
   const MAX_RETRIES = 3;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      return await withTimeout(fn(), 12_000); // 12s per attempt
+      return await withTimeout(fn(), 25_000); // 25s per attempt (MiniMax can take ~15s)
     } catch (err) {
       if (attempt === MAX_RETRIES) throw err;
       const delay = err instanceof RateLimitError
