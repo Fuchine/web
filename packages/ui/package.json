@@ -11,7 +11,8 @@
     "./theme-map.css": "./src/styles/theme-map.css",
     "./tokens.css": "./src/styles/tokens.css",
     "./popup.css": "./src/styles/popup.css",
-    "./review.css": "./src/styles/review.css"
+    "./review.css": "./src/styles/review.css",
+    "./player.css": "./src/styles/player.css"
   },
   "scripts": {
     "storybook": "storybook dev -p 6006 --no-open",

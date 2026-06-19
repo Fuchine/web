@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { cn } from "../../lib/cn";
 import { ReviewSource } from "./ReviewSource";
 
@@ -16,7 +17,9 @@ export interface ReviewCardProps {
   revealed: boolean;
   clip: { sourceId: string; startMs: number; endMs: number };
   source: { channel: string; videoTitle: string; thumbnailUrl: string };
+  notes: string | null;
   onPlayClip: () => void;
+  onEditNotes?: (notes: string) => void;
 }
 
 function splitSentence(text: string, target: TargetWord): {
@@ -24,7 +27,7 @@ function splitSentence(text: string, target: TargetWord): {
   blank: string;
   after: string;
 } {
-  const idx = text.indexOf(target.surface);
+  const idx = text.lastIndexOf(target.surface);
   if (idx === -1) return { before: text, blank: "", after: "" };
   return {
     before: text.slice(0, idx),
@@ -54,11 +57,21 @@ export function ReviewCard({
   target,
   revealed,
   source,
+  notes,
   onPlayClip,
+  onEditNotes,
 }: ReviewCardProps) {
   const { before, blank, after } = target
     ? splitSentence(sentence.text, target)
     : { before: "", blank: "", after: sentence.text };
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(notes ?? "");
+
+  function handleSave() {
+    onEditNotes?.(draft);
+    setEditing(false);
+  }
 
   return (
     <div className={cn("card", "rise")}>
@@ -114,6 +127,41 @@ export function ReviewCard({
             <div className="cr-row">
               <span className="cr-k">Meaning</span>
               <span className="cr-v">{target.meanings.join("; ")}</span>
+            </div>
+            <div className="cr-row">
+              <span className="cr-k">Notes</span>
+              <span className="cr-v">
+                {editing ? (
+                  <span className="cr-edit">
+                    <textarea
+                      className="cr-notes-input"
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      rows={2}
+                    />
+                    <button
+                      className="cr-save-btn"
+                      onClick={handleSave}
+                      type="button"
+                    >
+                      Save
+                    </button>
+                  </span>
+                ) : (
+                  <span className="cr-notes">
+                    {notes || <span className="cr-no-notes">Add notes…</span>}
+                    {onEditNotes && (
+                      <button
+                        className="cr-edit-btn"
+                        onClick={() => { setDraft(notes ?? ""); setEditing(true); }}
+                        type="button"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </span>
+                )}
+              </span>
             </div>
           </div>
           <ReviewSource

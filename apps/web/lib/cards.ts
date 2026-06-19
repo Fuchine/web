@@ -1,7 +1,7 @@
 // Mining + SRS review (F1, T1.6/T1.7). Auth-agnostic and testable.
 
-import { and, asc, eq, lte } from "drizzle-orm";
-import { type Database, sentenceCards, subtitleLines, videos, reviewLogs } from "@fuchine/db";
+import { and, asc, eq, inArray, lte } from "drizzle-orm";
+import { type Database, sentenceCards, subtitleLines, videos, reviewLogs, wordEntries, type Token, type Definition } from "@fuchine/db";
 import { newCardState, reviewCard, previewIntervals, type CardState, type ReviewGrade } from "@fuchine/core";
 
 export type Result = { status: number; body: Record<string, unknown> };
@@ -71,6 +71,7 @@ export async function getReviewQueue(db: Database, userId: string, limit = 20) {
       textOriginal: subtitleLines.textOriginal, textTranslation: subtitleLines.textTranslation,
       tStartMs: subtitleLines.tStartMs, tEndMs: subtitleLines.tEndMs,
       source: videos.source, sourceId: videos.sourceId,
+      tokens: subtitleLines.tokens,
     })
     .from(sentenceCards)
     .innerJoin(subtitleLines, eq(subtitleLines.id, sentenceCards.subtitleLineId))
@@ -79,15 +80,36 @@ export async function getReviewQueue(db: Database, userId: string, limit = 20) {
     .orderBy(asc(sentenceCards.due))
     .limit(limit);
 
+  const allTokenRows: Token[] = rows
+    .map((r) => (r.tokens as Token[]) ?? [])
+    .flat();
+  const uniqueIds = [...new Set(allTokenRows.map((t) => t.wordEntryId).filter(Boolean))];
+
+  const entries =
+    uniqueIds.length > 0
+      ? await db
+          .select({ id: wordEntries.id, reading: wordEntries.reading, lemma: wordEntries.lemma, definitions: wordEntries.definitions, pos: wordEntries.pos })
+          .from(wordEntries)
+          .where(inArray(wordEntries.id, uniqueIds as string[]))
+      : [];
+
+  const wordEntriesMap: Record<string, { reading: string; lemma: string; definitions: Definition[]; pos: string }> = {};
+  for (const e of entries) {
+    wordEntriesMap[e.id] = { reading: e.reading ?? "", lemma: e.lemma, definitions: e.definitions, pos: e.pos ?? "" };
+  }
+
   return rows.map((r) => ({
     cardId: r.cardId,
     videoId: r.videoId,
     cardType: r.cardType,
     notes: r.notes,
     due: r.due,
+    state: r.state,
     clip: { source: r.source, sourceId: r.sourceId, startMs: r.tStartMs, endMs: r.tEndMs },
     sentence: { text: r.textOriginal, translation: r.textTranslation },
     intervals: previewIntervals(stateOf(r)),
+    tokens: (r.tokens as Token[]) ?? [],
+    wordEntriesMap,
   }));
 }
 

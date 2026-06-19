@@ -205,6 +205,14 @@
 .cr-v { font-size: 15px; color: var(--text); font-weight: 500; }
 .cr-v .cr-r { font-size: 13px; font-weight: 400; color: var(--text-muted); margin-left: 6px; }
 
+.cr-notes { display: flex; align-items: baseline; gap: 10px; }
+.cr-no-notes { color: var(--text-faint); font-style: italic; font-size: 14px; }
+.cr-edit-btn { font-size: 12px; color: var(--accent); background: none; border: none; cursor: pointer; padding: 0; font-weight: 600; }
+.cr-edit-btn:hover { color: var(--on-accent); }
+.cr-edit { display: flex; flex-direction: column; gap: 6px; }
+.cr-notes-input { width: 100%; resize: vertical; min-height: 52px; font-size: 14px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--field-bg-2); color: var(--text); font-family: inherit; }
+.cr-save-btn { align-self: flex-end; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: var(--radius); background: var(--accent); color: var(--on-accent); border: none; cursor: pointer; }
+
 .cr-source {
   display: flex; align-items: center; gap: 13px;
   margin-top: 18px;
@@ -297,3 +305,53 @@
 .jp {
   font-family: 'Noto Sans JP', sans-serif;
 }
+
+/* ---- Session summary ---- */
+.rev-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+  padding: 40px 24px;
+}
+.summary-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--ok-soft);
+  color: var(--ok);
+  display: grid;
+  place-items: center;
+}
+.summary-icon svg { width: 32px; height: 32px; }
+.summary-title {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+.summary-sub {
+  font-size: 15px;
+  color: var(--text-muted);
+  margin: 0;
+}
+.summary-btn {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 24px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.summary-btn:hover { background: var(--accent-hover); }

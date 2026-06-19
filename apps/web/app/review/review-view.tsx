@@ -1,17 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, ReviewSession, type ReviewSessionProps } from "@fuchine/ui";
-type ReviewItem = {
-  cardId: string;
-  videoId: string;
-  cardType: string;
-  notes: string | null;
-  due: Date;
-  clip: { source: string; sourceId: string; startMs: number; endMs: number };
-  sentence: { text: string; translation: string | null };
-  intervals: Record<string, Date>;
-};
+import { Button, ReviewSession, type ReviewSessionProps, type ReviewItem } from "@fuchine/ui";
 
 function youtubeThumbnail(sourceId: string) {
   return `https://img.youtube.com/vi/${sourceId}/mqdefault.jpg`;

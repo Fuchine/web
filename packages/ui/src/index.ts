@@ -58,6 +58,6 @@ export { MinedCard } from "./components/MinedCard/MinedCard";
 
 // T1.7 — Review Session
 export { ReviewSession } from "./components/Review/ReviewSession";
-export type { ReviewSessionProps } from "./components/Review/ReviewSession";
+export type { ReviewSessionProps, ReviewItem } from "./components/Review/ReviewSession";
 
 export { cn } from "./lib/cn";

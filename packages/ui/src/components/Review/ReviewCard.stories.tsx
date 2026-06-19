@@ -37,6 +37,7 @@ export const QuestionState: Story = {
     revealed: false,
     clip: CLIP,
     source: SOURCE,
+    notes: null,
     onPlayClip: () => console.log("Play clip clicked"),
   },
 };
@@ -51,7 +52,9 @@ export const AnswerRevealed: Story = {
     revealed: true,
     clip: CLIP,
     source: SOURCE,
+    notes: "Some context about this sentence",
     onPlayClip: () => console.log("Play clip clicked"),
+    onEditNotes: (notes: string) => console.log("Edit notes:", notes),
   },
 };
 
@@ -65,6 +68,7 @@ export const NoTarget: Story = {
     revealed: false,
     clip: CLIP,
     source: SOURCE,
+    notes: null,
     onPlayClip: () => console.log("Play clip clicked"),
   },
 };
