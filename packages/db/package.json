@@ -12,19 +12,23 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
     "studio": "drizzle-kit studio",
     "seed": "tsx --max-old-space-size=4096 src/seed/index.ts",
-    "seed:fixture": "tsx src/seed/index.ts seeds/fixtures/jmdict-sample.json seeds/fixtures/frequency-sample.tsv"
+    "seed:fixture": "tsx src/seed/index.ts seeds/fixtures/jmdict-sample.json seeds/fixtures/frequency-sample.tsv",
+    "seed:jmdict": "tsx --max-old-space-size=4096 src/seed/jmdict-cli.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.38.4",
+    "fflate": "^0.8.2",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
     "drizzle-kit": "^0.30.2",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "vitest": "^2.1.9"
   }
 }
