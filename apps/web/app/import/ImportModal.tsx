@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { parseYouTubeId } from "@/lib/youtube";
+import { isExtensionInstalled, requestImport } from "@/lib/extension-bridge";
 import styles from "./import-modal.module.css";
 
 type State =
@@ -229,8 +230,14 @@ export function ImportModal({ onClose }: ImportModalProps) {
   const [errorMsg, setErrorMsg] = useState("");
   const [selectedTrack, setSelectedTrack] = useState("ja");
   const [importedVideoId, setImportedVideoId] = useState<string | null>(null);
+  const [extReady, setExtReady] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null!);
+  const importingRef = useRef(false);
   const router = useRouter();
+
+  useEffect(() => {
+    setExtReady(isExtensionInstalled());
+  }, []);
 
   const go = (next: State) => setState(next);
 
@@ -263,14 +270,35 @@ export function ImportModal({ onClose }: ImportModalProps) {
     }
   }
 
-  function handleStartStudy() {
+  async function handleStartStudy() {
     if (importedVideoId) {
       router.push(`/videos/${importedVideoId}`);
-    } else if (video) {
-      go("processing");
-      setTimeout(() => {
+      return;
+    }
+    if (!video) return;
+    if (importingRef.current) return;
+
+    // Check live (not the post-mount `extReady` snapshot) so a "Try again"
+    // after installing the extension mid-session works.
+    if (!isExtensionInstalled()) {
+      setErrorMsg("The Fuchine extension isn't installed.");
+      go("failed");
+      return;
+    }
+
+    importingRef.current = true;
+    go("processing");
+    try {
+      const result = await requestImport(video.id);
+      if (result.ok) {
+        setImportedVideoId(video.id);
         go("done");
-      }, 2500);
+      } else {
+        setErrorMsg(result.error ?? "Import failed.");
+        go("failed");
+      }
+    } finally {
+      importingRef.current = false;
     }
   }
 
@@ -310,6 +338,7 @@ export function ImportModal({ onClose }: ImportModalProps) {
                 selectedTrack={selectedTrack}
                 onTrackChange={setSelectedTrack}
                 onStartStudy={handleStartStudy}
+                extReady={extReady}
               />
             )}
             {state === "reject" && (
@@ -398,11 +427,13 @@ function ValidPreview({
   selectedTrack,
   onTrackChange,
   onStartStudy,
+  extReady,
 }: {
   video: VideoPreview;
   selectedTrack: string;
   onTrackChange: (v: string) => void;
   onStartStudy: () => void;
+  extReady: boolean;
 }) {
   return (
     <div className={styles.stateFade}>
@@ -466,12 +497,23 @@ function ValidPreview({
       </div>
 
       <div className={styles.modalFoot}>
-        <button
-          className={`${styles.btn} ${styles.btnPrimary} ${styles.btnBlock}`}
-          onClick={onStartStudy}
-        >
-          <PlayIcon /> Open video
-        </button>
+        {extReady ? (
+          <button
+            className={`${styles.btn} ${styles.btnPrimary} ${styles.btnBlock}`}
+            onClick={onStartStudy}
+          >
+            <PlayIcon /> Import &amp; study
+          </button>
+        ) : (
+          <a
+            className={`${styles.btn} ${styles.btnPrimary} ${styles.btnBlock}`}
+            href="/extension"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <DownloadIcon /> Install the extension
+          </a>
+        )}
       </div>
     </div>
   );
@@ -526,8 +568,7 @@ const PIPELINE = [
 function Processing() {
   const [step, setStep] = useState(0);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useState(() => {
+  useEffect(() => {
     const interval = setInterval(() => {
       setStep((s) => {
         if (s >= PIPELINE.length) {
@@ -538,7 +579,7 @@ function Processing() {
       });
     }, 1300);
     return () => clearInterval(interval);
-  });
+  }, []);
 
   const pct = Math.min(
     100,
@@ -592,7 +633,6 @@ function Done({
   onStartStudy,
 }: {
   video: VideoPreview;
-  importedVideoId?: string | null;
   onStartStudy: () => void;
 }) {
   return (
