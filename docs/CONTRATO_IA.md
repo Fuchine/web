@@ -108,17 +108,26 @@ Passar os `tokens` da camada 0 não é redundância: ancora a explicação na me
 
 ```ts
 type Explanation = {
-  summary: string;                 // sentido da frase, em explanation_language
-  grammarPoints: GrammarPoint[];   // sempre presente; pode ser vazio
-  nuance: string | null;           // registro, gíria, nota cultural; null se nada notável
+  breakdown: ExplanationPart[]; // percurso ordenado das partes salientes (teto 8)
+  plainTerms: string;           // prosa "in plain terms", em explanation_language
 };
 
-type GrammarPoint = {
-  pattern: string;                 // a forma gramatical, em japonês: 〜てしまう
-  level: JlptLevel | null;         // nível estimado; null se não classificável
-  explanation: string;             // em explanation_language
+type ExplanationPart = {
+  surface: string;  // trecho em japonês; pode abranger vários tokens (歩いて います)
+  tag: "noun" | "verb" | "adjective" | "adverb" | "particle" | "grammar" | "expression";
+  gloss: string;    // rótulo curto em explanation_language
+  note: string;     // uma frase de explicação em explanation_language
+  accent?: boolean; // a parte mais importante, destacada
 };
 ```
+
+> **Atualização 2026-06-18 — `prompt_version = 2`.** O shape mudou de
+> `{ summary, grammarPoints, nuance }` para `{ breakdown, plainTerms }` (mais rico,
+> casa com o painel Explain). Entradas v1 no cache ficam órfãs e inofensivas (§5.3).
+> **Provider:** o cache-miss usa a chave BYOK do usuário quando configurada; sem
+> ela, cai para a *house key* (env `LLM_*`) — pequeno desvio do §6.2, justificado
+> enquanto não há tela de Settings. **Regenerate:** `POST /api/lines/[id]/explain`
+> com `{ force: true }` ignora e sobrescreve o cache.
 
 ### 4.3. Em qual idioma cada campo vem
 
