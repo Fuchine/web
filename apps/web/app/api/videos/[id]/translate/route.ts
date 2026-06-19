@@ -12,9 +12,11 @@ export async function POST(
   if (!session?.user?.id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  // Shared-cache model: videos are global (no per-user ownership), so any
+  // signed-in user may trigger translation; results are reused across users.
   const { id } = await ctx.params;
   const body = (await req.json().catch(() => ({}))) as { chunkIdx?: unknown };
-  if (typeof body.chunkIdx !== "number" || body.chunkIdx < 0) {
+  if (typeof body.chunkIdx !== "number" || !Number.isInteger(body.chunkIdx) || body.chunkIdx < 0) {
     return NextResponse.json({ error: "chunkIdx (number >= 0) required" }, { status: 400 });
   }
   const result = await translateChunk(db, id, body.chunkIdx);
