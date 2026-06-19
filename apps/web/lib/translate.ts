@@ -9,7 +9,8 @@ import {
   subtitleLines,
   subtitleTranslationChunks,
 } from "@fuchine/db";
-import { createProvider, type LlmProvider, type ProviderName } from "@fuchine/llm";
+import { type LlmProvider } from "@fuchine/llm";
+import { houseProvider } from "./house-provider";
 import { lineRangeForChunk } from "@fuchine/core";
 
 export type ChunkLine = { id: string; textTranslation: string | null };
@@ -18,15 +19,6 @@ export type Result = {
   body: { lines?: ChunkLine[]; cached?: boolean; error?: string };
 };
 
-/** Build the self-host house provider from env (same vars as the worker). */
-export function houseProvider(): LlmProvider {
-  return createProvider({
-    provider: (process.env.LLM_PROVIDER ?? "echo") as ProviderName,
-    apiKey: process.env.LLM_API_KEY,
-    baseUrl: process.env.LLM_BASE_URL || undefined,
-    model: process.env.LLM_MODEL || undefined,
-  });
-}
 
 /**
  * True when the provider almost certainly failed: every line came back null

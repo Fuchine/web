@@ -13,6 +13,7 @@ import {
   ProviderError,
   type SubtitleLineCtx,
 } from "@fuchine/llm";
+import { houseProvider } from "./house-provider";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
@@ -20,7 +21,7 @@ export async function explainLine(
   db: Database,
   userId: string,
   lineId: string,
-  opts: { encryptionKey?: string },
+  opts: { encryptionKey?: string; force?: boolean },
 ): Promise<Result> {
   const [line] = await db
     .select()
@@ -41,21 +42,21 @@ export async function explainLine(
     explanationLanguage,
     promptVersion: PROMPT_VERSION,
   };
-  const cached = await getCachedExplanation(db, key);
-  if (cached) return { status: 200, body: { explanation: cached, cached: true } };
-
-  // Miss → need the user's provider.
-  if (!opts.encryptionKey) {
-    return { status: 500, body: { error: "server encryption key not configured" } };
+  if (!opts.force) {
+    const cached = await getCachedExplanation(db, key);
+    if (cached) return { status: 200, body: { explanation: cached, cached: true } };
   }
+
+  // Miss → need a provider. BYOK wins when configured; otherwise fall back to the house key.
   let provider;
   try {
-    provider = await resolveUserProvider(db, userId, opts.encryptionKey);
+    provider = await resolveUserProvider(db, userId, opts.encryptionKey ?? "");
   } catch (err) {
     if (err instanceof MissingApiKeyError) {
-      return { status: 422, body: { error: err.message, needsKey: true } };
+      provider = houseProvider();
+    } else {
+      throw err;
     }
-    throw err;
   }
 
   // Build the context: the line plus its neighbors and tokens (CONTRATO §4.1).
@@ -81,7 +82,10 @@ export async function explainLine(
   };
 
   try {
-    const explanation = await explainLineCached(db, provider, lineId, ctx, { explanationLanguage });
+    const explanation = await explainLineCached(db, provider, lineId, ctx, {
+      explanationLanguage,
+      force: opts.force,
+    });
     return { status: 200, body: { explanation, cached: false } };
   } catch (err) {
     if (err instanceof ProviderError) {

@@ -55,7 +55,15 @@ export async function saveExplanation(
       model,
       content,
     })
-    .onConflictDoNothing();
+    .onConflictDoUpdate({
+      target: [
+        aiExplanations.subtitleLineId,
+        aiExplanations.kind,
+        aiExplanations.explanationLanguage,
+        aiExplanations.promptVersion,
+      ],
+      set: { content, model },
+    });
 }
 
 /**
@@ -67,7 +75,7 @@ export async function explainLineCached(
   provider: LlmProvider,
   subtitleLineId: string,
   ctx: SubtitleLineCtx,
-  opts: { explanationLanguage: string; kind?: ExplanationKind; model?: string },
+  opts: { explanationLanguage: string; kind?: ExplanationKind; model?: string; force?: boolean },
 ): Promise<Explanation> {
   const key: CacheKey = {
     subtitleLineId,
@@ -76,8 +84,10 @@ export async function explainLineCached(
     promptVersion: PROMPT_VERSION,
   };
 
-  const cached = await getCachedExplanation(db, key);
-  if (cached) return cached;
+  if (!opts.force) {
+    const cached = await getCachedExplanation(db, key);
+    if (cached) return cached;
+  }
 
   const fresh = await provider.explainLine(ctx, {
     explanationLanguage: opts.explanationLanguage,
