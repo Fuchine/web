@@ -93,7 +93,9 @@ async function doImport(videoId, base) {
     if (res.status === 401) return { ok: false, error: "Sign in to Fuchine first, then retry." };
     const body = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: `Import failed (${res.status}): ${body.error || ""}` };
-    return { ok: true, lines: body.lines };
+    // body.videoId is the internal DB id (UUID) — the player route keys on it,
+    // not the YouTube id.
+    return { ok: true, lines: body.lines, dbVideoId: body.videoId };
   } finally {
     if (tab.id != null) chrome.tabs.remove(tab.id).catch(() => {});
   }

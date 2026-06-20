@@ -44,6 +44,7 @@
         ok: msg.ok,
         lines: msg.lines,
         error: msg.error,
+        dbVideoId: msg.dbVideoId,
       },
       window.location.origin,
     );

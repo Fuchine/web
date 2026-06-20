@@ -10,6 +10,8 @@ export interface ImportResult {
   ok: boolean;
   lines?: number;
   error?: string;
+  /** Internal DB id (UUID) of the imported video — used to open the player. */
+  dbVideoId?: string;
 }
 
 /** Pure: normalize an incoming postMessage into our IMPORT_RESULT, or null. */
@@ -22,6 +24,7 @@ export function parseImportResult(data: unknown, videoId: string): ImportResult 
     ok: m.ok === true,
     lines: typeof m.lines === "number" ? m.lines : undefined,
     error: typeof m.error === "string" ? m.error : undefined,
+    dbVideoId: typeof m.dbVideoId === "string" ? m.dbVideoId : undefined,
   };
 }
 

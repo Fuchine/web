@@ -290,8 +290,9 @@ export function ImportModal({ onClose }: ImportModalProps) {
     go("processing");
     try {
       const result = await requestImport(video.id);
-      if (result.ok) {
-        setImportedVideoId(video.id);
+      if (result.ok && result.dbVideoId) {
+        // Navigate by the internal DB id (UUID), not the YouTube id.
+        setImportedVideoId(result.dbVideoId);
         go("done");
       } else {
         setErrorMsg(result.error ?? "Import failed.");

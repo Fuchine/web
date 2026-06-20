@@ -24,6 +24,16 @@ describe("parseImportResult", () => {
       .toEqual({ ok: false, lines: undefined, error: "No Japanese subtitles" });
   });
 
+  test("carries the internal dbVideoId through for navigation", () => {
+    expect(parseImportResult(msg({ dbVideoId: "550e8400-e29b-41d4-a716-446655440000" }), "abc123"))
+      .toEqual({
+        ok: true,
+        lines: 42,
+        error: undefined,
+        dbVideoId: "550e8400-e29b-41d4-a716-446655440000",
+      });
+  });
+
   test("ignores messages for a different video", () => {
     expect(parseImportResult(msg({ videoId: "other" }), "abc123")).toBeNull();
   });
