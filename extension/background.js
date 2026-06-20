@@ -1,9 +1,8 @@
 // Service worker: on an IMPORT request from bridge.js, open a YouTube tab,
 // enable CC, capture captions via the page's MAIN world, POST them to the
 // originating Fuchine instance, then report the result back and close the tab.
-importScripts("capture.js"); // defines extractCaptions, enableCaptions
+importScripts("capture.js"); // defines extractCaptions, primeCapture
 
-const CAPTURE_WAIT_MS = 2500;
 const LOAD_TIMEOUT_MS = 30000;
 
 function waitForComplete(tabId) {
@@ -45,15 +44,39 @@ async function runInPage(tabId, func) {
   return result;
 }
 
+// Poll: the YouTube player isn't ready the moment the tab finishes loading, and
+// it only fetches the caption track once it's playing with CC on. Re-prime and
+// re-extract on a loop until captions are captured (or we give up).
+const POLL_INTERVAL_MS = 1000;
+const POLL_ATTEMPTS = 15;
+
+async function captureWithRetry(tabId) {
+  let last = null;
+  for (let i = 0; i < POLL_ATTEMPTS; i++) {
+    const primed = await runInPage(tabId, primeCapture);
+    const cap = await runInPage(tabId, extractCaptions);
+    last = cap;
+    console.log(`[fuchine] attempt ${i + 1}/${POLL_ATTEMPTS}`, {
+      ready: primed && primed.ready,
+      state: primed && primed.state,
+      error: cap && cap.error,
+      lines: cap && cap.captions ? cap.captions.length : 0,
+    });
+    if (cap && cap.captions && cap.captions.length > 0) return cap;
+    // "no-ja" is terminal: the video simply has no Japanese track.
+    if (cap && cap.error === "no-ja") return cap;
+    await sleep(POLL_INTERVAL_MS);
+  }
+  return last;
+}
+
 async function doImport(videoId, base) {
   const tab = await chrome.tabs.create({
     url: `https://www.youtube.com/watch?v=${videoId}`,
   });
   try {
     await waitForComplete(tab.id);
-    await runInPage(tab.id, enableCaptions);
-    await sleep(CAPTURE_WAIT_MS);
-    const cap = await runInPage(tab.id, extractCaptions);
+    const cap = await captureWithRetry(tab.id);
 
     if (!cap) return { ok: false, error: "Could not read the page." };
     if (cap.error === "no-ja") return { ok: false, error: "No Japanese subtitles on this video." };

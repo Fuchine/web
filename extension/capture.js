@@ -113,17 +113,26 @@ async function extractCaptions() {
   }
 }
 
-// Best-effort: turn on the Japanese caption track so the player fetches it
-// (inject.js then captures the timedtext response). Fragile by nature.
-function enableCaptions() {
+// Best-effort: get the player playing with the Japanese caption track on, so it
+// fetches the timedtext (inject.js then captures it). Returns readiness info so
+// the caller can poll until the player has actually initialized — "tab loaded"
+// is not the same as "player ready". Fragile by nature.
+function primeCapture() {
   try {
     const p = document.getElementById("movie_player");
-    if (p && p.setOption) {
+    if (!p || !p.getPlayerState) return { ready: false };
+    // Muted playback is allowed to autoplay; the player needs to be playing to
+    // fetch the caption track.
+    if (p.mute) p.mute();
+    if (p.playVideo) p.playVideo();
+    if (p.setOption) {
       p.setOption("captions", "track", { languageCode: "ja" });
       p.setOption("captions", "reload", true);
-    } else if (p && p.loadModule) {
+    } else if (p.loadModule) {
       p.loadModule("captions");
     }
-  } catch (e) {}
-  return true;
+    return { ready: true, state: p.getPlayerState() };
+  } catch (e) {
+    return { ready: false, error: String((e && e.message) || e) };
+  }
 }
