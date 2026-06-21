@@ -1,0 +1,54 @@
+name: E2E
+
+# Runs the end-to-end suites (apps/web/scripts/e2e-*.ts) against a real
+# Postgres on every push to main and on PRs. Mirrors `pnpm --filter
+# @fuchine/web e2e`, but uses a CI Postgres service instead of provisioning one.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fuchine
+          POSTGRES_PASSWORD: fuchine
+          POSTGRES_DB: fuchine
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fuchine"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://fuchine:fuchine@localhost:5432/fuchine
+      LLM_PROVIDER: echo
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (web)
+        run: pnpm --filter @fuchine/web typecheck
+
+      - name: Apply migrations
+        run: pnpm --filter @fuchine/db migrate
+
+      - name: Run E2E suites
+        run: pnpm --filter @fuchine/web e2e:run
