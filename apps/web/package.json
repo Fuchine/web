@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "bash scripts/e2e.sh",
+    "e2e:run": "tsx scripts/e2e-all.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.7.4",
