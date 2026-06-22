@@ -1,0 +1,161 @@
+/* ============================================================
+   Fuchine — Plans / Billing (content only; sidebar/main from dashboard.css)
+   ============================================================ */
+
+.plans-content { max-width: 880px; padding-bottom: 72px; }
+
+/* ---- header row ---- */
+.plans-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 32px;
+}
+.plans-head h1 {
+  font-size: 27px; font-weight: 600; letter-spacing: -0.02em;
+  color: var(--text); margin: 0;
+}
+.plans-head p {
+  font-size: 14px; color: var(--text-muted); margin: 8px 0 0; line-height: 1.5;
+}
+
+/* ---- billing cycle toggle cluster ---- */
+.cycle-cluster { display: flex; align-items: center; gap: 10px; }
+.save-badge {
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--link); background: var(--accent-soft-2);
+  border: 1px solid var(--accent-line); border-radius: 999px; padding: 4px 11px;
+  white-space: nowrap;
+}
+
+/* ---- plan cards grid ---- */
+.plans-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+@media (max-width: 760px) {
+  .plans-grid { grid-template-columns: 1fr; }
+}
+
+/* ---- plan card ---- */
+.plan-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+}
+.plan-card.recommended {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+.plan-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.plan-name { font-size: 15.5px; font-weight: 600; color: var(--text); margin: 0; }
+.plan-tag {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--on-accent); background: var(--accent);
+  border-radius: 999px; padding: 3px 10px; white-space: nowrap;
+}
+.plan-current {
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--link); background: var(--accent-soft-2);
+  border: 1px solid var(--accent-line); border-radius: 999px; padding: 4px 11px;
+  white-space: nowrap;
+}
+
+.plan-price { display: flex; align-items: baseline; gap: 4px; }
+.plan-price .v {
+  font-size: 32px; font-weight: 600; line-height: 1;
+  letter-spacing: -0.02em; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.plan-price .per { font-size: 13px; color: var(--text-muted); }
+
+.plan-desc { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.5; }
+
+.plan-features { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.plan-features li { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--text); }
+.plan-features .fic {
+  flex: none; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent-soft-2); color: var(--link);
+  display: grid; place-items: center;
+}
+.plan-features .fic svg { width: 12px; height: 12px; }
+
+.plan-card .btn-primary,
+.plan-card .btn-ghost { width: 100%; margin-top: auto; }
+
+/* ---- trust note ---- */
+.trust-note {
+  display: flex; align-items: center; gap: 14px;
+  padding: 20px 22px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  margin-top: 30px;
+}
+.trust-note .ico {
+  flex: none; width: 38px; height: 38px; border-radius: 10px;
+  background: var(--bg-2); color: var(--accent);
+  display: grid; place-items: center;
+  font-family: 'Noto Serif JP', serif; font-size: 18px; line-height: 1;
+}
+.trust-note .t { font-size: 14px; font-weight: 550; color: var(--text-muted); margin: 0; line-height: 1.5; }
+
+/* ---- FAQ ---- */
+.plans-faq { margin-top: 30px; }
+.faq-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.faq-row {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 24px; padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.faq-row:last-child { border-bottom: none; }
+.faq-q { font-size: 14.5px; font-weight: 550; color: var(--text); flex: none; max-width: 22ch; }
+.faq-a { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; max-width: 52ch; }
+
+@media (max-width: 640px) {
+  .faq-row { flex-direction: column; gap: 6px; }
+  .faq-q { max-width: none; }
+}
+
+/* ---- footer ---- */
+.plans-foot {
+  margin-top: 36px; text-align: center;
+  font-size: 12.5px; color: var(--text-faint);
+}
+
+/* ---- segmented control (local copy — settings.css not loaded) ---- */
+.seg { display: inline-flex; background: var(--bg-2); border: 1px solid var(--border); border-radius: 9px; padding: 3px; gap: 2px; }
+.seg-b {
+  border: none; background: transparent; padding: 6px 13px;
+  font-size: 13px; font-weight: 550; color: var(--text-muted);
+  border-radius: 7px; cursor: pointer; transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+.seg-b:hover { color: var(--text); }
+.seg-b.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+
+/* ---- FAQ heading (reuses settings group-header look) ---- */
+.set-gh { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; padding: 0 2px; }
+.set-gh h2 {
+  font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-muted); margin: 0;
+}
