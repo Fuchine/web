@@ -115,6 +115,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   doImport(msg.videoId, base)
     .catch((err) => ({ ok: false, error: String((err && err.message) || err) }))
     .then((result) => {
+      console.log("[fuchine] result", result);
       // Swallow "no receiving end" if the app tab was closed mid-import.
       chrome.tabs
         .sendMessage(appTabId, {
