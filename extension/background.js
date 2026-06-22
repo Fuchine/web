@@ -53,15 +53,9 @@ const POLL_ATTEMPTS = 15;
 async function captureWithRetry(tabId) {
   let last = null;
   for (let i = 0; i < POLL_ATTEMPTS; i++) {
-    const primed = await runInPage(tabId, primeCapture);
+    await runInPage(tabId, primeCapture); // play + enable JP CC so the track is fetched
     const cap = await runInPage(tabId, extractCaptions);
     last = cap;
-    console.log(`[fuchine] attempt ${i + 1}/${POLL_ATTEMPTS}`, {
-      ready: primed && primed.ready,
-      state: primed && primed.state,
-      error: cap && cap.error,
-      lines: cap && cap.captions ? cap.captions.length : 0,
-    });
     if (cap && cap.captions && cap.captions.length > 0) return cap;
     // "no-ja" is terminal: the video simply has no Japanese track.
     if (cap && cap.error === "no-ja") return cap;
@@ -115,7 +109,6 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   doImport(msg.videoId, base)
     .catch((err) => ({ ok: false, error: String((err && err.message) || err) }))
     .then((result) => {
-      console.log("[fuchine] result", result);
       // Swallow "no receiving end" if the app tab was closed mid-import.
       chrome.tabs
         .sendMessage(appTabId, {
