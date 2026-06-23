@@ -7,8 +7,16 @@ SRS that replays the exact clip from the original video.
 
 The name comes from 淵 (*fuchi*), "the depths" — diving into the language.
 
-> **Status:** Foundation (F0). The monorepo, database schema, and package
-> skeletons are in place; the usable study loop lands in F1.
+> **Status:** F1 (usable MVP). The full study loop works end to end — import →
+> watch with smart subtitles → mine → review. Launch polish is in progress.
+
+## Demo
+
+<!-- TODO(readme): record a GIF of the loop (import → watch → mine → review) and
+     drop it at docs/assets/demo.gif. Until then this link 404s on purpose. -->
+![Fuchine study loop](docs/assets/demo.gif)
+
+> paste a URL → watch with smart subtitles → mine sentences → review in the SRS → back to the video
 
 ## Why Fuchine
 
@@ -16,8 +24,29 @@ The name comes from 淵 (*fuchi*), "the depths" — diving into the language.
   (bring your own LLM key) and you pay only your own AI bill.
 - **Structurally cheap AI**, via layered processing (local → cheap → expensive
   on demand) and a shared, versioned cache.
+- **One app for the whole loop** — watch, mine, and review without exporting to
+  another tool; reviews replay the original video clip.
 - **Modern SRS (FSRS)** instead of classic SM-2.
 - **Multilingual by design** — Japanese is the first language, not the only one.
+
+## How it compares
+
+A best-effort comparison of *structural* properties (not a feature-by-feature
+benchmark — competitor features evolve, so corrections are welcome). "~" means
+partial or via an add-on/integration.
+
+| | Fuchine | Language Reactor | Migaku | asbplayer | Anki (manual) |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Open source | ✓ (AGPL-3.0) | ✗ | ✗ | ✓ | ✓ |
+| Self-hostable | ✓ | ✗ | ✗ | ~ | ✓ |
+| No subscription / BYOK | ✓ | ✗ (Pro) | ✗ (sub) | ✓ | ✓ |
+| Dual subtitles + tokenization | ✓ | ✓ | ✓ | ~ | ✗ |
+| Local pop-up dictionary (JMdict) | ✓ | ✓ | ✓ | ~ (Yomitan) | ✗ |
+| Per-line AI explanation | ✓ | ~ | ~ | ✗ | ✗ |
+| Mine → SRS in the same app | ✓ | ~ (export) | ~ (Anki) | ~ (Anki) | ✗ |
+| Reviews replay the source clip | ✓ | ✗ | ~ | ~ | ✗ |
+| FSRS scheduling | ✓ | ✗ | ~ | ✗ | ✓ |
+| Multilingual by design | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 ## The loop
 
@@ -26,14 +55,21 @@ The name comes from 淵 (*fuchi*), "the depths" — diving into the language.
 ## Quick start (self-host)
 
 ```bash
-cp .env.example .env          # fill in secrets
+cp .env.example .env          # fill in secrets + your AI provider (BYOK)
 docker compose up -d          # Postgres + Redis
 pnpm install
 pnpm db:migrate               # apply the schema
+pnpm --filter @fuchine/db seed:jmdict   # load the JMdict dictionary (~298k entries)
 pnpm dev                      # web + worker
 ```
 
 Requires Node 22+ and pnpm 10+.
+
+**AI is BYOK.** Layer-1 translation runs from the `LLM_*` env vars (see
+`.env.example` for MiniMax / OpenAI-compatible / DeepL options); per-user layer-2
+explanations use the key each user sets in **Settings**. Without a key the app
+still works — videos stay studiable with tokenization and the local dictionary,
+AI just degrades gracefully.
 
 ## Monorepo layout
 
@@ -58,5 +94,6 @@ Requires Node 22+ and pnpm 10+.
 
 ## License
 
-[AGPL-3.0-only](LICENSE). Contributions under the
+[AGPL-3.0-only](LICENSE). Third-party attributions (JMdict/EDRDG, etc.) are in
+[`NOTICE`](NOTICE). Contributions under the
 [DCO](https://developercertificate.org/).
