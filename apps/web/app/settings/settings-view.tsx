@@ -104,7 +104,7 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
       }
       if (typeof data.hasApiKey === "boolean") setHasApiKey(data.hasApiKey);
       if (data.llmProvider !== undefined && data.llmProvider !== null) setProvider(data.llmProvider);
-      if (data.explanationLanguage) setExplanationLanguage(data.explanationLanguage);
+      if (data.explanationLanguage !== undefined) setExplanationLanguage(data.explanationLanguage);
       return true;
     } catch {
       setError("Could not reach the server.");
@@ -166,10 +166,14 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
           <select
             value={explanationLanguage}
             disabled={saving}
+            aria-label="Explanation language"
             onChange={(e) => {
               const next = e.target.value;
+              const prev = explanationLanguage;
               setExplanationLanguage(next);
-              void save({ explanationLanguage: next });
+              void save({ explanationLanguage: next }).then((ok) => {
+                if (!ok) setExplanationLanguage(prev);
+              });
             }}
             className="rounded-[8px] border border-border bg-surface px-3 py-1.5 text-[14px] text-fg"
           >
@@ -226,10 +230,14 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
           <select
             value={provider}
             disabled={saving}
+            aria-label="AI provider"
             onChange={(e) => {
               const next = e.target.value;
+              const prev = provider;
               setProvider(next);
-              void save({ llmProvider: next });
+              void save({ llmProvider: next }).then((ok) => {
+                if (!ok) setProvider(prev);
+              });
             }}
             className="rounded-[8px] border border-border bg-surface px-3 py-1.5 text-[14px] text-fg"
           >
@@ -245,6 +253,7 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
                 value={keyInput}
                 autoFocus
                 placeholder="Paste API key"
+                aria-label="API key"
                 onChange={(e) => setKeyInput(e.target.value)}
                 className="w-48 rounded-[8px] border border-border bg-surface px-3 py-1.5 text-[14px] text-fg"
               />
@@ -274,7 +283,9 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
             </div>
           ) : hasApiKey ? (
             <div className="flex items-center gap-2">
-              <span className="text-[13px] font-[550] text-accent">Configured ✓</span>
+              <span className="text-[13px] font-[550] text-accent">
+                Configured <span aria-hidden="true">✓</span>
+              </span>
               <Button variant="ghost" size="sm" onClick={() => setEditingKey(true)}>
                 Replace
               </Button>
