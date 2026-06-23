@@ -1,9 +1,11 @@
 import type { LlmProvider } from "../contract";
 import { MissingApiKeyError } from "../errors";
 import { EchoProvider } from "./echo";
+import { DeepLProvider } from "./deepl";
 import { OpenAICompatibleProvider } from "./openai-compatible";
 
 export { EchoProvider } from "./echo";
+export { DeepLProvider, type DeepLConfig } from "./deepl";
 export {
   OpenAICompatibleProvider,
   type OpenAICompatibleConfig,
@@ -14,6 +16,7 @@ export type ProviderName =
   | "minimax"
   | "openai"
   | "openai-compatible"
+  | "deepl"
   | "anthropic"
   | "gemini"
   | "ollama"
@@ -74,6 +77,10 @@ export function createProvider(config: ProviderConfig): LlmProvider {
         jsonMode: config.jsonMode,
       });
     }
+
+    case "deepl":
+      // Layer-1 MT only; explainLine throws. baseUrl inferred from the key.
+      return new DeepLProvider({ apiKey: requireKey(config), baseUrl: config.baseUrl });
 
     case "anthropic":
     case "gemini":
