@@ -25,6 +25,7 @@ declare global {
         rel?: 0 | 1;
         start?: number;
         end?: number;
+        origin?: string;
       };
       events?: {
         onReady?: (event: PlayerEvent) => void;

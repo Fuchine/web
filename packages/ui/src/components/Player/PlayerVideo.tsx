@@ -75,6 +75,9 @@ export function PlayerVideo({
           playsinline: 1,
           rel: 0,
           start: startAt ? Math.floor(startAt) : undefined,
+          // Without an origin matching the embedding page, YouTube refuses
+          // playback with error 150/153 in local/embedded contexts.
+          origin: typeof window !== "undefined" ? window.location.origin : undefined,
         },
         events: {
           onReady: () => {
