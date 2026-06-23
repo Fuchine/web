@@ -109,6 +109,9 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const doneChunksRef = useRef<Set<number>>(new Set(translatedChunks ?? []));
   const inFlightChunksRef = useRef<Set<number>>(new Set());
   const pendingExplainRef = useRef<Map<string, Promise<Explanation>>>(new Map());
+  // Lines whose explanation failed. Not retried automatically (that would spin
+  // the prefetch pump); a manual regenerate clears the mark. Resets on reload.
+  const failedExplainRef = useRef<Set<string>>(new Set());
   const prefetchRunningRef = useRef(false);
   const explanationsRef = useRef(explanations);
   explanationsRef.current = explanations;
@@ -314,6 +317,11 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       if (!onFetchExplanation) return undefined;
       const cached = explanationsRef.current.get(lineId);
       if (cached) return Promise.resolve(cached);
+      // A line that already failed is not retried automatically — re-firing
+      // would spin the prefetch pump. Manual regenerate clears the mark.
+      if (failedExplainRef.current.has(lineId)) {
+        return Promise.reject(new Error("explanation previously failed"));
+      }
       const inFlight = pendingExplainRef.current.get(lineId);
       if (inFlight) return inFlight;
       const p = onFetchExplanation(lineId)
@@ -325,6 +333,11 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
           explanationsRef.current = new Map(explanationsRef.current).set(lineId, ex);
           setExplanations((prev) => new Map(prev).set(lineId, ex));
           return ex;
+        })
+        .catch((err) => {
+          // Latch the failure so the pump and focal effect stop re-firing it.
+          failedExplainRef.current.add(lineId);
+          throw err;
         })
         .finally(() => {
           pendingExplainRef.current.delete(lineId);
@@ -358,6 +371,8 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const regenerateExplanation = useCallback(
     async (lineId: string) => {
       if (!onFetchExplanation) return;
+      // Manual retry: clear any prior failure latch so it can be re-attempted.
+      failedExplainRef.current.delete(lineId);
       setExplainLoading(true);
       setExplainError(null);
       try {
@@ -396,7 +411,12 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
           const idx = base + d;
           if (idx >= lines.length) break;
           const line = lines[idx] as PlayerSubtitleLine;
-          if (explanationsRef.current.has(line.id) || pendingExplainRef.current.has(line.id)) continue;
+          if (
+            explanationsRef.current.has(line.id) ||
+            pendingExplainRef.current.has(line.id) ||
+            failedExplainRef.current.has(line.id)
+          )
+            continue;
           target = line;
           break;
         }
