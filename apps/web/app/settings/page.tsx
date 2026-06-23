@@ -29,6 +29,7 @@ export default async function SettingsPage() {
           learningLanguage: settings?.learningLanguage ?? "ja",
           explanationLanguage: settings?.explanationLanguage ?? "en",
           llmProvider: settings?.llmProvider ?? null,
+          hasApiKey: !!settings?.apiKeyEnc,
         }}
       />
     </AppLayout>
