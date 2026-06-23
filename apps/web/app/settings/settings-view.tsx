@@ -63,16 +63,66 @@ function Segmented({ value, options, onChange }: { value: string; options: { v: 
 
 interface SettingsViewProps {
   user: { name: string; email: string; image: string | null };
-  settings: { learningLanguage: string; explanationLanguage: string; llmProvider: string | null };
+  settings: {
+    learningLanguage: string;
+    explanationLanguage: string;
+    llmProvider: string | null;
+    hasApiKey: boolean;
+  };
 }
 
 export function SettingsView({ user, settings }: SettingsViewProps) {
   const [theme, setTheme] = useState<Theme>("light");
 
+  // T1.8: persisted settings (provider, BYOK key, explanation language).
+  const [provider, setProvider] = useState<string>(settings.llmProvider ?? "minimax");
+  const [explanationLanguage, setExplanationLanguage] = useState<string>(settings.explanationLanguage);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(settings.hasApiKey);
+  const [keyInput, setKeyInput] = useState("");
+  const [editingKey, setEditingKey] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(patch: Record<string, unknown>) {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        llmProvider?: string | null;
+        explanationLanguage?: string;
+        hasApiKey?: boolean;
+      };
+      if (!res.ok) {
+        setError(data.error ?? "Could not save settings.");
+        return false;
+      }
+      if (typeof data.hasApiKey === "boolean") setHasApiKey(data.hasApiKey);
+      if (data.llmProvider !== undefined && data.llmProvider !== null) setProvider(data.llmProvider);
+      if (data.explanationLanguage) setExplanationLanguage(data.explanationLanguage);
+      return true;
+    } catch {
+      setError("Could not reach the server.");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const initials = user.name ? user.name.slice(0, 1).toUpperCase() : "?";
 
   return (
     <div className="px-8 py-9">
+      {error && (
+        <div className="mb-6 rounded-[12px] border border-border bg-surface px-4 py-3 text-[13px] text-fg">
+          {error}
+        </div>
+      )}
       <div className="mb-9">
         <h1 className="m-0 mb-2 text-[22px] font-[600] -tracking-[0.01em] text-fg">Settings</h1>
         <p className="m-0 text-[14.5px] text-muted">
@@ -113,9 +163,19 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
           title="Explanation language"
           desc="Language used for word definitions and line explanations."
         >
-          <span className="text-[14px] text-muted">
-            {settings.explanationLanguage === "en" ? "English" : settings.explanationLanguage === "ja" ? "日本語" : settings.explanationLanguage}
-          </span>
+          <select
+            value={explanationLanguage}
+            disabled={saving}
+            onChange={(e) => {
+              const next = e.target.value;
+              setExplanationLanguage(next);
+              void save({ explanationLanguage: next });
+            }}
+            className="rounded-[8px] border border-border bg-surface px-3 py-1.5 text-[14px] text-fg"
+          >
+            <option value="en">English</option>
+            <option value="ja">日本語 · Japanese</option>
+          </select>
         </Row>
         <Row title="Furigana" desc="Reading aids above kanji in subtitles and the dictionary." last>
           <Segmented
@@ -163,12 +223,75 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
       {/* AI */}
       <Group icon={(<svg viewBox="0 0 24 24" fill="none"><path d="M12 4l1.8 4.7L18.5 10l-4.7 1.3L12 16l-1.8-4.7L5.5 10l4.7-1.3z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>)} title="AI">
         <Row title="AI provider" desc="Used for translations and explanations. Configure your own key.">
-          <span className="text-[14px] text-muted">{settings.llmProvider ?? "Not configured"}</span>
+          <select
+            value={provider}
+            disabled={saving}
+            onChange={(e) => {
+              const next = e.target.value;
+              setProvider(next);
+              void save({ llmProvider: next });
+            }}
+            className="rounded-[8px] border border-border bg-surface px-3 py-1.5 text-[14px] text-fg"
+          >
+            <option value="minimax">MiniMax</option>
+            <option value="openai">OpenAI</option>
+          </select>
         </Row>
         <Row title="API key" desc="Your key is stored encrypted. Never sent to our servers." last>
-          <Button variant="ghost" size="sm">
-            Configure key
-          </Button>
+          {editingKey ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="password"
+                value={keyInput}
+                autoFocus
+                placeholder="Paste API key"
+                onChange={(e) => setKeyInput(e.target.value)}
+                className="w-48 rounded-[8px] border border-border bg-surface px-3 py-1.5 text-[14px] text-fg"
+              />
+              <Button
+                size="sm"
+                disabled={saving || keyInput.trim().length === 0}
+                onClick={async () => {
+                  const ok = await save({ apiKey: keyInput });
+                  if (ok) {
+                    setKeyInput("");
+                    setEditingKey(false);
+                  }
+                }}
+              >
+                Save
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setKeyInput("");
+                  setEditingKey(false);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : hasApiKey ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-[550] text-accent">Configured ✓</span>
+              <Button variant="ghost" size="sm" onClick={() => setEditingKey(true)}>
+                Replace
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={saving}
+                onClick={() => void save({ removeKey: true })}
+              >
+                Remove
+              </Button>
+            </div>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={() => setEditingKey(true)}>
+              Configure key
+            </Button>
+          )}
         </Row>
       </Group>
 
