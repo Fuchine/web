@@ -41,11 +41,11 @@ partial or via an add-on/integration.
 | Self-hostable | ✓ | ✗ | ✗ | ~ | ✓ |
 | No subscription / BYOK | ✓ | ✗ (Pro) | ✗ (sub) | ✓ | ✓ |
 | Dual subtitles + tokenization | ✓ | ✓ | ✓ | ~ | ✗ |
-| Local pop-up dictionary (JMdict) | ✓ | ✓ | ✓ | ~ (Yomitan) | ✗ |
-| Per-line AI explanation | ✓ | ~ | ~ | ✗ | ✗ |
-| Mine → SRS in the same app | ✓ | ~ (export) | ~ (Anki) | ~ (Anki) | ✗ |
-| Reviews replay the source clip | ✓ | ✗ | ~ | ~ | ✗ |
-| FSRS scheduling | ✓ | ✗ | ~ | ✗ | ✓ |
+| Pop-up dictionary | ✓ | ✓ | ✓ | ~ (Yomitan) | ✗ |
+| Per-line AI explanation | ✓ | ~ (word-level) | ~ (word-level) | ✗ | ✗ |
+| Mine → SRS in the same app | ✓ | ✓ (Pro) | ✓ | ~ (Anki) | ✗ |
+| Reviews replay the source clip | ✓ (live, unstored) | ~ (saved audio) | ~ (saved audio) | ~ (Anki) | ✗ |
+| FSRS scheduling | ✓ | ✗ | ✗ (own SRS) | ~ (Anki) | ✓ |
 | Multilingual by design | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 ## The loop
