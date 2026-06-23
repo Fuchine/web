@@ -1,0 +1,54 @@
+Fuchine
+Copyright (c) 2026 the Fuchine authors
+
+This product is licensed under the GNU Affero General Public License v3.0
+(AGPL-3.0-only). See the LICENSE file for the full text.
+
+It incorporates, depends on, or is built from the following third-party
+materials, each retained under its own license.
+
+================================================================================
+JMdict / JMnedict (Japanese-multilingual dictionary data)
+================================================================================
+The layer-0 dictionary (the `word_entries` table) is derived from JMdict, the
+Japanese-Multilingual Dictionary. JMdict and the related EDICT/JMnedict files
+are the property of the Electronic Dictionary Research and Development Group
+(EDRDG) and are used in conformance with the Group's license.
+
+  - License: Creative Commons Attribution-ShareAlike 4.0 International
+             (CC BY-SA 4.0)
+  - Owner:   Electronic Dictionary Research and Development Group (EDRDG)
+  - Info:    https://www.edrdg.org/  ·  https://www.edrdg.org/edrdg/licence.html
+
+The dictionary data is consumed via "jmdict-simplified", a JSON conversion of
+JMdict by Stanislav Kalashnik (scriptin), also distributed under CC BY-SA 4.0:
+
+  - https://github.com/scriptin/jmdict-simplified
+
+The JMdict release file is downloaded at seed time and is NOT redistributed in
+this repository. Dictionary entries derived from JMdict are a ShareAlike work:
+redistribution of that derived data must preserve this attribution and the
+CC BY-SA 4.0 terms.
+
+================================================================================
+Japanese tokenization (kuromoji.js + IPADIC)
+================================================================================
+Layer-0 tokenization uses kuromoji.js, which bundles the IPADIC morphological
+dictionary. kuromoji.js and IPADIC are obtained as npm dependencies and retain
+their own licenses (see their respective packages under node_modules and their
+upstream repositories).
+
+================================================================================
+Frequency lists
+================================================================================
+Word-frequency ranking is optional and user-supplied: no third-party frequency
+list is bundled in this repository (the committed `frequency-sample.tsv` is a
+small synthetic fixture for tests). If you seed a real frequency list, you are
+responsible for complying with and attributing that list's own license.
+
+================================================================================
+Other third-party software
+================================================================================
+This project depends on numerous open-source npm packages, each governed by its
+own license as declared in its package metadata. Those licenses are not
+reproduced here; consult each package for details.
