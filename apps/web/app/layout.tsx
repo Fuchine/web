@@ -9,8 +9,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" data-theme="light">
-      <body>{children}</body>
+    // Browser extensions (incl. the Fuchine extension) inject attributes on
+    // <html>/<body> before hydration; suppress the resulting dev warning.
+    <html lang="en" data-theme="light" suppressHydrationWarning>
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }
