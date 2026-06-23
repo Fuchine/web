@@ -11,8 +11,8 @@ export const ALLOWED_PROVIDERS = ["minimax", "openai"] as const;
 export const ALLOWED_LANGUAGES = ["en", "ja"] as const;
 
 export type ParsedSettings = {
-  llmProvider?: string;
-  explanationLanguage?: string;
+  llmProvider?: (typeof ALLOWED_PROVIDERS)[number];
+  explanationLanguage?: (typeof ALLOWED_LANGUAGES)[number];
   keyAction: "set" | "remove" | "keep";
   apiKey?: string; // present iff keyAction === "set"
 };
@@ -33,14 +33,14 @@ export function parseSettingsInput(body: unknown): ParseResult {
     if (!ALLOWED_PROVIDERS.includes(b.llmProvider as (typeof ALLOWED_PROVIDERS)[number])) {
       return { ok: false, error: `unknown provider: ${String(b.llmProvider)}` };
     }
-    value.llmProvider = b.llmProvider as string;
+    value.llmProvider = b.llmProvider as (typeof ALLOWED_PROVIDERS)[number];
   }
 
   if (b.explanationLanguage !== undefined) {
     if (!ALLOWED_LANGUAGES.includes(b.explanationLanguage as (typeof ALLOWED_LANGUAGES)[number])) {
       return { ok: false, error: `unknown explanation language: ${String(b.explanationLanguage)}` };
     }
-    value.explanationLanguage = b.explanationLanguage as string;
+    value.explanationLanguage = b.explanationLanguage as (typeof ALLOWED_LANGUAGES)[number];
   }
 
   if (b.removeKey === true) {
@@ -78,7 +78,10 @@ export async function updateSettings(
   }
 
   if (Object.keys(set).length > 0) {
-    await db.update(userSettings).set(set).where(eq(userSettings.userId, userId));
+    await db
+      .insert(userSettings)
+      .values({ userId, ...set })
+      .onConflictDoUpdate({ target: userSettings.userId, set });
   }
 
   const [row] = await db

@@ -52,4 +52,21 @@ describe("parseSettingsInput", () => {
     expect(parseSettingsInput(null).ok).toBe(false);
     expect(parseSettingsInput("nope").ok).toBe(false);
   });
+
+  it("treats an empty object body as a no-op (keyAction keep, no fields)", () => {
+    const r = parseSettingsInput({});
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.keyAction).toBe("keep");
+    expect(r.value.llmProvider).toBeUndefined();
+    expect(r.value.explanationLanguage).toBeUndefined();
+  });
+
+  it("treats removeKey:false with a key as action=set", () => {
+    const r = parseSettingsInput({ removeKey: false, apiKey: "sk-1" });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.keyAction).toBe("set");
+    expect(r.value.apiKey).toBe("sk-1");
+  });
 });
