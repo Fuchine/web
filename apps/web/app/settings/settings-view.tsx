@@ -226,7 +226,7 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
 
       {/* AI */}
       <Group icon={(<svg viewBox="0 0 24 24" fill="none"><path d="M12 4l1.8 4.7L18.5 10l-4.7 1.3L12 16l-1.8-4.7L5.5 10l4.7-1.3z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>)} title="AI">
-        <Row title="AI provider" desc="Used for translations and explanations. Configure your own key.">
+        <Row title="AI provider" desc="Used for line explanations. Configure your own key.">
           <select
             value={provider}
             disabled={saving}
