@@ -1,6 +1,6 @@
 // Dictionary lookups (F1 popup + F2 search). Auth-agnostic and testable.
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { type Database, wordEntries, wordExamples, subtitleLines, videos, savedWords } from "@fuchine/db";
 import { getDictionary } from "@fuchine/nlp";
 
@@ -85,4 +85,28 @@ export async function saveWord(db: Database, userId: string, wordEntryId: string
 /** Remove a bookmark (no-op if absent). */
 export async function unsaveWord(db: Database, userId: string, wordEntryId: string): Promise<void> {
   await db.delete(savedWords).where(and(eq(savedWords.userId, userId), eq(savedWords.wordEntryId, wordEntryId)));
+}
+
+/** Pick the search mode for an Auto query: any Japanese char → "ja", else "en". */
+export function detectMode(q: string): "ja" | "en" {
+  return /[぀-ヿ㐀-鿿]/.test(q) ? "ja" : "en";
+}
+
+/** Search entries by English meaning — any gloss contains `term` (case-insensitive). */
+export async function searchByGloss(db: Database, term: string, language = "ja") {
+  return db
+    .select()
+    .from(wordEntries)
+    .where(
+      and(
+        eq(wordEntries.language, language),
+        sql`EXISTS (
+          SELECT 1 FROM jsonb_array_elements(${wordEntries.definitions}) AS s,
+                       jsonb_array_elements_text(s->'glosses') AS g
+          WHERE g ILIKE ${"%" + term + "%"}
+        )`,
+      ),
+    )
+    .orderBy(sql`${wordEntries.frequencyRank} asc nulls last`)
+    .limit(20);
 }
