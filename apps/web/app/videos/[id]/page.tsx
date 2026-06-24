@@ -7,8 +7,10 @@ import "./player.css";
 
 export default async function VideoPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ line?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
@@ -18,8 +20,12 @@ export default async function VideoPage({
   if (!result) notFound();
   if (result.video.status !== "done") redirect("/");
 
+  const { line } = await searchParams;
+  const initialLineId = line && result.lines.some((l) => l.id === line) ? line : undefined;
+
   return (
     <PlayerView
+      initialLineId={initialLineId}
       video={{
         id: result.video.id,
         title: result.video.title,

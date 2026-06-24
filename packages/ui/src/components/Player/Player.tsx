@@ -42,6 +42,8 @@ export interface PlayerProps {
   onFetchExplanation?: (lineId: string, opts?: { force?: boolean }) => Promise<Explanation>;
   onBack: () => void;
   onNavigate?: (key: string) => void;
+  /** Deep-link: focus + seek to this line on load (from the dictionary). */
+  initialLineId?: string;
   className?: string;
 }
 
@@ -87,13 +89,19 @@ function toExplainFocal(focal: FocalLine): ExplainFocal {
   return { textOriginal: focal.textOriginal, textTranslation: focal.textTranslation, focusSurface: null };
 }
 
-export function Player({ video, lines, account, translatedChunks, onFetchChunk, onFetchExplanation, onBack, onNavigate, className }: PlayerProps) {
+export function Player({ video, lines, account, translatedChunks, onFetchChunk, onFetchExplanation, onBack, onNavigate, className, initialLineId }: PlayerProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMs, setCurrentMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [rate, setRate] = useState<PlaybackRate>(1.0);
-  const [currentLineIdx, setCurrentLineIdx] = useState(() => pickCurrentLine(lines, 0));
+  const [currentLineIdx, setCurrentLineIdx] = useState(() => {
+    if (initialLineId) {
+      const i = lines.findIndex((l) => l.id === initialLineId);
+      if (i >= 0) return i;
+    }
+    return pickCurrentLine(lines, 0);
+  });
   const [userIsScrolling, setUserIsScrolling] = useState(false);
   const [loopLine, setLoopLine] = useState(false);
   const [showTranslation, setShowTranslation] = useState(true);
@@ -122,6 +130,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const tokenWordRefs = useRef<Map<string, HTMLElement>>(new Map());
   const stageRef = useRef<HTMLDivElement | null>(null);
   const previousLineIdxRef = useRef<number>(currentLineIdx);
+  const appliedInitialRef = useRef(false);
   const currentLineIdxRef = useRef<number>(currentLineIdx);
   currentLineIdxRef.current = currentLineIdx;
 
@@ -254,6 +263,16 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     },
     [lines],
   );
+
+  // Deep-link from the dictionary: once the iframe is ready, seek to the line.
+  useEffect(() => {
+    if (!initialLineId || appliedInitialRef.current || !isReady) return;
+    const idx = lines.findIndex((l) => l.id === initialLineId);
+    if (idx >= 0) {
+      appliedInitialRef.current = true;
+      seekToLine(idx);
+    }
+  }, [initialLineId, isReady, lines, seekToLine]);
 
   const onPlayPause = useCallback(() => {
     const h = handleRef.current;
