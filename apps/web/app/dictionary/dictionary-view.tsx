@@ -46,6 +46,15 @@ function firstGloss(defs: Definition[]): string {
   return defs[0]?.glosses?.join("; ") ?? "";
 }
 
+/** Speak Japanese text via the browser's TTS (no backend). No-op if unsupported. */
+function speak(text: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "ja-JP";
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(u);
+}
+
 export function DictionaryView() {
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -196,6 +205,16 @@ export function DictionaryView() {
                     <div className="dd-word jp">{selected.lemma}</div>
                     {selected.reading && <div className="dd-reading jp">{selected.reading}</div>}
                   </div>
+                  <button
+                    className="dd-audio"
+                    aria-label="Hear pronunciation"
+                    onClick={() => speak(selected.reading ?? selected.lemma)}
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+                      <path d="M11 5 6 9H3v6h3l5 4V5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                      <path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8 8 0 0 1 0 12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                    </svg>
+                  </button>
                 </div>
                 <div className="dd-tags">
                   {selected.pos && <span className="dd-pos">{selected.pos}</span>}
