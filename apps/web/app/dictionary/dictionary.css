@@ -376,6 +376,21 @@
   font-weight: 600;
 }
 
+.dd-conj {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.dd-cj { background: var(--surface); padding: 12px 14px; }
+.cj-k { display: block; font-size: 11.5px; color: var(--text-faint); margin-bottom: 4px; }
+.cj-v { font-size: 17px; font-weight: 550; color: var(--text); }
+.cj-v .cj-r { font-size: 12px; font-weight: 400; color: var(--text-muted); margin-left: 6px; }
+
 @media (max-width: 920px) {
   .dict-body { grid-template-columns: 280px 1fr; }
+  .dd-conj { grid-template-columns: repeat(2, 1fr); }
 }

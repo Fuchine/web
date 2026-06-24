@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Definition } from "@fuchine/db/types";
 // type-only import (erased at build — does not bundle lib/dictionary's server deps)
 import type { WordExample as Example } from "@/lib/dictionary";
+import { conjugate } from "@/lib/conjugate";
 
 /**
  * Map a JMdict frequency rank to a 0–5 tier for the UI dots (pure, no server deps).
@@ -312,6 +313,23 @@ export function DictionaryView() {
                     </li>
                   ))}
                 </ol>
+
+                {(() => {
+                  const conj = conjugate(selected.lemma, selected.reading, selected.pos);
+                  return conj ? (
+                    <div className="dd-section">
+                      <div className="dd-sh">Conjugations</div>
+                      <div className="dd-conj">
+                        {conj.map((c) => (
+                          <div key={c.label} className="dd-cj">
+                            <span className="cj-k">{c.label}</span>
+                            <span className="cj-v jp">{c.word}<span className="cj-r">{c.reading}</span></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
 
                 {examples.length > 0 && (
                   <div className="dd-section">
