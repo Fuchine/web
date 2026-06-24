@@ -8,10 +8,12 @@ export const NAV_ICONS: Record<string, ReactNode> = {
   settings: (<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.7" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>),
   dictionary: (<svg viewBox="0 0 24 24" fill="none"><path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V4zM7 4v14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>),
   phrases: (<svg viewBox="0 0 24 24" fill="none"><path d="M7 8h10M7 12h6M5 4h14a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-4 4V5a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>),
+  stats: (<svg viewBox="0 0 24 24" fill="none"><path d="M4 19.5h16M7 19.5v-7M12 19.5V6M17 19.5v-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>),
+  albums: (<svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.7" /><path d="M7.5 8.5h13a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 8 18z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>),
 };
 
 export interface BuildAppNavOptions {
-  /** Which route is highlighted: "home" | "review" | "settings". */
+  /** Which route is highlighted: "home" | "review" | "settings" | "dictionary" | "stats". */
   activeKey: string;
   /** Called with the item key when a live (non-soon) item is selected. */
   onNavigate: (key: string) => void;
@@ -32,6 +34,8 @@ export function buildAppNav({ activeKey, onNavigate, reviewDue }: BuildAppNavOpt
     { key: "review", label: "Review", icon: NAV_ICONS.review, badge: reviewDue || undefined, active: activeKey === "review", onSelect: () => onNavigate("review") },
     { key: "settings", label: "Settings", icon: NAV_ICONS.settings, active: activeKey === "settings", onSelect: () => onNavigate("settings") },
     { key: "dictionary", label: "Dictionary", icon: NAV_ICONS.dictionary, active: activeKey === "dictionary", onSelect: () => onNavigate("dictionary") },
+    { key: "stats", label: "Stats", icon: NAV_ICONS.stats, active: activeKey === "stats", onSelect: () => onNavigate("stats") },
     { key: "phrases", label: "Phrases", icon: NAV_ICONS.phrases, soon: true },
+    { key: "albums", label: "Albums", icon: NAV_ICONS.albums, soon: true },
   ];
 }
