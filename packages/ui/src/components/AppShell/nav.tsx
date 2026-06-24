@@ -31,7 +31,7 @@ export function buildAppNav({ activeKey, onNavigate, reviewDue }: BuildAppNavOpt
     { key: "home", label: "Home", icon: NAV_ICONS.home, active: activeKey === "home", onSelect: () => onNavigate("home") },
     { key: "review", label: "Review", icon: NAV_ICONS.review, badge: reviewDue || undefined, active: activeKey === "review", onSelect: () => onNavigate("review") },
     { key: "settings", label: "Settings", icon: NAV_ICONS.settings, active: activeKey === "settings", onSelect: () => onNavigate("settings") },
-    { key: "dictionary", label: "Dictionary", icon: NAV_ICONS.dictionary, soon: true },
+    { key: "dictionary", label: "Dictionary", icon: NAV_ICONS.dictionary, active: activeKey === "dictionary", onSelect: () => onNavigate("dictionary") },
     { key: "phrases", label: "Phrases", icon: NAV_ICONS.phrases, soon: true },
   ];
 }
