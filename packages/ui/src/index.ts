@@ -61,3 +61,4 @@ export { ReviewSession } from "./components/Review/ReviewSession";
 export type { ReviewSessionProps, ReviewItem } from "./components/Review/ReviewSession";
 
 export { cn } from "./lib/cn";
+export { posLabel } from "./lib/pos";
