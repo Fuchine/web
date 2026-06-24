@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { lookupById, searchDictionary } from "@/lib/dictionary";
+import { lookupById, searchDictionary, searchByGloss, detectMode } from "@/lib/dictionary";
 
 // GET /api/dictionary?id=UUID  (resolved token popup)
 //                  ?q=text&lang=ja  (search / unresolved token)
@@ -22,7 +22,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ entry });
   }
   if (q) {
-    return NextResponse.json({ entries: await searchDictionary(db, q, lang) });
+    const modeParam = url.searchParams.get("mode");
+    const mode = modeParam === "ja" || modeParam === "en" ? modeParam : detectMode(q);
+    const entries = mode === "en" ? await searchByGloss(db, q, lang) : await searchDictionary(db, q, lang);
+    return NextResponse.json({ entries });
   }
   return NextResponse.json({ error: "id or q is required" }, { status: 400 });
 }
