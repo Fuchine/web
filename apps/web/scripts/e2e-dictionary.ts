@@ -11,7 +11,7 @@ import {
   createDb, wordEntries, wordExamples, subtitleLines, videos,
   type Database, type Definition,
 } from "@fuchine/db";
-import { lookupById, searchDictionary, getWordExamples } from "../lib/dictionary";
+import { lookupById, searchDictionary, getWordExamples, searchByGloss } from "../lib/dictionary";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -110,6 +110,12 @@ async function main() {
   check("example carries the start ms", examples[0]?.startMs === 4200, examples[0]?.startMs);
   check("example carries the video + line ids", examples[0]?.videoId === vid.id && examples[0]?.lineId === line.id);
   check("word with no occurrences => []", (await getWordExamples(db, ids[1]!)).length === 0);
+
+  // --- 4. searchByGloss (English meaning) ---
+  console.log("4. searchByGloss");
+  const byGloss = await searchByGloss(db, "cat");
+  check("gloss 'cat' finds 猫", byGloss.some((e) => e.lemma === "猫"), byGloss.map((e) => e.lemma));
+  check("no gloss match => []", (await searchByGloss(db, "zzzznomatch")).length === 0);
 
   // --- Cleanup ---
   await db.delete(videos).where(eq(videos.id, vid.id));
