@@ -12,8 +12,6 @@ The name comes from 淵 (*fuchi*), "the depths" — diving into the language.
 
 ## Demo
 
-<!-- TODO(readme): record a GIF of the loop (import → watch → mine → review) and
-     drop it at docs/assets/demo.gif. Until then this link 404s on purpose. -->
 ![Fuchine study loop](docs/assets/demo.gif)
 
 > paste a URL → watch with smart subtitles → mine sentences → review in the SRS → back to the video
