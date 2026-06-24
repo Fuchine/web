@@ -46,6 +46,14 @@ function firstGloss(defs: Definition[]): string {
   return defs[0]?.glosses?.join("; ") ?? "";
 }
 
+function BookmarkIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill={filled ? "currentColor" : "none"} aria-hidden="true">
+      <path d="M6.5 4.5h11a1 1 0 0 1 1 1v14l-6.5-4-6.5 4v-14a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function DictionaryView() {
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -57,6 +65,36 @@ export function DictionaryView() {
   const reqId = useRef(0);
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
   const [ttsNote, setTtsNote] = useState<string | null>(null);
+
+  const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/dictionary/saved")
+      .then((r) => (r.ok ? r.json() : { ids: [] }))
+      .then((d: { ids?: string[] }) => { if (active) setSavedIds(new Set(d.ids ?? [])); })
+      .catch(() => { /* leave unmarked; saving still works */ });
+    return () => { active = false; };
+  }, []);
+
+  const toggleSaved = useCallback(async (id: string) => {
+    const wasSaved = savedIds.has(id);
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      if (wasSaved) next.delete(id); else next.add(id);
+      return next;
+    });
+    try {
+      const res = await fetch(`/api/dictionary/${id}/saved`, { method: wasSaved ? "DELETE" : "POST" });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        if (wasSaved) next.add(id); else next.delete(id);
+        return next;
+      });
+    }
+  }, [savedIds]);
 
   // Load the browser TTS voice list (async in Chrome — also fires voiceschanged).
   useEffect(() => {
@@ -211,6 +249,7 @@ export function DictionaryView() {
                   <div className="dr-main">
                     <span className="dr-word jp">{r.lemma}</span>
                     {r.reading && <span className="dr-reading jp">{r.reading}</span>}
+                    {savedIds.has(r.id) && <span className="dr-saved" aria-label="Saved"><BookmarkIcon filled /></span>}
                   </div>
                   <div className="dr-gloss">{firstGloss(r.definitions)}</div>
                   <div className="dr-meta">
@@ -233,16 +272,26 @@ export function DictionaryView() {
                     <div className="dd-word jp">{selected.lemma}</div>
                     {selected.reading && <div className="dd-reading jp">{selected.reading}</div>}
                   </div>
-                  <button
-                    className="dd-audio"
-                    aria-label="Hear pronunciation"
-                    onClick={() => speak(selected.reading ?? selected.lemma)}
-                  >
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
-                      <path d="M11 5 6 9H3v6h3l5 4V5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-                      <path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8 8 0 0 1 0 12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                    </svg>
-                  </button>
+                  <div className="dd-actions">
+                    <button
+                      className={"dd-save" + (savedIds.has(selected.id) ? " on" : "")}
+                      aria-pressed={savedIds.has(selected.id)}
+                      onClick={() => void toggleSaved(selected.id)}
+                    >
+                      <BookmarkIcon filled={savedIds.has(selected.id)} />
+                      {savedIds.has(selected.id) ? "Saved" : "Save"}
+                    </button>
+                    <button
+                      className="dd-audio"
+                      aria-label="Hear pronunciation"
+                      onClick={() => speak(selected.reading ?? selected.lemma)}
+                    >
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+                        <path d="M11 5 6 9H3v6h3l5 4V5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                        <path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8 8 0 0 1 0 12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 {ttsNote && <p className="dd-tts-note">{ttsNote}</p>}
                 <div className="dd-tags">
