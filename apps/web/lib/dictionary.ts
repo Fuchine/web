@@ -1,7 +1,7 @@
 // Dictionary lookups (F1 popup + F2 search). Auth-agnostic and testable.
 
-import { asc, eq } from "drizzle-orm";
-import { type Database, wordEntries, wordExamples, subtitleLines, videos } from "@fuchine/db";
+import { and, asc, eq } from "drizzle-orm";
+import { type Database, wordEntries, wordExamples, subtitleLines, videos, savedWords } from "@fuchine/db";
 import { getDictionary } from "@fuchine/nlp";
 
 /** Fetch one entry by id — what the player popup uses for a resolved token. */
@@ -66,4 +66,23 @@ export async function getWordExamples(
     .where(eq(wordExamples.wordEntryId, wordEntryId))
     .orderBy(asc(subtitleLines.tStartMs))
     .limit(limit);
+}
+
+/** The user's saved word_entry ids (for the bookmark UI). */
+export async function getSavedWordIds(db: Database, userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ wordEntryId: savedWords.wordEntryId })
+    .from(savedWords)
+    .where(eq(savedWords.userId, userId));
+  return rows.map((r) => r.wordEntryId);
+}
+
+/** Bookmark a word (idempotent). */
+export async function saveWord(db: Database, userId: string, wordEntryId: string): Promise<void> {
+  await db.insert(savedWords).values({ userId, wordEntryId }).onConflictDoNothing();
+}
+
+/** Remove a bookmark (no-op if absent). */
+export async function unsaveWord(db: Database, userId: string, wordEntryId: string): Promise<void> {
+  await db.delete(savedWords).where(and(eq(savedWords.userId, userId), eq(savedWords.wordEntryId, wordEntryId)));
 }
