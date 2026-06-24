@@ -6,6 +6,7 @@ import type { Definition } from "@fuchine/db/types";
 // type-only import (erased at build — does not bundle lib/dictionary's server deps)
 import type { WordExample as Example } from "@/lib/dictionary";
 import { conjugate } from "@/lib/conjugate";
+import { posLabel } from "@fuchine/ui";
 
 /**
  * Map a JMdict frequency rank to a 0–5 tier for the UI dots (pure, no server deps).
@@ -266,7 +267,7 @@ export function DictionaryView() {
                   </div>
                   <div className="dr-gloss">{firstGloss(r.definitions)}</div>
                   <div className="dr-meta">
-                    {r.pos && <span className="dr-pos">{r.pos}</span>}
+                    {r.pos && <span className="dr-pos">{posLabel(r.pos)}</span>}
                     <FreqDots n={freqTier(r.frequencyRank)} />
                   </div>
                 </button>
@@ -308,7 +309,7 @@ export function DictionaryView() {
                 </div>
                 {ttsNote && <p className="dd-tts-note">{ttsNote}</p>}
                 <div className="dd-tags">
-                  {selected.pos && <span className="dd-pos">{selected.pos}</span>}
+                  {selected.pos && <span className="dd-pos">{posLabel(selected.pos)}</span>}
                   <FreqDots n={freqTier(selected.frequencyRank)} />
                 </div>
 

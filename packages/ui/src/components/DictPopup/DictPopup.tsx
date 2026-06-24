@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react";
 import { cn } from "../../lib/cn";
+import { posLabel } from "../../lib/pos";
 import { Skeleton } from "../Skeleton/Skeleton";
 
 export type DictPopupProps = {
@@ -181,7 +182,7 @@ export function DictPopup({
             </div>
 
             <div className="dp-tags">
-              {entry.pos && <span className="dp-pos">{entry.pos}</span>}
+              {entry.pos && <span className="dp-pos">{posLabel(entry.pos)}</span>}
               {freq > 0 && <FreqDots n={freq} />}
             </div>
 
