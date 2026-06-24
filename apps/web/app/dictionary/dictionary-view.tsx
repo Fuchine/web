@@ -46,15 +46,6 @@ function firstGloss(defs: Definition[]): string {
   return defs[0]?.glosses?.join("; ") ?? "";
 }
 
-/** Speak Japanese text via the browser's TTS (no backend). No-op if unsupported. */
-function speak(text: string) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "ja-JP";
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(u);
-}
-
 export function DictionaryView() {
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -64,6 +55,42 @@ export function DictionaryView() {
   const [searching, setSearching] = useState(false);
   const [recent, setRecent] = useState<string[]>([]);
   const reqId = useRef(0);
+  const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
+  const [ttsNote, setTtsNote] = useState<string | null>(null);
+
+  // Load the browser TTS voice list (async in Chrome — also fires voiceschanged).
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const load = () => {
+      voicesRef.current = window.speechSynthesis.getVoices();
+    };
+    load();
+    window.speechSynthesis.addEventListener("voiceschanged", load);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", load);
+  }, []);
+
+  // Speak Japanese text via the browser's TTS. Picks a ja voice explicitly and
+  // surfaces a note when none is installed (common on Windows) instead of
+  // failing silently. No backend.
+  const speak = useCallback((text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      setTtsNote("Audio isn't supported in this browser.");
+      return;
+    }
+    const synth = window.speechSynthesis;
+    const voices = voicesRef.current.length ? voicesRef.current : synth.getVoices();
+    const ja = voices.find((v) => v.lang?.toLowerCase().startsWith("ja"));
+    if (!ja) {
+      setTtsNote("No Japanese voice is installed on this device — add one in your OS speech settings to hear pronunciations.");
+      return;
+    }
+    setTtsNote(null);
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = ja.lang;
+    u.voice = ja;
+    synth.cancel();
+    synth.speak(u);
+  }, []);
 
   useEffect(() => {
     try {
@@ -89,6 +116,7 @@ export function DictionaryView() {
   const select = useCallback(async (entry: Entry) => {
     setSelected(entry);
     setExamples([]);
+    setTtsNote(null);
     const res = await fetch(`/api/dictionary/${entry.id}/examples`);
     if (res.ok) {
       const data = (await res.json()) as { examples: Example[] };
@@ -216,6 +244,7 @@ export function DictionaryView() {
                     </svg>
                   </button>
                 </div>
+                {ttsNote && <p className="dd-tts-note">{ttsNote}</p>}
                 <div className="dd-tags">
                   {selected.pos && <span className="dd-pos">{selected.pos}</span>}
                   <FreqDots n={freqTier(selected.frequencyRank)} />

@@ -248,6 +248,12 @@
   color: var(--text);
   border-color: var(--border-strong);
 }
+.dd-tts-note {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
 
 .dd-tags {
   display: flex;
