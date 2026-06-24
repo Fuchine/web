@@ -15,6 +15,7 @@ import {
   videos,
   subtitleLines,
   wordEntries,
+  wordExamples,
   type Database,
   type Token,
   type Definition,
@@ -123,6 +124,13 @@ async function main() {
   check("kuromoji surfaces present", toks0.every((t) => typeof t.surface === "string" && t.surface.length > 0));
   const neko = toks0.find((t) => t.lemma === "猫");
   check("dictionary resolved 猫 => wordEntryId", !!neko?.wordEntryId, neko);
+  const examples = await db.select().from(wordExamples).where(eq(wordExamples.videoId, newVideoId));
+  check("word_examples populated", examples.length > 0, examples.length);
+  check(
+    "猫 example links to line 0",
+    examples.some((e) => e.wordEntryId === neko?.wordEntryId && e.subtitleLineId === lines[0]!.id),
+    { nekoWordEntryId: neko?.wordEntryId, examples },
+  );
 
   // --- 5. Re-import after done => cached:true ---
   console.log("5. Dedup (post-processing)");
@@ -135,6 +143,8 @@ async function main() {
   await importVideo(db, queue.jobs[0]!);
   const linesAgain = await db.select().from(subtitleLines).where(eq(subtitleLines.videoId, newVideoId));
   check("still two lines after re-run", linesAgain.length === 2, linesAgain.length);
+  const examplesAgain = await db.select().from(wordExamples).where(eq(wordExamples.videoId, newVideoId));
+  check("word_examples not duplicated on re-run", examplesAgain.length === examples.length, { first: examples.length, again: examplesAgain.length });
 
   // --- Cleanup ---
   await db.delete(videos).where(eq(videos.id, newVideoId)); // cascades to subtitle_lines
