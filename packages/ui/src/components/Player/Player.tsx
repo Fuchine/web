@@ -44,6 +44,10 @@ export interface PlayerProps {
   onNavigate?: (key: string) => void;
   /** Deep-link: focus + seek to this line on load (from the dictionary). */
   initialLineId?: string;
+  /** word_entry ids the user has bookmarked (initial state for the popup). */
+  savedWordIds?: string[];
+  /** Persist a bookmark toggle; resolves to the new saved state. */
+  onSaveWord?: (wordEntryId: string, save: boolean) => Promise<boolean>;
   className?: string;
 }
 
@@ -89,7 +93,7 @@ function toExplainFocal(focal: FocalLine): ExplainFocal {
   return { textOriginal: focal.textOriginal, textTranslation: focal.textTranslation, focusSurface: null };
 }
 
-export function Player({ video, lines, account, translatedChunks, onFetchChunk, onFetchExplanation, onBack, onNavigate, className, initialLineId }: PlayerProps) {
+export function Player({ video, lines, account, translatedChunks, onFetchChunk, onFetchExplanation, onBack, onNavigate, className, initialLineId, savedWordIds, onSaveWord }: PlayerProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMs, setCurrentMs] = useState(0);
@@ -131,6 +135,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const stageRef = useRef<HTMLDivElement | null>(null);
   const previousLineIdxRef = useRef<number>(currentLineIdx);
   const appliedInitialRef = useRef(false);
+  const savedSetRef = useRef<Set<string>>(new Set(savedWordIds ?? []));
   const currentLineIdxRef = useRef<number>(currentLineIdx);
   currentLineIdxRef.current = currentLineIdx;
 
@@ -499,9 +504,9 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       .finally(() => setDictLoading(false));
   }, [openWordId]);
 
-  // When dict popup closes, reset saved state
+  // Reflect the persisted bookmark state when the popup opens; reset on close.
   useEffect(() => {
-    if (!openWordId) setSavedWord(false);
+    setSavedWord(openWordId ? savedSetRef.current.has(openWordId) : false);
   }, [openWordId]);
 
   const openExplain = useCallback(() => {
@@ -519,12 +524,21 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     setActiveRailTab("explain");
   }, []);
 
-  const handleDictSaveWord = useCallback(() => {
-    if (!openWordId) return;
-    setSavedWord((v) => !v);
-    // Track click in userWordStats via a no-op POST for now
-    // (full implementation will track clicks in userWordStats)
-  }, [openWordId]);
+  const handleDictSaveWord = useCallback(async () => {
+    if (!openWordId || !onSaveWord) return;
+    const id = openWordId;
+    const next = !savedWord;
+    setSavedWord(next);
+    if (next) savedSetRef.current.add(id); else savedSetRef.current.delete(id);
+    try {
+      const confirmed = await onSaveWord(id, next);
+      setSavedWord(confirmed);
+      if (confirmed) savedSetRef.current.add(id); else savedSetRef.current.delete(id);
+    } catch {
+      setSavedWord(!next);
+      if (next) savedSetRef.current.delete(id); else savedSetRef.current.add(id);
+    }
+  }, [openWordId, savedWord, onSaveWord]);
 
   const handleDictClose = useCallback(() => {
     setOpenWordId(null);

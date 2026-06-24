@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Player, type PlayerProps } from "@fuchine/ui";
 import type { Explanation } from "@fuchine/db";
 
-export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "onFetchChunk" | "onFetchExplanation">) {
+export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "onFetchChunk" | "onFetchExplanation" | "onSaveWord">) {
   const router = useRouter();
   const videoId = props.video.id;
 
@@ -39,11 +39,19 @@ export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "o
     [],
   );
 
+  const onSaveWord = useCallback(async (wordEntryId: string, save: boolean) => {
+    const res = await fetch(`/api/dictionary/${wordEntryId}/saved`, { method: save ? "POST" : "DELETE" });
+    if (!res.ok) throw new Error(`save failed: ${res.status}`);
+    const data = (await res.json()) as { saved: boolean };
+    return data.saved;
+  }, []);
+
   return (
     <Player
       {...props}
       onFetchChunk={onFetchChunk}
       onFetchExplanation={onFetchExplanation}
+      onSaveWord={onSaveWord}
       onBack={() => router.push("/")}
       onNavigate={(key) => router.push(key === "home" ? "/" : `/${key}`)}
     />
