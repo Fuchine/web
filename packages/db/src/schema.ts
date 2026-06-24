@@ -373,6 +373,20 @@ export const userWordStats = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.wordEntryId] })],
 );
 
+export const savedWords = pgTable(
+  "saved_words",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    wordEntryId: uuid("word_entry_id")
+      .notNull()
+      .references(() => wordEntries.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.wordEntryId] })],
+);
+
 export const userDailyStats = pgTable(
   "user_daily_stats",
   {
@@ -401,8 +415,14 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   albums: many(albums),
   wordStats: many(userWordStats),
   dailyStats: many(userDailyStats),
+  savedWords: many(savedWords),
   accounts: many(accounts),
   sessions: many(sessions),
+}));
+
+export const savedWordsRelations = relations(savedWords, ({ one }) => ({
+  user: one(users, { fields: [savedWords.userId], references: [users.id] }),
+  wordEntry: one(wordEntries, { fields: [savedWords.wordEntryId], references: [wordEntries.id] }),
 }));
 
 export const accountsRelations = relations(accounts, ({ one }) => ({

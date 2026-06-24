@@ -9,7 +9,7 @@
 // (explainLine) is on demand in the app, not here.
 
 import { asc, eq } from "drizzle-orm";
-import { type Database, videos, subtitleLines } from "@fuchine/db";
+import { type Database, videos, subtitleLines, wordExamples } from "@fuchine/db";
 import { analyzeLine } from "@fuchine/nlp";
 import type { ImportJob } from "./queue";
 
@@ -69,10 +69,23 @@ export async function importVideo(
       }
     }
 
-    // --- Layer 0: tokenize + resolve dictionary entries (local, free). ---
+    // --- Layer 0: tokenize + resolve dictionary entries (local, free). Also
+    // record where each resolved word occurs, for the dictionary's "From your
+    // videos" — deduped per line; the unique index dedupes across re-runs. ---
+    const exampleRows: { wordEntryId: string; subtitleLineId: string; videoId: string }[] = [];
     for (const line of lines) {
       const tokens = await analyzeLine(line.textOriginal, video.language, db);
       await db.update(subtitleLines).set({ tokens }).where(eq(subtitleLines.id, line.id));
+      const seen = new Set<string>();
+      for (const t of tokens) {
+        if (t.wordEntryId && !seen.has(t.wordEntryId)) {
+          seen.add(t.wordEntryId);
+          exampleRows.push({ wordEntryId: t.wordEntryId, subtitleLineId: line.id, videoId: video.id });
+        }
+      }
+    }
+    if (exampleRows.length > 0) {
+      await db.insert(wordExamples).values(exampleRows).onConflictDoNothing();
     }
 
     await db.update(videos).set({ status: "done" }).where(eq(videos.id, video.id));

@@ -29,6 +29,13 @@
       "when": 1781826532771,
       "tag": "0003_windy_living_lightning",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782323324267,
+      "tag": "0004_brief_skullbuster",
+      "breakpoints": true
     }
   ]
 }

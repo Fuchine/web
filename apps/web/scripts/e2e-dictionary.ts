@@ -6,9 +6,12 @@
  *
  *   DATABASE_URL=postgres://... pnpm --filter @fuchine/web exec tsx scripts/e2e-dictionary.ts
  */
-import { inArray } from "drizzle-orm";
-import { createDb, wordEntries, type Database, type Definition } from "@fuchine/db";
-import { lookupById, searchDictionary } from "../lib/dictionary";
+import { inArray, eq } from "drizzle-orm";
+import {
+  createDb, wordEntries, wordExamples, subtitleLines, videos,
+  type Database, type Definition,
+} from "@fuchine/db";
+import { lookupById, searchDictionary, getWordExamples, searchByGloss } from "../lib/dictionary";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -69,7 +72,53 @@ async function main() {
   const miss = await searchDictionary(db, "存在しない語");
   check("no match => []", miss.length === 0, miss);
 
+  // --- 3. getWordExamples ---
+  console.log("3. getWordExamples");
+  const [vid] = await db
+    .insert(videos)
+    .values({
+      source: "youtube",
+      sourceId: `e2e-dict-${Date.now()}`,
+      url: "https://www.youtube.com/watch?v=e2e-dict",
+      title: "E2E dict examples",
+      language: "ja",
+      status: "done",
+    })
+    .returning();
+  const [line] = await db
+    .insert(subtitleLines)
+    .values({
+      videoId: vid.id,
+      idx: 0,
+      tStartMs: 4200,
+      tEndMs: 6000,
+      textOriginal: "猫が好き",
+      textTranslation: "I like cats",
+      tokens: [],
+    })
+    .returning();
+  await db.insert(wordExamples).values({
+    wordEntryId: nekoId,
+    subtitleLineId: line.id,
+    videoId: vid.id,
+  });
+
+  const examples = await getWordExamples(db, nekoId);
+  check("one example for 猫", examples.length === 1, examples.length);
+  check("example carries the sentence", examples[0]?.text === "猫が好き", examples[0]?.text);
+  check("example carries the translation", examples[0]?.translation === "I like cats");
+  check("example carries the start ms", examples[0]?.startMs === 4200, examples[0]?.startMs);
+  check("example carries the video + line ids", examples[0]?.videoId === vid.id && examples[0]?.lineId === line.id);
+  check("word with no occurrences => []", (await getWordExamples(db, ids[1]!)).length === 0);
+
+  // --- 4. searchByGloss (English meaning) ---
+  console.log("4. searchByGloss");
+  const byGloss = await searchByGloss(db, "cat");
+  check("gloss 'cat' finds 猫", byGloss.some((e) => e.lemma === "猫"), byGloss.map((e) => e.lemma));
+  check("no gloss match => []", (await searchByGloss(db, "zzzznomatch")).length === 0);
+
   // --- Cleanup ---
+  await db.delete(videos).where(eq(videos.id, vid.id));
   await db.delete(wordEntries).where(inArray(wordEntries.id, ids));
 
   console.log(`\n=== ${passed} passed, ${failed} failed ===\n`);
