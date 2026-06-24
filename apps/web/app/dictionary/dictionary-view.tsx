@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Definition } from "@fuchine/db/types";
+// type-only import (erased at build — does not bundle lib/dictionary's server deps)
+import type { WordExample as Example } from "@/lib/dictionary";
 
 /**
  * Map a JMdict frequency rank to a 0–5 tier for the UI dots (pure, no server deps).
@@ -25,17 +27,6 @@ type Entry = {
   pos: string | null;
   definitions: Definition[];
   frequencyRank: number | null;
-};
-
-type Example = {
-  videoId: string;
-  videoTitle: string | null;
-  source: string;
-  sourceId: string;
-  lineId: string;
-  text: string;
-  translation: string | null;
-  startMs: number;
 };
 
 const FREQ_LABEL = ["", "Rare", "Uncommon", "Common", "Common", "Very common"];
@@ -110,8 +101,13 @@ export function DictionaryView() {
     const handle = setTimeout(async () => {
       try {
         const res = await fetch(`/api/dictionary?q=${encodeURIComponent(term)}`);
-        const data = (await res.json()) as { entries?: Entry[] };
         if (id !== reqId.current) return; // a newer search superseded this one
+        if (!res.ok) {
+          setResults([]);
+          setSelected(null);
+          return;
+        }
+        const data = (await res.json()) as { entries?: Entry[] };
         const entries = data.entries ?? [];
         setResults(entries);
         if (entries.length > 0) {
