@@ -58,6 +58,7 @@ function BookmarkIcon({ filled }: { filled: boolean }) {
 export function DictionaryView() {
   const router = useRouter();
   const [q, setQ] = useState("");
+  const [mode, setMode] = useState<"auto" | "ja" | "en">("auto");
   const [results, setResults] = useState<Entry[]>([]);
   const [selected, setSelected] = useState<Entry | null>(null);
   const [examples, setExamples] = useState<Example[]>([]);
@@ -176,7 +177,7 @@ export function DictionaryView() {
     setSearching(true);
     const handle = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/dictionary?q=${encodeURIComponent(term)}`);
+        const res = await fetch(`/api/dictionary?q=${encodeURIComponent(term)}&mode=${mode}`);
         if (id !== reqId.current) return; // a newer search superseded this one
         if (!res.ok) {
           setResults([]);
@@ -197,7 +198,7 @@ export function DictionaryView() {
       }
     }, 250);
     return () => clearTimeout(handle);
-  }, [q, select, pushRecent]);
+  }, [q, mode, select, pushRecent]);
 
   const isEmpty = q.trim().length === 0;
 
@@ -216,6 +217,17 @@ export function DictionaryView() {
           {!isEmpty && (
             <button className="ds-clear" onClick={() => setQ("")} aria-label="Clear">×</button>
           )}
+        </div>
+        <div className="dict-lang seg">
+          {([["auto", "Auto"], ["ja", "日本語"], ["en", "English"]] as const).map(([v, l]) => (
+            <button
+              key={v}
+              className={"seg-b" + (mode === v ? " on" : "")}
+              onClick={() => setMode(v)}
+            >
+              {l}
+            </button>
+          ))}
         </div>
       </div>
 

@@ -390,6 +390,15 @@
 .cj-v { font-size: 17px; font-weight: 550; color: var(--text); }
 .cj-v .cj-r { font-size: 12px; font-weight: 400; color: var(--text-muted); margin-left: 6px; }
 
+.seg { display: inline-flex; background: var(--bg-2); border: 1px solid var(--border); border-radius: 9px; padding: 3px; gap: 2px; flex: none; }
+.seg-b {
+  border: none; background: transparent; font: inherit; font-size: 13px; font-weight: 550;
+  color: var(--text-muted); padding: 6px 13px; border-radius: 7px; cursor: pointer; white-space: nowrap;
+  transition: background 0.14s, color 0.14s;
+}
+.seg-b:hover { color: var(--text); }
+.seg-b.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+
 @media (max-width: 920px) {
   .dict-body { grid-template-columns: 280px 1fr; }
   .dd-conj { grid-template-columns: repeat(2, 1fr); }
