@@ -6,6 +6,9 @@ import { newCardState, reviewCard, previewIntervals, type CardState, type Review
 
 export type Result = { status: number; body: Record<string, unknown> };
 
+/** Cap on free-text notes stored on a card — keeps a single row from growing unbounded. */
+export const MAX_NOTES_LEN = 2_000;
+
 /** Reconstruct the FSRS CardState from a sentence_cards row. */
 function stateOf(c: {
   stability: number; difficulty: number; due: Date; lastReview: Date | null;
@@ -25,6 +28,7 @@ export async function mineSentence(
 ): Promise<Result> {
   if (!body?.subtitleLineId) return { status: 400, body: { error: "subtitleLineId is required" } };
   const cardType = body.cardType?.trim() || "listening";
+  const notes = body.notes != null ? String(body.notes).slice(0, MAX_NOTES_LEN) : null;
 
   const [line] = await db
     .select({ id: subtitleLines.id, videoId: subtitleLines.videoId })
@@ -37,7 +41,7 @@ export async function mineSentence(
   const inserted = await db
     .insert(sentenceCards)
     .values({
-      userId, subtitleLineId: line.id, videoId: line.videoId, cardType, notes: body.notes ?? null,
+      userId, subtitleLineId: line.id, videoId: line.videoId, cardType, notes,
       stability: init.stability, difficulty: init.difficulty, due: init.due, state: init.state,
       reps: init.reps, lapses: init.lapses, elapsedDays: init.elapsedDays, scheduledDays: init.scheduledDays,
     })

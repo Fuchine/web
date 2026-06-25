@@ -29,6 +29,12 @@ export type ImportRequest = {
 
 export type ImportResult = { status: number; body: Record<string, unknown> };
 
+// Abuse/DoS guards on the extension-submitted payload. A real video tops out at
+// a few thousand cues; these caps are generous but stop a single request from
+// inserting millions of rows or megabyte-long "lines".
+export const MAX_CAPTIONS = 10_000;
+export const MAX_CAPTION_TEXT_LEN = 2_000;
+
 function intOr(value: unknown, fallback: number): number {
   return Number.isInteger(value) ? (value as number) : fallback;
 }
@@ -60,12 +66,18 @@ export async function createImport(
   }
 
   const captions = Array.isArray(req.captions) ? req.captions : [];
+  if (captions.length > MAX_CAPTIONS) {
+    return {
+      status: 422,
+      body: { error: `too many captions (max ${MAX_CAPTIONS})` },
+    };
+  }
   const rows = captions
     .map((c, i) => ({
       idx: intOr(c.idx, i),
       tStartMs: Math.max(0, intOr(c.startMs, 0)),
       tEndMs: Math.max(0, intOr(c.endMs, 0)),
-      textOriginal: String(c.text ?? "").trim(),
+      textOriginal: String(c.text ?? "").trim().slice(0, MAX_CAPTION_TEXT_LEN),
     }))
     .filter((r) => r.textOriginal.length > 0);
 

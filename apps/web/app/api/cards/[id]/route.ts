@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { sentenceCards } from "@fuchine/db";
+import { MAX_NOTES_LEN } from "@/lib/cards";
 
 // PATCH /api/cards/:id — update notes on a sentence card
 export async function PATCH(
@@ -23,7 +24,7 @@ export async function PATCH(
 
   const updated = await db
     .update(sentenceCards)
-    .set({ notes: body.notes ?? null })
+    .set({ notes: body.notes.slice(0, MAX_NOTES_LEN) })
     .where(and(eq(sentenceCards.id, id), eq(sentenceCards.userId, session.user.id)))
     .returning({ id: sentenceCards.id, notes: sentenceCards.notes });
 

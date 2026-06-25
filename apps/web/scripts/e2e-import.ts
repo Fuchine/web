@@ -20,7 +20,7 @@ import {
   type Token,
   type Definition,
 } from "@fuchine/db";
-import { createImport, type ImportEnqueuer } from "../lib/import";
+import { createImport, MAX_CAPTIONS, type ImportEnqueuer } from "../lib/import";
 import { importVideo } from "../../worker/src/pipeline";
 
 const url = process.env.DATABASE_URL;
@@ -73,6 +73,15 @@ async function main() {
   check(
     "no captions => 422",
     (await createImport(db, queue, { url: watchUrl, captions: [] })).status === 422,
+  );
+  check(
+    "too many captions => 422",
+    (
+      await createImport(db, queue, {
+        url: watchUrl,
+        captions: Array.from({ length: MAX_CAPTIONS + 1 }, (_, i) => ({ text: `x${i}` })),
+      })
+    ).status === 422,
   );
   check("nothing enqueued yet", queue.jobs.length === 0, queue.jobs.length);
 
