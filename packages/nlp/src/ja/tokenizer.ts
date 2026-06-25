@@ -1,6 +1,6 @@
 import type { IpadicFeatures, Tokenizer as KuromojiTokenizer } from "kuromoji";
 import type { Token, Tokenizer } from "../interfaces";
-import { kataToHira } from "./kana";
+import { kataToHira, hiraToRomaji } from "./kana";
 
 // kuromoji (and its IPADIC) is loaded lazily on first tokenize() so that merely
 // importing this module (e.g. via getDictionary in the web app) never pulls the
@@ -47,12 +47,17 @@ export class JaTokenizer implements Tokenizer {
   async tokenize(text: string): Promise<Token[]> {
     if (text.trim().length === 0) return [];
     const tokenizer = await buildKuromoji();
-    return tokenizer.tokenize(text).map((f) => ({
-      surface: f.surface_form,
-      lemma: notEmpty(f.basic_form) ? f.basic_form : f.surface_form,
-      reading: notEmpty(f.reading) ? kataToHira(f.reading) : "",
-      pos: notEmpty(f.pos) ? f.pos : "unknown",
-      wordEntryId: null,
-    }));
+    return tokenizer.tokenize(text).map((f) => {
+      const reading = notEmpty(f.reading) ? kataToHira(f.reading) : "";
+      const romaji = reading ? hiraToRomaji(reading) : "";
+      return {
+        surface: f.surface_form,
+        lemma: notEmpty(f.basic_form) ? f.basic_form : f.surface_form,
+        reading,
+        romaji,
+        pos: notEmpty(f.pos) ? f.pos : "unknown",
+        wordEntryId: null,
+      };
+    });
   }
 }

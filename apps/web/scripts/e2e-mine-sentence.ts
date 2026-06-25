@@ -51,9 +51,9 @@ async function main() {
     .returning();
 
   const tokens: Token[] = [
-    { surface: "猫", lemma: "猫", reading: "ねこ", pos: "noun", wordEntryId: null },
-    { surface: "が", lemma: "が", reading: "が", pos: "particle", wordEntryId: null },
-    { surface: "好き", lemma: "好き", reading: "すき", pos: "adj", wordEntryId: null },
+    { surface: "猫", lemma: "猫", reading: "ねこ", romaji: "neko", pos: "noun", wordEntryId: null },
+    { surface: "が", lemma: "が", reading: "が", romaji: "ga", pos: "particle", wordEntryId: null },
+    { surface: "好き", lemma: "好き", reading: "すき", romaji: "suki", pos: "adj", wordEntryId: null },
   ];
   const [line] = await db
     .insert(subtitleLines)

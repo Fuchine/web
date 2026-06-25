@@ -13,6 +13,23 @@ import { RATES, type PlaybackRate } from "./PlayerControlBar";
 import { PlayerExplain, type ExplainFocal } from "./PlayerExplain";
 import type { Explanation, WordEntry } from "@fuchine/db";
 
+function ListIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="16" height="16">
+      <path d="M8 6.5h12M8 12h12M8 17.5h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M4 6.5h.01M4 12h.01M4 17.5h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SparkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="16" height="16">
+      <path d="M12 4l1.8 4.7L18.5 10l-4.7 1.3L12 16l-1.8-4.7L5.5 10l4.7-1.3z" fill="currentColor" />
+    </svg>
+  );
+}
+
 export type PlayerVideo = {
   id: string;
   title: string;
@@ -27,7 +44,7 @@ export type PlayerSubtitleLine = {
   tEndMs: number;
   textOriginal: string;
   textTranslation: string | null;
-  tokens: { surface: string; lemma: string; reading: string | null; pos: string | null; wordEntryId: string | null }[];
+  tokens: { surface: string; lemma: string; reading: string | null; romaji: string | null; pos: string | null; wordEntryId: string | null }[];
 };
 
 export interface PlayerProps {
@@ -69,6 +86,7 @@ function toFocal(
       surface: t.surface,
       lemma: t.lemma,
       reading: t.reading,
+      romaji: t.romaji,
       pos: t.pos,
       wordEntryId: t.wordEntryId,
     })),
@@ -85,7 +103,7 @@ function toTranscript(
     tStartMs: l.tStartMs,
     textOriginal: l.textOriginal,
     textTranslation: translations.get(l.id) ?? null,
-    tokens: l.tokens.map<TranscriptToken>((t) => ({ surface: t.surface, reading: t.reading })),
+    tokens: l.tokens.map<TranscriptToken>((t) => ({ surface: t.surface, reading: t.reading, romaji: t.romaji })),
   }));
 }
 
@@ -110,6 +128,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const [loopLine, setLoopLine] = useState(false);
   const [showTranslation, setShowTranslation] = useState(true);
   const [showFurigana, setShowFurigana] = useState(false);
+  const [showRomaji, setShowRomaji] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeRailTab, setActiveRailTab] = useState<"transcript" | "explain">("transcript");
   const [explanations, setExplanations] = useState<Map<string, Explanation>>(() => new Map());
@@ -656,12 +675,13 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
           onClickSettings={() => undefined}
         />
         <div className="player-body">
-          <PlayerStage
+            <PlayerStage
             stageRef={stageRef}
             videoId={video.sourceId}
             focalLine={focal}
             showTranslation={showTranslation}
             showFurigana={showFurigana}
+            showRomaji={showRomaji}
             activeWordId={openWordId}
             dictPopup={dictPopup}
             dictEntry={dictPopupEntry}
@@ -698,6 +718,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
               onSeek,
               onToggleLoop: () => setLoopLine((v) => !v),
               onToggleTranslation: () => setShowTranslation((v) => !v),
+              onToggleRomaji: () => setShowRomaji((v) => !v),
               onCycleRate,
               onVolume,
               onFullscreen,
@@ -712,7 +733,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
                 aria-current={activeRailTab === "transcript" ? "page" : undefined}
                 onClick={() => setActiveRailTab("transcript")}
               >
-                Transcript
+                <ListIcon /> Transcript
               </button>
               <button
                 type="button"
@@ -720,10 +741,10 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
                 aria-current={activeRailTab === "explain" ? "page" : undefined}
                 onClick={() => setActiveRailTab("explain")}
               >
-                Explain
+                <SparkIcon /> Explain
               </button>
             </div>
-            {activeRailTab === "transcript" ? (
+            <div className={cn("rail-content", activeRailTab !== "transcript" && "rail-hidden")}>
               <PlayerTranscript
                 lines={transcriptLines}
                 currentLineIdx={currentLineIdx}
@@ -736,7 +757,8 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
                 railRef={railRef}
                 lineRefs={lineRefs}
               />
-            ) : (
+            </div>
+            <div className={cn("rail-content", activeRailTab !== "explain" && "rail-hidden")}>
               <PlayerExplain
                 focal={focal ? toExplainFocal(focal) : null}
                 explanation={currentLine ? explanations.get(currentLine.id) ?? null : null}
@@ -744,7 +766,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
                 error={explainError}
                 onRegenerate={() => currentLine && void regenerateExplanation(currentLine.id)}
               />
-            )}
+            </div>
           </aside>
         </div>
       </div>

@@ -21,6 +21,7 @@ export interface PlayerStageProps {
   focalLine: FocalLine | null;
   showTranslation: boolean;
   showFurigana: boolean;
+  showRomaji: boolean;
   activeWordId: string | null;
   dictPopup: DictPopupState | null;
   dictEntry: {
@@ -41,7 +42,7 @@ export interface PlayerStageProps {
   onReady: PlayerVideoProps["onReady"];
   onStateChange: PlayerVideoProps["onStateChange"];
   onError: PlayerVideoProps["onError"];
-  controlBar: Omit<PlayerControlBarProps, "showTranslation" | "className">;
+  controlBar: Omit<PlayerControlBarProps, "showTranslation" | "showRomaji" | "className">;
   onWordClick?: (wordId: string, surface: string) => void;
   onWordRef?: (wordId: string, el: HTMLElement | null) => void;
   onDictExplain?: () => void;
@@ -63,6 +64,7 @@ export function PlayerStage({
   focalLine,
   showTranslation,
   showFurigana,
+  showRomaji,
   activeWordId,
   dictPopup,
   dictEntry,
@@ -104,6 +106,7 @@ export function PlayerStage({
           line={focalLine}
           showTranslation={showTranslation}
           showFurigana={showFurigana}
+          showRomaji={showRomaji}
           activeWordId={activeWordId}
           onWordClick={onWordClick}
           onWordRef={onWordRef}
@@ -114,7 +117,7 @@ export function PlayerStage({
       ) : (
         <div className="focal-subs-empty" aria-hidden="true" />
       )}
-      <PlayerControlBar {...controlBar} showTranslation={showTranslation} />
+      <PlayerControlBar {...controlBar} showTranslation={showTranslation} showRomaji={showRomaji} />
 
       {dictPopup && (
         <DictPopup

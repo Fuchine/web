@@ -183,9 +183,4 @@
 .mined-btn.primary:hover { background: var(--accent-hover); }
 
 /* ---- Focal token active state ---- */
-.stage .jp-tok.clickable { cursor: pointer; }
-.stage .jp-tok.active {
-  background: var(--accent); color: var(--on-accent);
-  border-radius: 6px;
-}
-.stage .jp-tok.active:hover { background: var(--accent); }
+/* Active/popup state is handled in player.css via .word.active .w-kanji */

@@ -45,7 +45,7 @@ async function main() {
     .insert(videos)
     .values({ source: "youtube", sourceId: `e2e-study-a-${stamp}`, url: "https://youtu.be/a", title: "A", channel: "ch", language: "ja", status: "done" })
     .returning();
-  const tokens: Token[] = [{ surface: "猫", lemma: "猫", reading: "ねこ", pos: "noun", wordEntryId: null }];
+  const tokens: Token[] = [{ surface: "猫", lemma: "猫", reading: "ねこ", romaji: "neko", pos: "noun", wordEntryId: null }];
   await db.insert(subtitleLines).values([
     { videoId: vA.id, idx: 0, tStartMs: 0, tEndMs: 1000, textOriginal: "猫が好き", textTranslation: "I like cats", tokens },
     { videoId: vA.id, idx: 1, tStartMs: 1000, tEndMs: 2000, textOriginal: "犬も好き", textTranslation: null, tokens: [] },

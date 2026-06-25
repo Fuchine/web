@@ -6,6 +6,7 @@ import { cn } from "../../lib/cn";
 export type TranscriptToken = {
   surface: string;
   reading: string | null;
+  romaji: string | null;
 };
 
 export type TranscriptLine = {
@@ -36,7 +37,18 @@ export interface PlayerTranscriptProps {
 function TextIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="16" height="16">
-      <path d="M5 6h14M9 6v12M5 18h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M5 7V5.5h14V7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M12 5.5v13" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M9.5 18.5h5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CcIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="16" height="16">
+      <rect x="3" y="6" width="18" height="12" rx="2" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M9 11.5a1.5 1.5 0 1 1 1.5 1.5M14 11.5a1.5 1.5 0 1 1 1.5 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 }
@@ -81,7 +93,7 @@ export function PlayerTranscript({
             aria-pressed={showFurigana}
             title="Furigana"
           >
-            <TextIcon />
+            <CcIcon />
           </button>
           <button
             type="button"

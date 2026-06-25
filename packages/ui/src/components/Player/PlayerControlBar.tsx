@@ -13,6 +13,7 @@ export interface PlayerControlBarProps {
   playbackRate: PlaybackRate;
   loopLine: boolean;
   showTranslation: boolean;
+  showRomaji: boolean;
   /** Disabled when no IFrame is ready. */
   disabled?: boolean;
   onPlayPause: () => void;
@@ -20,6 +21,7 @@ export interface PlayerControlBarProps {
   onSeek: (ms: number) => void;
   onToggleLoop: () => void;
   onToggleTranslation: () => void;
+  onToggleRomaji: () => void;
   onCycleRate: () => void;
   onVolume?: () => void;
   onFullscreen?: () => void;
@@ -87,12 +89,14 @@ export function PlayerControlBar({
   playbackRate,
   loopLine,
   showTranslation,
+  showRomaji,
   disabled,
   onPlayPause,
   onSkip,
   onSeek,
   onToggleLoop,
   onToggleTranslation,
+  onToggleRomaji,
   onCycleRate,
   onVolume,
   onFullscreen,
@@ -183,6 +187,19 @@ export function PlayerControlBar({
           title="Translation"
         >
           {Icon.cc}
+        </button>
+        <button
+          type="button"
+          className={btnCx(showRomaji, false)}
+          onClick={onToggleRomaji}
+          disabled={disabled}
+          aria-label="Toggle romaji"
+          aria-pressed={showRomaji}
+          title="Romaji"
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="20" height="20">
+            <text x="5" y="17" fontSize="14" fontWeight="600" fill="currentColor" fontFamily="sans-serif">Aa</text>
+          </svg>
         </button>
         <button
           type="button"

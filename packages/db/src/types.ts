@@ -16,6 +16,7 @@ export type Token = {
   surface: string; // form as it appears in text: 日本語
   lemma: string; // base form, used for dictionary lookup
   reading: string | null; // reading in hiragana (にほんご); null/"" when none (e.g. punctuation)
+  romaji: string | null; // romanized reading (maiasa); null when none (e.g. punctuation)
   pos: string; // part of speech
   wordEntryId: string | null; // resolved dictionary entry, or null
 };

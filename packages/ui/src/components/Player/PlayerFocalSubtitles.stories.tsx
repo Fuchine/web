@@ -6,12 +6,12 @@ const SAMPLE_LINE: FocalLine = {
   textOriginal: "毎朝川沿いを歩いています。",
   textTranslation: "Every morning, I walk along the river.",
   tokens: [
-    { surface: "毎朝", lemma: "毎朝", reading: "まいあさ", pos: "Noun", wordEntryId: "w1" },
-    { surface: "川沿い", lemma: "川沿い", reading: "かわぞい", pos: "Noun", wordEntryId: "w2" },
-    { surface: "を", lemma: "を", reading: null, pos: "Particle", wordEntryId: null },
-    { surface: "歩いて", lemma: "歩く", reading: "あるいて", pos: "Verb", wordEntryId: "w3" },
-    { surface: "います", lemma: "いる", reading: "います", pos: "Aux", wordEntryId: "w4" },
-    { surface: "。", lemma: "。", reading: null, pos: "Punct", wordEntryId: null },
+    { surface: "毎朝", lemma: "毎朝", reading: "まいあさ", romaji: "maiasa", pos: "Noun", wordEntryId: "w1" },
+    { surface: "川沿い", lemma: "川沿い", reading: "かわぞい", romaji: "kawazoi", pos: "Noun", wordEntryId: "w2" },
+    { surface: "を", lemma: "を", reading: null, romaji: "wo", pos: "Particle", wordEntryId: null },
+    { surface: "歩いて", lemma: "歩く", reading: "あるいて", romaji: "aruite", pos: "Verb", wordEntryId: "w3" },
+    { surface: "います", lemma: "いる", reading: "います", romaji: "imasu", pos: "Aux", wordEntryId: "w4" },
+    { surface: "。", lemma: "。", reading: null, romaji: null, pos: "Punct", wordEntryId: null },
   ],
 };
 
@@ -38,22 +38,22 @@ export default meta;
 type Story = StoryObj<typeof PlayerFocalSubtitles>;
 
 export const Default: Story = {
-  args: { line: SAMPLE_LINE, showTranslation: true, showFurigana: false },
+  args: { line: SAMPLE_LINE, showTranslation: true, showFurigana: false, showRomaji: true },
 };
 
 export const WithFurigana: Story = {
-  args: { line: SAMPLE_LINE, showTranslation: true, showFurigana: true },
+  args: { line: SAMPLE_LINE, showTranslation: true, showFurigana: true, showRomaji: true },
 };
 
 export const TranslationHidden: Story = {
-  args: { line: SAMPLE_LINE, showTranslation: false, showFurigana: false },
+  args: { line: SAMPLE_LINE, showTranslation: false, showFurigana: false, showRomaji: true },
 };
 
 export const SfxLine: Story = {
-  args: { line: SFX_LINE, showTranslation: true, showFurigana: false },
+  args: { line: SFX_LINE, showTranslation: true, showFurigana: false, showRomaji: true },
 };
 
 export const Dark: Story = {
-  args: { line: SAMPLE_LINE, showTranslation: true, showFurigana: true },
+  args: { line: SAMPLE_LINE, showTranslation: true, showFurigana: true, showRomaji: true },
   decorators: [(Story) => <div data-theme="dark" className="bg-bg p-8"><Story /></div>],
 };

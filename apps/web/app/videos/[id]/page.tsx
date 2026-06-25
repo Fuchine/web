@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getVideoWithLines } from "@/lib/study";
 import { getSavedWordIds } from "@/lib/dictionary";
+import { hiraToRomaji } from "@fuchine/nlp";
 import { PlayerView } from "./player-view";
 import "./player.css";
 
@@ -42,13 +43,17 @@ export default async function VideoPage({
         tEndMs: l.tEndMs,
         textOriginal: l.textOriginal,
         textTranslation: l.textTranslation,
-        tokens: (l.tokens ?? []) as {
+        tokens: ((l.tokens ?? []) as {
           surface: string;
           lemma: string;
           reading: string | null;
+          romaji: string | null;
           pos: string | null;
           wordEntryId: string | null;
-        }[],
+        }[]).map((t) => ({
+          ...t,
+          romaji: t.romaji ?? (t.reading ? hiraToRomaji(t.reading) : null),
+        })),
       }))}
       translatedChunks={result.translatedChunks}
       account={{

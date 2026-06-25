@@ -21,6 +21,7 @@ export class JaTokenizer implements Tokenizer {
       surface,
       lemma: surface,
       reading: "",
+      romaji: "",
       pos: "unknown",
       wordEntryId: null,
     }));

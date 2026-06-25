@@ -19,6 +19,7 @@ function Demo({ initialPlaying = false, initialRate = 1.0 as PlaybackRate, loop 
   const [rate, setRate] = useState<PlaybackRate>(initialRate);
   const [loopLine, setLoop] = useState(loop);
   const [showTr, setShowTr] = useState(translation);
+  const [showRm, setShowRm] = useState(true);
   const [ms, setMs] = useState(5 * 60 * 1000 + 24 * 1000);
   return (
     <div className="bg-bg p-6">
@@ -29,11 +30,13 @@ function Demo({ initialPlaying = false, initialRate = 1.0 as PlaybackRate, loop 
         playbackRate={rate}
         loopLine={loopLine}
         showTranslation={showTr}
+        showRomaji={showRm}
         onPlayPause={() => setPlaying((p) => !p)}
         onSkip={(d) => setMs((m) => Math.max(0, m + d))}
         onSeek={(target) => setMs(target)}
         onToggleLoop={() => setLoop((l) => !l)}
         onToggleTranslation={() => setShowTr((t) => !t)}
+        onToggleRomaji={() => setShowRm((r) => !r)}
         onCycleRate={() => {
           const i = RATES.indexOf(rate);
           setRate(RATES[(i + 1) % RATES.length]!);
