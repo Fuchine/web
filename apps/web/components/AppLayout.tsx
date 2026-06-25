@@ -13,10 +13,12 @@ export interface AppLayoutProps {
   account: AppLayoutAccount;
   reviewDue?: number;
   activeKey: string;
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
   children: React.ReactNode;
 }
 
-export function AppLayout({ account, reviewDue, activeKey, children }: AppLayoutProps) {
+export function AppLayout({ account, reviewDue, activeKey, collapsed, onCollapsedChange, children }: AppLayoutProps) {
   const router = useRouter();
 
   const nav = buildAppNav({
@@ -26,7 +28,7 @@ export function AppLayout({ account, reviewDue, activeKey, children }: AppLayout
   });
 
   return (
-    <AppShell nav={nav} account={account}>
+    <AppShell nav={nav} account={account} collapsed={collapsed} onCollapsedChange={onCollapsedChange}>
       {children}
     </AppShell>
   );

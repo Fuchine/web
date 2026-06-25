@@ -48,5 +48,9 @@ Ic.flag = mk(<><path d="M6 4v16"/><path d="M6 5h11l-2 3.2L17 11H6"/></>);
 Ic.list = mk(<><path d="M8 6.5h12M8 12h12M8 17.5h12"/><path d="M4 6.5h.01M4 12h.01M4 17.5h.01"/></>);
 Ic.cards = mk(<><rect x="3.5" y="7" width="12" height="12" rx="1.6"/><path d="M7 4.5h11a1.5 1.5 0 0 1 1.5 1.5v11"/></>);
 Ic.text = mk(<><path d="M5 7V5.5h14V7"/><path d="M12 5.5v13"/><path d="M9.5 18.5h5"/></>);
+Ic.kana = mk(<><rect x="3.5" y="3.5" width="17" height="17" rx="3.4"/><path d="M8 9.6c1.8.2 4.6.2 6.4-.1"/><path d="M12.7 8.2c-.4 3.2-1.9 5.6-4.1 6.9"/><path d="M12.6 11.8c1.6.9 2.7 2.1 2.7 3.2 0 .9-.6 1.4-1.5 1.3"/></>);
+Ic.flame = mk(<><path d="M12 3.4c2.8 3.1 5 5.3 5 8.7a5 5 0 0 1-10 0c0-1.4.5-2.5 1.4-3.4.2 1.1.9 1.8 1.9 2C9.3 8.4 10.3 6 12 3.4Z"/></>);
+Ic.bolt = mk(<><path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/></>);
+Ic.medal = mk(<><circle cx="12" cy="14.5" r="5"/><path d="M12 12.3v0M12 17v0"/><path d="M9 9.5 6.5 3.5M15 9.5 17.5 3.5"/></>);
 
 window.Ic = Ic;

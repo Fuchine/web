@@ -65,8 +65,9 @@ function CompRing({ pct, mode }) {
 }
 
 /* ---------------- Video card (the key component) ---------------- */
-function VideoCard({ v, compMode, openMenu, setOpenMenu }) {
+function VideoCard({ v, compMode, openMenu, setOpenMenu, saved, onAction }) {
   const open = openMenu === v.id;
+  const isSaved = saved.has(v.id);
   const btnRef = useRef(null);
   const [pos, setPos] = useState(null);
   const go = () => { window.location.href = 'Player.html'; };
@@ -77,6 +78,7 @@ function VideoCard({ v, compMode, openMenu, setOpenMenu }) {
     setPos({ top: r.bottom + 6, left: Math.max(12, r.right - 196) });
     setOpenMenu(v.id);
   };
+  const act = (action) => (e) => { e.stopPropagation(); setOpenMenu(null); onAction(action, v); };
   useEffect(() => {
     if (!open) return;
     const scroller = document.querySelector('.main');
@@ -110,11 +112,14 @@ function VideoCard({ v, compMode, openMenu, setOpenMenu }) {
         {open && pos && ReactDOM.createPortal(
           <div className="card-menu" onClick={(e) => e.stopPropagation()}
             style={{ position: 'fixed', top: pos.top, left: pos.left, right: 'auto', bottom: 'auto' }}>
-            <button className="mi"><Ic.folderPlus /> Add to album</button>
-            <button className="mi"><Ic.bookmark /> Save for later</button>
-            <button className="mi"><Ic.eyeOff /> Hide video</button>
+            <button className="mi" onClick={act('album')}><Ic.folderPlus /> Add to album</button>
+            <button className="mi" onClick={act('save')}>
+              {isSaved ? <Ic.bookmarkFill /> : <Ic.bookmark />} {isSaved ? 'Saved for later' : 'Save for later'}
+              {isSaved && <span className="mi-check"><Ic.check /></span>}
+            </button>
+            <button className="mi" onClick={act('hide')}><Ic.eyeOff /> Hide video</button>
             <div className="mi-div" />
-            <button className="mi"><Ic.flag /> Not interested</button>
+            <button className="mi" onClick={act('not-interested')}><Ic.flag /> Not interested</button>
           </div>,
           document.body
         )}
@@ -127,8 +132,8 @@ function VideoCard({ v, compMode, openMenu, setOpenMenu }) {
 function Sidebar({ collapsed, onToggle, dueCount }) {
   const items = [
     { key: 'home', icon: Ic.home, label: 'Home', active: true },
-    { key: 'review', icon: Ic.review, label: 'Review', badge: dueCount },
-    { key: 'settings', icon: Ic.settings, label: 'Settings' },
+    { key: 'review', icon: Ic.review, label: 'Review', badge: dueCount, href: 'Review.html' },
+    { key: 'settings', icon: Ic.settings, label: 'Settings', href: 'Settings.html' },
   ];
   return (
     <aside className="side">
@@ -145,7 +150,8 @@ function Sidebar({ collapsed, onToggle, dueCount }) {
           const I = it.icon;
           return (
             <button key={it.key} className={'nav-item' + (it.active ? ' active' : '')}
-              title={collapsed ? it.label : undefined}>
+              title={collapsed ? it.label : undefined}
+              onClick={() => { if (it.href) window.location.href = it.href; }}>
               <I />
               <span className="nav-text">{it.label}</span>
               {it.badge != null && <span className="nav-badge">{it.badge}</span>}
@@ -252,7 +258,7 @@ function Tabs({ active, onPick }) {
 }
 
 /* ---------------- Rows + grid ---------------- */
-function CardRow({ title, sub, items, compMode, openMenu, setOpenMenu, more }) {
+function CardRow({ title, sub, items, compMode, openMenu, setOpenMenu, more, saved, onAction }) {
   return (
     <section className="section">
       <div className="section-head">
@@ -262,7 +268,8 @@ function CardRow({ title, sub, items, compMode, openMenu, setOpenMenu, more }) {
       <div className="row">
         {items.map((v) => (
           <div className="card-cell" key={v.id} style={{ flex: 'none' }}>
-            <VideoCard v={v} compMode={compMode} openMenu={openMenu} setOpenMenu={setOpenMenu} />
+            <VideoCard v={v} compMode={compMode} openMenu={openMenu} setOpenMenu={setOpenMenu}
+              saved={saved} onAction={onAction} />
           </div>
         ))}
       </div>
@@ -323,6 +330,34 @@ function App() {
   const [mine, setMine] = useState(false);
   const [modal, setModal] = useState(false);
   const [openMenu, setOpenMenu] = useState(null);
+  const [hidden, setHidden] = useState(() => new Set());
+  const [saved, setSaved] = useState(() => new Set());
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(id);
+  }, [toast]);
+
+  const onAction = (action, v) => {
+    if (action === 'album') {
+      setToast({ msg: 'Added to “Slow life vlogs”' });
+    } else if (action === 'save') {
+      setSaved((s) => {
+        const n = new Set(s);
+        n.has(v.id) ? n.delete(v.id) : n.add(v.id);
+        return n;
+      });
+      setToast({ msg: saved.has(v.id) ? 'Removed from saved' : 'Saved for later' });
+    } else if (action === 'hide') {
+      setHidden((s) => new Set(s).add(v.id));
+      setToast({ msg: 'Video hidden', undo: () => setHidden((s) => { const n = new Set(s); n.delete(v.id); return n; }) });
+    } else if (action === 'not-interested') {
+      setHidden((s) => new Set(s).add(v.id));
+      setToast({ msg: "Got it — we'll show less like this", undo: () => setHidden((s) => { const n = new Set(s); n.delete(v.id); return n; }) });
+    }
+  };
 
   useEffect(() => { setCollapsed(t.collapsed); }, [t.collapsed]);
   useEffect(() => { document.documentElement.setAttribute('data-theme', t.theme); }, [t.theme]);
@@ -342,6 +377,7 @@ function App() {
 
   // filtered + sorted main list
   let list = VIDEOS.filter((v) => {
+    if (hidden.has(v.id)) return false;
     if (cat !== 'All' && v.cat !== cat) return false;
     if (mine && !v.mine) return false;
     if (q && !(v.title.toLowerCase().includes(q) || v.chan.toLowerCase().includes(q) || v.cat.toLowerCase().includes(q))) return false;
@@ -356,8 +392,8 @@ function App() {
   });
 
   const browsing = cat === 'All' && !mine && !q;   // show discovery rows only on the clean default
-  const continueList = VIDEOS.filter((v) => v.progress != null).sort((a, b) => b.progress - a.progress);
-  const compList = [...VIDEOS].sort((a, b) => b.comp - a.comp).slice(0, 7);
+  const continueList = VIDEOS.filter((v) => v.progress != null && !hidden.has(v.id)).sort((a, b) => b.progress - a.progress);
+  const compList = [...VIDEOS].filter((v) => !hidden.has(v.id)).sort((a, b) => b.comp - a.comp).slice(0, 7);
 
   const gridHeading = mine ? 'My imports'
     : q ? `Results for “${query.trim()}”`
@@ -388,12 +424,14 @@ function App() {
                 <>
                   <div className="rise">
                     <CardRow title="Continue watching" items={continueList}
-                      compMode={t.comprehension} openMenu={openMenu} setOpenMenu={setOpenMenu} />
+                      compMode={t.comprehension} openMenu={openMenu} setOpenMenu={setOpenMenu}
+                      saved={saved} onAction={onAction} />
                   </div>
                   <div className="rise-2">
                     <CardRow title="Most comprehensible" sub="— easiest for you right now"
                       items={compList} compMode={t.comprehension}
-                      openMenu={openMenu} setOpenMenu={setOpenMenu} />
+                      openMenu={openMenu} setOpenMenu={setOpenMenu}
+                      saved={saved} onAction={onAction} />
                   </div>
                 </>
               )}
@@ -415,7 +453,8 @@ function App() {
                   <div className="grid">
                     {list.map((v) => (
                       <VideoCard key={v.id} v={v} compMode={t.comprehension}
-                        openMenu={openMenu} setOpenMenu={setOpenMenu} />
+                        openMenu={openMenu} setOpenMenu={setOpenMenu}
+                        saved={saved} onAction={onAction} />
                     ))}
                   </div>
                 )}
@@ -426,6 +465,13 @@ function App() {
       </main>
 
       {modal && <AddModal onClose={() => setModal(false)} />}
+
+      {toast && (
+        <div className="home-toast">
+          <Ic.check /> {toast.msg}
+          {toast.undo && <button className="toast-undo" onClick={() => { toast.undo(); setToast(null); }}>Undo</button>}
+        </div>
+      )}
 
       <TweaksPanel>
         <TweakSection label="Appearance" />

@@ -1,38 +1,83 @@
-/* Fuchine — Dictionary search */
-const { useState, useEffect } = React;
+/* Fuchine — Vocabulary collection (gamified, restrained)
+   Tabs Vocabulary / Grammar · coverage analysis · status-coloured cards
+   with per-skill mastery (Reading / Listening / Speaking / Recall).
+   Clicking a card opens an entry detail slide-over. */
+const { useState, useEffect, useMemo } = React;
 
 const FREQ_LABEL = ['', 'Rare', 'Uncommon', 'Common', 'Common', 'Very common'];
 
-/* search results for query "歩 · walk" */
-const RESULTS = [
-  { id: 'aruku', word: '歩く', reading: 'あるく', pos: 'Verb', gloss: 'to walk; to go on foot', freq: 5, saved: true },
-  { id: 'sanpo', word: '散歩', reading: 'さんぽ', pos: 'Noun · する-verb', gloss: 'a walk; a stroll', freq: 4, saved: false },
-  { id: 'aruite', word: '歩いて', reading: 'あるいて', pos: 'Verb · te-form', gloss: 'walking (continuative of 歩く)', freq: 5, saved: true },
-  { id: 'hodou', word: '歩道', reading: 'ほどう', pos: 'Noun', gloss: 'footpath; sidewalk', freq: 3, saved: false },
-  { id: 'ippo', word: '一歩', reading: 'いっぽ', pos: 'Noun', gloss: 'one step', freq: 3, saved: false },
-  { id: 'aruki', word: '歩き', reading: 'あるき', pos: 'Noun', gloss: 'walking; a walk', freq: 3, saved: false },
+/* the four practice modalities the app tracks, used as per-word mastery */
+const SKILLS = [
+  { k: 'read',   label: 'Reading',   icon: Ic.dict },
+  { k: 'listen', label: 'Listening', icon: Ic.volume },
+  { k: 'speak',  label: 'Speaking',  icon: Ic.phrases },
+  { k: 'recall', label: 'Recall',    icon: Ic.review },
 ];
 
-const ENTRY = {
-  word: '歩く', reading: 'あるく', pos: 'Godan verb · intransitive', freq: 5,
-  senses: [
-    { defs: ['to walk', 'to go on foot'], tags: ['common'] },
-    { defs: ['to go (somewhere) step by step', 'to make one\'s way'], tags: ['figurative'] },
-  ],
-  conj: [
-    { k: 'Dictionary', v: '歩く', r: 'あるく' },
-    { k: 'Te-form', v: '歩いて', r: 'あるいて' },
-    { k: 'Past', v: '歩いた', r: 'あるいた' },
-    { k: 'Negative', v: '歩かない', r: 'あるかない' },
-    { k: 'Polite', v: '歩きます', r: 'あるきます' },
-    { k: 'Potential', v: '歩ける', r: 'あるける' },
-  ],
-  examples: [
-    { ja: ['毎朝川沿いを', '歩いて', 'います。'], en: 'Every morning, I walk along the river.', src: 'Kyoto Slow Living', time: '5:24' },
-    { ja: ['駅まで', '歩く', 'のが好きです。'], en: 'I like walking to the station.', src: '東京の電車に乗ってみた', time: '2:11' },
-    { ja: ['もう少し', '歩き', 'ましょう。'], en: "Let's walk a little more.", src: '京都の朝、静かな散歩', time: '8:47' },
-  ],
+/* status meta — reuses the app's established status palette */
+const STATUS = {
+  known:    { label: 'Known' },
+  learning: { label: 'Learning' },
+  new:      { label: 'New' },
 };
+
+/* mastery: [read, listen, speak, recall], each 0–3 (0 empty · 1–2 partial · 3 full) */
+const WORDS = [
+  { id: 'no',      w: 'の',     r: 'no',      pos: 'Particle', def: 'possessive / linking particle', status: 'known', freq: 5, jlpt: 'N5', m: [3,3,3,3] },
+  { id: 'ni',      w: 'に',     r: 'ni',      pos: 'Particle', def: 'to; at; in (location / time)',   status: 'known', freq: 5, jlpt: 'N5', m: [3,3,3,2] },
+  { id: 'wa',      w: 'は',     r: 'wa',      pos: 'Particle', def: 'topic marker',                   status: 'known', freq: 5, jlpt: 'N5', m: [3,3,2,3] },
+  { id: 'ga',      w: 'が',     r: 'ga',      pos: 'Particle', def: 'subject marker; but',            status: 'known', freq: 5, jlpt: 'N5', m: [3,3,3,2] },
+  { id: 'o',       w: 'を',     r: 'o',       pos: 'Particle', def: 'object / path marker',           status: 'known', freq: 5, jlpt: 'N5', m: [3,2,2,3] },
+  { id: 'de',      w: 'で',     r: 'de',      pos: 'Particle', def: 'by; with; at',                   status: 'known', freq: 5, jlpt: 'N5', m: [3,3,2,2] },
+  { id: 'desu',    w: 'です',   r: 'desu',    pos: 'Copula',   def: 'to be (polite)',                 status: 'known', freq: 5, jlpt: 'N5', m: [3,3,3,3] },
+  { id: 'ne',      w: 'ね',     r: 'ne',      pos: 'Particle', def: 'right? (seeking agreement)',     status: 'known', freq: 4, jlpt: 'N5', m: [3,3,3,2] },
+  { id: 'to',      w: 'と',     r: 'to',      pos: 'Particle', def: 'and; with; quotation',           status: 'known', freq: 5, jlpt: 'N5', m: [3,2,2,3] },
+  { id: 'da',      w: 'だ',     r: 'da',      pos: 'Copula',   def: 'to be (plain)',                  status: 'known', freq: 5, jlpt: 'N5', m: [3,3,2,3] },
+  { id: 'asa',     w: '朝',     r: 'asa',     pos: 'Noun',     def: 'morning',                        status: 'known', freq: 4, jlpt: 'N5', m: [3,2,2,3] },
+  { id: 'otera',   w: 'お寺',   r: 'otera',   pos: 'Noun',     def: 'temple',                         status: 'known', freq: 3, jlpt: 'N4', m: [3,2,1,3] },
+  { id: 'tenki',   w: '天気',   r: 'tenki',   pos: 'Noun',     def: 'weather',                        status: 'known', freq: 4, jlpt: 'N5', m: [3,3,2,2] },
+
+  { id: 'mo',      w: 'も',     r: 'mo',      pos: 'Particle', def: 'also; too',                      status: 'learning', freq: 5, jlpt: 'N5', m: [2,2,1,2] },
+  { id: 'kara',    w: 'から',   r: 'kara',    pos: 'Particle', def: 'from; because',                  status: 'learning', freq: 4, jlpt: 'N5', m: [2,1,1,2] },
+  { id: 'aruku',   w: '歩く',   r: 'aruku',   pos: 'Verb',     def: 'to walk; to go on foot',         status: 'learning', freq: 5, jlpt: 'N5', m: [2,2,1,1] },
+  { id: 'kawazoi', w: '川沿い', r: 'kawazoi', pos: 'Noun',     def: 'riverside; along the river',     status: 'learning', freq: 2, jlpt: 'N3', m: [2,1,0,1] },
+  { id: 'saiteki', w: '最適',   r: 'saiteki', pos: 'Na-adj',   def: 'optimal; ideal',                 status: 'learning', freq: 3, jlpt: 'N2', m: [1,1,0,2] },
+  { id: 'noru',    w: '乗る',   r: 'noru',    pos: 'Verb',     def: 'to ride; to board',              status: 'learning', freq: 4, jlpt: 'N5', m: [2,1,1,1] },
+  { id: 'shizuka', w: '静か',   r: 'shizuka', pos: 'Na-adj',   def: 'quiet; calm',                    status: 'learning', freq: 3, jlpt: 'N5', m: [1,2,1,1] },
+  { id: 'kuuki',   w: '空気',   r: 'kuuki',   pos: 'Noun',     def: 'air; atmosphere',                status: 'learning', freq: 3, jlpt: 'N4', m: [1,1,0,1] },
+
+  { id: 'na',      w: 'な',     r: 'na',      pos: 'Particle', def: 'na-adjective marker',            status: 'new', freq: 4, jlpt: 'N5', m: [0,0,0,0] },
+  { id: 'koto',    w: '事',     r: 'koto',    pos: 'Noun',     def: 'thing; matter (abstract)',       status: 'new', freq: 4, jlpt: 'N4', m: [0,0,0,0] },
+  { id: 'sanpo',   w: '散歩',   r: 'sanpo',   pos: 'Noun',     def: 'a walk; a stroll',               status: 'new', freq: 4, jlpt: 'N4', m: [1,0,0,0] },
+  { id: 'sumu',    w: '澄む',   r: 'sumu',    pos: 'Verb',     def: 'to become clear (water / air)',  status: 'new', freq: 2, jlpt: 'N1', m: [0,0,0,0] },
+  { id: 'kakunin', w: '確認',   r: 'kakunin', pos: 'Noun',     def: 'confirmation; checking',         status: 'new', freq: 3, jlpt: 'N3', m: [0,1,0,0] },
+  { id: 'tokasu',  w: '溶かす', r: 'tokasu',  pos: 'Verb',     def: 'to dissolve; to melt',           status: 'new', freq: 2, jlpt: 'N2', m: [0,0,0,0] },
+  { id: 'nai',     w: '無い',   r: 'nai',     pos: 'Adj',      def: 'nonexistent; not having',        status: 'new', freq: 4, jlpt: 'N4', m: [1,0,0,0] },
+];
+
+/* grammar points (second tab) */
+const GRAMMAR = [
+  { id: 'teiru',  pat: '〜ている',  r: 'te-iru',  def: 'ongoing or habitual action',          status: 'learning', freq: 5, jlpt: 'N5', m: [2,1,1,2] },
+  { id: 'wo-path',pat: 'を + 移動',  r: 'o + motion', def: 'を marks the path travelled',       status: 'learning', freq: 4, jlpt: 'N4', m: [2,1,0,1] },
+  { id: 'kara-r', pat: '〜から',     r: 'kara',    def: 'because; gives a reason',             status: 'known', freq: 5, jlpt: 'N5', m: [3,2,2,3] },
+  { id: 'node',   pat: '〜ので',     r: 'node',    def: 'because (softer, polite)',            status: 'new', freq: 4, jlpt: 'N4', m: [0,0,0,0] },
+  { id: 'nakereba',w:'', pat: '〜なければ', r: 'nakereba', def: 'if not …; must',             status: 'new', freq: 3, jlpt: 'N4', m: [0,0,0,0] },
+  { id: 'tara',   pat: '〜たら',     r: 'tara',    def: 'when / if (conditional)',             status: 'learning', freq: 4, jlpt: 'N4', m: [1,1,0,1] },
+];
+
+/* shared "appears in your videos" sources for the detail panel */
+const SOURCES = [
+  { src: 'Kyoto Slow Living', jp: '京都の朝、静かな散歩', time: '5:24' },
+  { src: 'NHK やさしい日本語', jp: 'ニュースで学ぶ日本語', time: '1:02' },
+  { src: 'Tokyo Days', jp: '東京の電車に乗ってみた', time: '0:38' },
+];
+
+const TYPES = [
+  { v: 'all', l: 'All items' },
+  { v: 'new', l: 'New' },
+  { v: 'learning', l: 'Learning' },
+  { v: 'known', l: 'Known' },
+];
 
 /* ---------------- Sidebar ---------------- */
 function Sidebar({ collapsed, onToggle }) {
@@ -79,6 +124,23 @@ function Sidebar({ collapsed, onToggle }) {
   );
 }
 
+/* per-card mastery pips — one per modality, filled by level */
+function MasteryPips({ m, showSkills }) {
+  if (!showSkills) return null;
+  return (
+    <div className="vc-skills" aria-hidden="true">
+      {SKILLS.map((s, i) => {
+        const lv = m[i];
+        const cls = lv >= 3 ? 'full' : lv >= 1 ? 'part' : 'empty';
+        const I = s.icon;
+        return (
+          <span key={s.k} className={'vc-pip ' + cls} title={s.label}><I /></span>
+        );
+      })}
+    </div>
+  );
+}
+
 function FreqDots({ n }) {
   return (
     <span className="freq">
@@ -88,148 +150,257 @@ function FreqDots({ n }) {
   );
 }
 
+/* ---------------- Detail slide-over ---------------- */
+function Detail({ item, kind, idx, saved, onSave, onToast, onClose }) {
+  if (!item) return null;
+  const total = item.m.reduce((a, b) => a + b, 0);
+  const pct = Math.round((total / (item.m.length * 3)) * 100);
+  return (
+    <>
+      <div className="voc-scrim" onClick={onClose} />
+      <aside className="voc-detail" onClick={(e) => e.stopPropagation()}>
+        <div className="vd-bar">
+          <span className={'vd-status s-' + item.status}>{STATUS[item.status].label}</span>
+          <span className="vd-spacer" />
+          <button className="vd-x" onClick={onClose} title="Close"><Ic.close /></button>
+        </div>
+        <div className="vd-scroll">
+          <div className="vd-head">
+            <div>
+              <div className="vd-word jp">{kind === 'grammar' ? item.pat : item.w}</div>
+              <div className="vd-reading">{item.r}</div>
+            </div>
+            <span className="vd-num">#{idx}</span>
+          </div>
+
+          <div className="vd-tags">
+            <span className="vd-pos">{item.pos || 'Grammar'}</span>
+            <span className="vd-jlpt">{item.jlpt}</span>
+            <FreqDots n={item.freq} />
+          </div>
+
+          <p className="vd-def">{item.def}</p>
+
+          <div className="vd-actions">
+            <button className={'vd-save' + (saved ? ' saved' : '')} onClick={onSave}>
+              {saved ? <Ic.bookmarkFill /> : <Ic.bookmark />} {saved ? 'Saved' : 'Save word'}
+            </button>
+            <button className="vd-ghost" onClick={() => onToast('♪ Playing pronunciation')}><Ic.volume /></button>
+          </div>
+
+          <div className="vd-section">
+            <div className="vd-sh">Mastery <span className="vd-pct">{pct}%</span></div>
+            <div className="vd-mastery">
+              {SKILLS.map((s, i) => {
+                const I = s.icon;
+                return (
+                  <div key={s.k} className="vd-skill">
+                    <span className="vd-skill-ic"><I /></span>
+                    <span className="vd-skill-name">{s.label}</span>
+                    <span className="vd-meter">
+                      {[1,2,3].map((n) => <i key={n} className={n <= item.m[i] ? 'on' : ''} />)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="vd-section">
+            <div className="vd-sh">Appears in your videos <span className="vd-count">{SOURCES.length}</span></div>
+            <div className="vd-sources">
+              {SOURCES.map((sc, i) => (
+                <a key={i} className="vd-source" href="Player.html">
+                  <span className="vd-src-ic"><Ic.youtube /></span>
+                  <span className="vd-src-meta">
+                    <span className="vd-src-title jp">{sc.jp}</span>
+                    <span className="vd-src-sub">{sc.src} · {sc.time}</span>
+                  </span>
+                  <span className="vd-src-play"><Ic.play /></span>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <div className="vd-practice">
+            <button className="vd-practice-btn" onClick={() => { window.location.href = 'Review.html'; }}>
+              <Ic.review /> Practice now
+            </button>
+            <button className="vd-practice-btn ghost" onClick={() => { window.location.href = 'Player.html'; }}>
+              <Ic.play /> See in context
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+}
+
 /* ---------------- App ---------------- */
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "theme": "light",
-  "state": "results",
+  "tab": "vocabulary",
+  "type": "all",
+  "romaji": "on",
+  "skills": "on",
   "collapsed": false
 }/*EDITMODE-END*/;
 
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [collapsed, setCollapsed] = useState(t.collapsed);
-  const [sel, setSel] = useState('aruku');
-  const [lang, setLang] = useState('auto');
-  const [q, setQ] = useState('歩く');
+  const [sel, setSel] = useState(null);
+  const [q, setQ] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [saved, setSaved] = useState({});
+  const [toast, setToast] = useState(null);
 
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(id);
+  }, [toast]);
   useEffect(() => { setCollapsed(t.collapsed); }, [t.collapsed]);
   useEffect(() => { document.documentElement.setAttribute('data-theme', t.theme); }, [t.theme]);
   const toggle = () => { const n = !collapsed; setCollapsed(n); setTweak('collapsed', n); };
 
-  const empty = t.state === 'empty';
+  const kind = t.tab === 'grammar' ? 'grammar' : 'vocabulary';
+  const source = kind === 'grammar' ? GRAMMAR : WORDS;
+
+  const counts = useMemo(() => {
+    const c = { new: 0, learning: 0, known: 0 };
+    source.forEach((x) => { c[x.status] += 1; });
+    return c;
+  }, [source]);
+  const totalN = source.length;
+
+  const list = useMemo(() => {
+    return source.filter((x) => {
+      if (t.type !== 'all' && x.status !== t.type) return false;
+      if (q) {
+        const hay = ((x.w || x.pat || '') + x.r + x.def + x.pos).toLowerCase();
+        if (!hay.includes(q.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [source, t.type, q]);
+
+  const selItem = sel ? source.find((x) => x.id === sel) : null;
+  const selIdx = selItem ? source.indexOf(selItem) + 1 : 0;
+
+  const TABS = [{ v: 'vocabulary', l: 'Vocabulary' }, { v: 'grammar', l: 'Grammar' }];
 
   return (
     <div className={'app' + (collapsed ? ' collapsed' : '')}>
       <Sidebar collapsed={collapsed} onToggle={toggle} />
 
-      <main className="main dict-main">
-        {/* search header */}
-        <div className="dict-top">
-          <div className="dict-search">
-            <Ic.search className="ds-ic" />
-            <input className="ds-input" value={empty ? '' : q} onChange={(e) => setQ(e.target.value)}
-              placeholder="Search a word, reading, or meaning…" />
-            {!empty && <button className="ds-clear" onClick={() => setTweak('state', 'empty')} title="Clear"><Ic.close /></button>}
-          </div>
-          <div className="dict-lang seg">
-            {[{v:'auto',l:'Auto'},{v:'ja',l:'日本語'},{v:'en',l:'English'}].map((o) => (
-              <button key={o.v} className={'seg-b' + (lang === o.v ? ' on' : '')} onClick={() => setLang(o.v)}>{o.l}</button>
+      <main className="main vocab-main">
+        {/* header — tabs + secondary search + type filter */}
+        <div className="voc-top">
+          <div className="voc-tabs">
+            {TABS.map((tb) => (
+              <button key={tb.v} className={'voc-tab' + (t.tab === tb.v ? ' on' : '')}
+                onClick={() => { setTweak('tab', tb.v); setSel(null); }}>{tb.l}</button>
             ))}
+          </div>
+          <div className="voc-top-right">
+            <div className={'voc-search' + (searchOpen || q ? ' open' : '')}>
+              <button className="voc-search-ic" onClick={() => setSearchOpen((o) => !o)} title="Search">
+                <Ic.search />
+              </button>
+              <input className="voc-search-in" value={q} onChange={(e) => setQ(e.target.value)}
+                placeholder="Search…" onBlur={() => { if (!q) setSearchOpen(false); }} />
+              {q && <button className="voc-search-x" onClick={() => setQ('')} title="Clear"><Ic.close /></button>}
+            </div>
+            <div className="seg voc-typefilter">
+              {TYPES.map((o) => (
+                <button key={o.v} className={'seg-b' + (t.type === o.v ? ' on' : '')}
+                  onClick={() => setTweak('type', o.v)}>{o.l}</button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {empty ? (
-          <div className="dict-empty">
-            <span className="de-mark"><Ic.dict /></span>
-            <h2>Look up any Japanese word</h2>
-            <p>Search by kanji, kana, romaji, or English meaning. Every entry links back to the moments it appears in your videos.</p>
-            <div className="de-recent">
-              <span className="de-rl">Recent</span>
-              <div className="de-chips">
-                {['川沿い', '澄む', '最適', 'おはよう', '散歩'].map((w) => (
-                  <button key={w} className="de-chip jp" onClick={() => setTweak('state', 'results')}>{w}</button>
-                ))}
-              </div>
+        {/* coverage analysis */}
+        <div className="voc-coverage">
+          <div className="cov-left">
+            <span className="cov-title">Coverage analysis</span>
+            <span className="cov-sub">{kind === 'grammar' ? 'Grammar points' : 'Words'} you've met across your videos</span>
+          </div>
+          <div className="cov-mid">
+            <div className="cov-bar">
+              {['known','learning','new'].map((s) => counts[s] > 0 && (
+                <div key={s} className={'cov-seg s-' + s} style={{ flexGrow: counts[s] }}
+                  title={STATUS[s].label + ' · ' + counts[s]}>
+                  <span className="cov-seg-lab">{STATUS[s].label} · {counts[s]}</span>
+                </div>
+              ))}
+            </div>
+            <div className="cov-legend">
+              {['known','learning','new'].map((s) => (
+                <span key={s} className="cov-leg"><i className={'s-' + s} />{STATUS[s].label}<b>{counts[s]}</b></span>
+              ))}
             </div>
           </div>
-        ) : (
-          <div className="dict-body">
-            {/* results list */}
-            <div className="dict-results">
-              <div className="dr-head"><span><b>{RESULTS.length}</b> results for “<span className="jp">歩</span>”</span></div>
-              <div className="dr-list">
-                {RESULTS.map((r) => (
-                  <button key={r.id} className={'dr-item' + (sel === r.id ? ' on' : '')} onClick={() => setSel(r.id)}>
-                    <div className="dr-main">
-                      <span className="dr-word jp">{r.word}</span>
-                      <span className="dr-reading jp">{r.reading}</span>
-                      {r.saved && <span className="dr-saved"><Ic.bookmarkFill /></span>}
+          <div className="cov-right">
+            <div className="cov-total"><b>{totalN}</b> <span>/ 206,538</span></div>
+            <div className="cov-total-lab">Total coverage · 0.0%</div>
+          </div>
+        </div>
+
+        {/* grid */}
+        <div className="voc-scroll">
+          {list.length === 0 ? (
+            <div className="voc-none">No {kind === 'grammar' ? 'grammar points' : 'words'} match this filter.</div>
+          ) : (
+            <div className="voc-grid">
+              {list.map((x) => {
+                const i = source.indexOf(x) + 1;
+                return (
+                  <button key={x.id} className={'voc-card s-' + x.status + (sel === x.id ? ' on' : '')}
+                    onClick={() => setSel(x.id)}>
+                    <div className="vc-top">
+                      <span className="vc-badge">{STATUS[x.status].label}</span>
+                      <span className="vc-num">#{i}</span>
                     </div>
-                    <div className="dr-gloss">{r.gloss}</div>
-                    <div className="dr-meta"><span className="dr-pos">{r.pos}</span><FreqDots n={r.freq} /></div>
+                    <div className="vc-word jp">{kind === 'grammar' ? x.pat : x.w}</div>
+                    {t.romaji === 'on' && <div className="vc-romaji">{x.r}</div>}
+                    <MasteryPips m={x.m} showSkills={t.skills === 'on'} />
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-
-            {/* entry detail */}
-            <div className="dict-detail">
-              <div className="dd-scroll">
-                <div className="dd-head">
-                  <div>
-                    <div className="dd-word jp">{ENTRY.word}</div>
-                    <div className="dd-reading jp">{ENTRY.reading}</div>
-                  </div>
-                  <div className="dd-actions">
-                    <button className="dd-save saved" title="Saved"><Ic.bookmarkFill /> Saved</button>
-                    <button className="dd-icon" title="Hear pronunciation"><Ic.volume /></button>
-                  </div>
-                </div>
-                <div className="dd-tags">
-                  <span className="dd-pos">{ENTRY.pos}</span>
-                  <FreqDots n={ENTRY.freq} />
-                </div>
-
-                <ol className="dd-senses">
-                  {ENTRY.senses.map((s, i) => (
-                    <li key={i}>
-                      <span className="dd-n">{i + 1}</span>
-                      <div>
-                        <div className="dd-def">{s.defs.join('; ')}</div>
-                        <div className="dd-stags">{s.tags.map((tg) => <span key={tg} className="dd-stag">{tg}</span>)}</div>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-
-                <div className="dd-section">
-                  <div className="dd-sh">Conjugations</div>
-                  <div className="dd-conj">
-                    {ENTRY.conj.map((c) => (
-                      <div key={c.k} className="dd-cj">
-                        <span className="cj-k">{c.k}</span>
-                        <span className="cj-v jp">{c.v}<span className="cj-r">{c.r}</span></span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="dd-section">
-                  <div className="dd-sh">From your videos <span className="dd-count">{ENTRY.examples.length}</span></div>
-                  <div className="dd-examples">
-                    {ENTRY.examples.map((ex, i) => (
-                      <a key={i} className="dd-ex" href="Player.html">
-                        <div className="dd-ex-ja jp">
-                          {ex.ja.map((part, j) => j === 1
-                            ? <span key={j} className="hl">{part}</span>
-                            : <span key={j}>{part}</span>)}
-                        </div>
-                        <div className="dd-ex-en">{ex.en}</div>
-                        <div className="dd-ex-src"><Ic.youtube /> <span className="jp">{ex.src}</span> · {ex.time} <span className="dd-ex-play"><Ic.play /> Play</span></div>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </main>
 
+      {selItem && (
+        <Detail item={selItem} kind={kind} idx={selIdx}
+          saved={!!saved[selItem.id]}
+          onSave={() => {
+            setSaved((s) => ({ ...s, [selItem.id]: !s[selItem.id] }));
+            setToast(saved[selItem.id] ? 'Removed from saved' : 'Saved to your words');
+          }}
+          onToast={setToast}
+          onClose={() => setSel(null)} />
+      )}
+
+      {toast && (
+        <div className="dict-toast"><Ic.check /> {toast}</div>
+      )}
+
       <TweaksPanel>
-        <TweakSection label="Screen state" />
-        <TweakRadio label="State" value={t.state}
-          options={['results', 'empty']} onChange={(v) => setTweak('state', v)} />
+        <TweakSection label="Collection" />
+        <TweakRadio label="Tab" value={t.tab}
+          options={['vocabulary', 'grammar']} onChange={(v) => { setTweak('tab', v); setSel(null); }} />
+        <TweakSelect label="Type filter" value={t.type}
+          options={['all', 'new', 'learning', 'known']} onChange={(v) => setTweak('type', v)} />
+
+        <TweakSection label="Card" />
+        <TweakRadio label="Romaji" value={t.romaji}
+          options={['on', 'off']} onChange={(v) => setTweak('romaji', v)} />
+        <TweakRadio label="Mastery pips" value={t.skills}
+          options={['on', 'off']} onChange={(v) => setTweak('skills', v)} />
 
         <TweakSection label="Appearance" />
         <TweakRadio label="Theme" value={t.theme}

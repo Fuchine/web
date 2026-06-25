@@ -9,11 +9,11 @@ const VIDEO = {
 
 /* focal line tokens (line 3) */
 const FOCAL = [
-  { t: '毎朝', key: 'maiasa' },
-  { t: '川沿い', key: 'kawazoi' },
-  { t: 'を', particle: true },
-  { t: '歩いて', key: 'aruite' },
-  { t: 'います', key: 'imasu' },
+  { t: '毎朝', key: 'maiasa', romaji: 'maiasa' },
+  { t: '川沿い', key: 'kawazoi', romaji: 'kawazoi' },
+  { t: 'を', particle: true, romaji: 'o' },
+  { t: '歩いて', key: 'aruite', romaji: 'aruite' },
+  { t: 'います', key: 'imasu', romaji: 'imasu' },
   { t: '。', punct: true },
 ];
 const FOCAL_EN = 'Every morning, I walk along the river.';
@@ -55,10 +55,10 @@ const LINES = [
 /* ---------------- Sidebar ---------------- */
 function Sidebar() {
   const items = [
-    { icon: Ic.home, label: 'Home' },
-    { icon: Ic.library, label: 'Library', active: true },
-    { icon: Ic.review, label: 'Review' },
-    { icon: Ic.settings, label: 'Settings' },
+    { icon: Ic.home, label: 'Home', href: 'Dashboard.html' },
+    { icon: Ic.library, label: 'Library', active: true, href: 'Home.html' },
+    { icon: Ic.review, label: 'Review', href: 'Review.html' },
+    { icon: Ic.settings, label: 'Settings', href: 'Settings.html' },
   ];
   return (
     <aside className="side">
@@ -70,7 +70,8 @@ function Sidebar() {
         {items.map((it) => {
           const I = it.icon;
           return (
-            <button key={it.label} className={'nav-item' + (it.active ? ' active' : '')} title={it.label}>
+            <button key={it.label} className={'nav-item' + (it.active ? ' active' : '')} title={it.label}
+              onClick={() => { if (it.href) window.location.href = it.href; }}>
               <I /><span className="nav-text">{it.label}</span>
             </button>
           );
@@ -145,7 +146,7 @@ function DictPopup({ entry, pos, saved, onSave, onExplain, onClose }) {
 const EX_TAG = {
   time: 'Time', noun: 'Noun', particle: 'Particle', grammar: 'Grammar',
 };
-function ExplainPanel() {
+function ExplainPanel({ onToast }) {
   return (
     <div className="explain">
       <div className="ex-scroll">
@@ -178,8 +179,8 @@ function ExplainPanel() {
       </div>
 
       <div className="ex-foot">
-        <button className="ex-fbtn"><Ic.refresh /> Regenerate</button>
-        <button className="ex-fbtn primary"><Ic.bookmark /> Save note</button>
+        <button className="ex-fbtn" onClick={() => onToast && onToast('Regenerating explanation…')}><Ic.refresh /> Regenerate</button>
+        <button className="ex-fbtn primary" onClick={() => onToast && onToast('Note saved to this card')}><Ic.bookmark /> Save note</button>
       </div>
     </div>
   );
@@ -211,7 +212,7 @@ function MinedCard({ onUndo, onClose }) {
 
         <div className="mined-actions">
           <button className="mined-btn" onClick={onUndo}>Undo</button>
-          <button className="mined-btn primary">View deck <Ic.arrow /></button>
+          <button className="mined-btn primary" onClick={() => { window.location.href = 'Review.html'; }}>View deck <Ic.arrow /></button>
         </div>
       </div>
     </div>
@@ -224,18 +225,31 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "panel": "transcript",
   "overlay": "word",
   "sidebar": "collapsed",
-  "word": "aruite"
+  "word": "aruite",
+  "romaji": "on"
 }/*EDITMODE-END*/;
 
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [saved, setSaved] = useState(false);
   const [pos, setPos] = useState(null);
+  const [playing, setPlaying] = useState(true);
+  const [loop, setLoop] = useState(true);
+  const [captions, setCaptions] = useState(true);
+  const [speedIdx, setSpeedIdx] = useState(2);
+  const [furigana, setFurigana] = useState(true);
+  const [toast, setToast] = useState(null);
+  const SPEEDS = [0.5, 0.75, 1.0, 1.25, 1.5];
 
   const stageRef = useRef(null);
   const tokenRefs = useRef({});
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', t.theme); }, [t.theme]);
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(id);
+  }, [toast]);
 
   const expanded = t.sidebar === 'expanded';
   const showRail = t.panel !== 'hidden';
@@ -284,8 +298,10 @@ function App() {
             <div className="p-chan">{VIDEO.channel}</div>
           </div>
           <div className="p-actions">
-            <button className="p-iconbtn" title="Subtitle settings"><Ic.caption /></button>
-            <button className="p-iconbtn on" title="Saved words"><Ic.bookmark /></button>
+            <button className="p-iconbtn" title="Subtitle settings"
+              onClick={() => setToast('Subtitle settings — coming soon')}><Ic.caption /></button>
+            <button className="p-iconbtn on" title="Saved words"
+              onClick={() => { window.location.href = 'Phrases.html'; }}><Ic.bookmark /></button>
             <button className="p-iconbtn"
               onClick={() => setTweak('sidebar', expanded ? 'collapsed' : 'expanded')}
               title="More"><Ic.settings /></button>
@@ -295,7 +311,7 @@ function App() {
         <div className="p-body">
           {/* stage */}
           <div className="stage" ref={stageRef}>
-            <div className="video rise">
+            <div className={'video rise' + (playing ? '' : ' paused')}>
               <div className="scene">
                 <div className="sun" />
                 <div className="horizon" />
@@ -304,18 +320,32 @@ function App() {
               <span className="vtime">{VIDEO.cur} · live</span>
             </div>
 
-            {/* focal dual subtitle */}
+            {/* focal dual subtitle — per-word romaji aligned over kanji, with word-separation bars */}
             <div className="subs">
-              <div className="subs-ja">
+              <div className={'subs-ja' + (t.romaji === 'on' ? ' has-romaji' : '')}>
                 {FOCAL.map((tok, i) => {
-                  if (tok.particle) return <span key={i} className="tok particle">{tok.t}</span>;
-                  if (tok.punct) return <span key={i} className="tok punct">{tok.t}</span>;
+                  const showR = t.romaji === 'on';
+                  if (tok.punct) return (
+                    <span key={i} className="word punct">
+                      {showR && <span className="w-romaji" aria-hidden="true" />}
+                      <span className="w-kanji">{tok.t}</span>
+                    </span>
+                  );
+                  if (tok.particle) return (
+                    <span key={i} className="word particle">
+                      {showR && <span className="w-romaji">{tok.romaji}</span>}
+                      <span className="w-kanji">{tok.t}</span>
+                    </span>
+                  );
                   return (
-                    <span key={i}
-                      ref={(el) => { tokenRefs.current[tok.key] = el; }}
-                      className={'tok' + (wordOpen && active === tok.key ? ' active' : '')}
-                      onClick={() => clickWord(tok.key)}>
-                      {tok.t}
+                    <span key={i} className={'word' + (wordOpen && active === tok.key ? ' active' : '')}>
+                      {showR && <span className="w-romaji">{tok.romaji}</span>}
+                      <span
+                        ref={(el) => { tokenRefs.current[tok.key] = el; }}
+                        className="w-kanji"
+                        onClick={() => clickWord(tok.key)}>
+                        {tok.t}
+                      </span>
                     </span>
                   );
                 })}
@@ -336,9 +366,10 @@ function App() {
             {/* controls */}
             <div className="controls">
               <div className="c-cluster">
-                <button className="c-btn" title="Back 5s"><Ic.rewind /></button>
-                <button className="c-btn c-play" title="Pause"><Ic.pause /></button>
-                <button className="c-btn" title="Forward 5s"><Ic.forward /></button>
+                <button className="c-btn" title="Back 5s" onClick={() => setToast('− 5 seconds')}><Ic.rewind /></button>
+                <button className="c-btn c-play" title={playing ? 'Pause' : 'Play'}
+                  onClick={() => setPlaying((p) => !p)}>{playing ? <Ic.pause /> : <Ic.play />}</button>
+                <button className="c-btn" title="Forward 5s" onClick={() => setToast('+ 5 seconds')}><Ic.forward /></button>
               </div>
               <span className="c-time"><b>{VIDEO.cur}</b> / {VIDEO.total}</span>
               <div className="scrub">
@@ -346,11 +377,14 @@ function App() {
                 <div className="knob" style={{ left: VIDEO.pct + '%' }} />
               </div>
               <div className="c-cluster">
-                <button className="c-btn on" title="Loop line"><Ic.loop /></button>
-                <button className="c-btn on" title="Captions"><Ic.caption /></button>
-                <button className="c-speed" title="Playback speed">1.0×</button>
-                <button className="c-btn" title="Volume"><Ic.volume /></button>
-                <button className="c-btn" title="Fullscreen"><Ic.fullscreen /></button>
+                <button className={'c-btn' + (loop ? ' on' : '')} title="Loop line"
+                  onClick={() => { const n = !loop; setLoop(n); setToast(n ? 'Looping this line' : 'Loop off'); }}><Ic.loop /></button>
+                <button className={'c-btn' + (captions ? ' on' : '')} title="Captions"
+                  onClick={() => { const n = !captions; setCaptions(n); setToast(n ? 'Captions on' : 'Captions off'); }}><Ic.caption /></button>
+                <button className="c-speed" title="Playback speed"
+                  onClick={() => { const n = (speedIdx + 1) % SPEEDS.length; setSpeedIdx(n); setToast(SPEEDS[n] + '× speed'); }}>{SPEEDS[speedIdx].toFixed(SPEEDS[speedIdx] % 1 === 0 ? 1 : 2)}×</button>
+                <button className="c-btn" title="Volume" onClick={() => setToast('Volume')}><Ic.volume /></button>
+                <button className="c-btn" title="Fullscreen" onClick={() => setToast('Fullscreen')}><Ic.fullscreen /></button>
               </div>
             </div>
 
@@ -387,8 +421,10 @@ function App() {
                 <>
                   <div className="tr-sub">
                     <div className="tr-tools">
-                      <button className="tr-tool on" title="Show furigana"><Ic.text /></button>
-                      <button className="tr-tool" title="Search transcript"><Ic.search /></button>
+                      <button className={'tr-tool' + (furigana ? ' on' : '')} title="Show furigana"
+                        onClick={() => setFurigana((f) => !f)}><Ic.text /></button>
+                      <button className="tr-tool" title="Search transcript"
+                        onClick={() => setToast('Search transcript — coming soon')}><Ic.search /></button>
                     </div>
                   </div>
                   <div className="tr-list">
@@ -406,12 +442,16 @@ function App() {
                   </div>
                 </>
               ) : (
-                <ExplainPanel />
+                <ExplainPanel onToast={setToast} />
               )}
             </aside>
           )}
         </div>
       </div>
+
+      {toast && (
+        <div className="p-toast"><Ic.check /> {toast}</div>
+      )}
 
       <TweaksPanel>
         <TweakSection label="Player state" />
@@ -428,6 +468,8 @@ function App() {
           options={['light', 'dark']} onChange={(v) => setTweak('theme', v)} />
         <TweakRadio label="Sidebar" value={t.sidebar}
           options={['collapsed', 'expanded']} onChange={(v) => setTweak('sidebar', v)} />
+        <TweakRadio label="Romaji" value={t.romaji}
+          options={['on', 'off']} onChange={(v) => setTweak('romaji', v)} />
       </TweaksPanel>
     </div>
   );

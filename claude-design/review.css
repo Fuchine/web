@@ -292,3 +292,29 @@
 /* entrance */
 .rise { animation: rise 0.34s var(--ease); }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 760px) {
+  .app, .app.expanded { --side: 64px; }
+  .app .brand-name, .app .nav-item .nav-text, .app .account-meta { opacity: 0 !important; }
+  .app .nav-item { justify-content: center; gap: 0; }
+  .app .account { justify-content: center; gap: 0; }
+  .app .brand-mark { margin: 0 auto; }
+
+  .rev-top { flex-wrap: wrap; gap: 12px; padding: 12px 16px; }
+  .rev-exit { order: 0; }
+  .rev-pills { order: 2; }
+  .rev-progress { order: 3; flex-basis: 100%; max-width: none; }
+
+  .rev-stage { padding: 18px 14px; }
+  .card { padding: 28px 22px 26px; }
+  .cr-row { grid-template-columns: 116px 1fr; }
+}
+
+@media (max-width: 560px) {
+  .grades { grid-template-columns: repeat(2, 1fr); max-width: 360px; }
+  .cr-row { grid-template-columns: 1fr; gap: 2px; padding: 8px 0; }
+  .rev-dock { padding: 16px 16px 24px; }
+}

@@ -1,161 +1,194 @@
 /* ============================================================
-   Fuchine — Plans / Billing (content only; sidebar/main from dashboard.css)
+   Fuchine — Plans & Billing (cloud)
+   Settings sub-page. Shell + groups/rows/controls come from
+   dashboard.css + settings.css. This file adds plan cards,
+   the billing-cycle toggle, the subscription banner, and the
+   open-core honesty panel.
    ============================================================ */
 
-.plans-content { max-width: 880px; padding-bottom: 72px; }
+.plans-content { max-width: 1000px; padding: 52px 48px 84px; }
 
-/* ---- header row ---- */
-.plans-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-  margin-bottom: 32px;
+/* page head — title + cloud tag */
+.bill-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 26px; flex-wrap: wrap; }
+.bill-head h1 { font-size: 27px; font-weight: 600; letter-spacing: -0.02em; color: var(--text); margin: 0; }
+.bill-head p { font-size: 14px; color: var(--text-muted); margin: 8px 0 0; line-height: 1.5; max-width: 52ch; }
+.cloud-tag {
+  flex: none; display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 600; color: var(--link);
+  background: var(--accent-soft-2); border: 1px solid var(--accent-line);
+  border-radius: 999px; padding: 6px 13px; margin-top: 4px;
 }
-.plans-head h1 {
-  font-size: 27px; font-weight: 600; letter-spacing: -0.02em;
-  color: var(--text); margin: 0;
+.cloud-tag svg { width: 15px; height: 15px; }
+
+/* ============================================================
+   Subscription banner (managing / pro)
+   ============================================================ */
+.sub-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 28px;
+  padding: 24px 28px; margin-bottom: 30px;
+  background: var(--accent-soft); border: 1px solid var(--accent-line);
+  border-radius: var(--radius-xl);
 }
-.plans-head p {
-  font-size: 14px; color: var(--text-muted); margin: 8px 0 0; line-height: 1.5;
+.sub-l { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.sub-mark {
+  flex: none; width: 46px; height: 46px; border-radius: 13px;
+  background: var(--accent); color: var(--on-accent);
+  display: grid; place-items: center;
+  font-family: 'Noto Serif JP', serif; font-size: 24px; line-height: 1; padding-bottom: 2px;
+}
+.sub-name { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
+.sub-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 600; color: var(--ok);
+  background: var(--ok-soft); border-radius: 999px; padding: 3px 9px;
+}
+.sub-status i { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.sub-renew { font-size: 13px; color: var(--text-muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.sub-renew b { color: var(--text); font-weight: 600; }
+.sub-r { flex: none; text-align: right; }
+.sub-amt { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); font-variant-numeric: tabular-nums; }
+.sub-amt span { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+
+/* ============================================================
+   Billing-cycle toggle
+   ============================================================ */
+.cycle-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 22px; }
+.cycle {
+  display: inline-flex; background: var(--bg-2);
+  border: 1px solid var(--border); border-radius: 999px; padding: 4px; gap: 3px;
+}
+.cycle-b {
+  border: none; background: transparent; cursor: pointer;
+  font: inherit; font-size: 13.5px; font-weight: 600; color: var(--text-muted);
+  padding: 8px 18px; border-radius: 999px;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), box-shadow 0.15s;
+}
+.cycle-b:hover { color: var(--text); }
+.cycle-b.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+.cycle-save {
+  display: inline-flex; align-items: center;
+  font-size: 12px; font-weight: 600; color: var(--ok);
+  background: var(--ok-soft); border-radius: 999px; padding: 5px 12px;
 }
 
-/* ---- billing cycle toggle cluster ---- */
-.cycle-cluster { display: flex; align-items: center; gap: 10px; }
-.save-badge {
-  font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em;
-  color: var(--link); background: var(--accent-soft-2);
-  border: 1px solid var(--accent-line); border-radius: 999px; padding: 4px 11px;
-  white-space: nowrap;
-}
+/* ============================================================
+   Plan cards
+   ============================================================ */
+.plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
 
-/* ---- plan cards grid ---- */
-.plans-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
-}
-@media (max-width: 760px) {
-  .plans-grid { grid-template-columns: 1fr; }
-}
-
-/* ---- plan card ---- */
-.plan-card {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 28px 24px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+.plan {
   position: relative;
+  display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+  padding: 22px 22px 24px;
 }
-.plan-card.recommended {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
+.plan.rec { border-color: var(--accent); box-shadow: var(--shadow); }
+.plan.current { border-color: var(--border-strong); background: var(--field-bg-2); }
+
+.plan-tagrow { display: flex; align-items: center; justify-content: space-between; min-height: 22px; margin-bottom: 12px; }
+.plan-name { font-size: 15px; font-weight: 600; letter-spacing: -0.005em; color: var(--text); }
+.plan-flag {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  border-radius: 999px; padding: 4px 10px; white-space: nowrap;
 }
-.plan-card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-.plan-name { font-size: 15.5px; font-weight: 600; color: var(--text); margin: 0; }
-.plan-tag {
-  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
-  color: var(--on-accent); background: var(--accent);
-  border-radius: 999px; padding: 3px 10px; white-space: nowrap;
-}
-.plan-current {
-  font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em;
-  color: var(--link); background: var(--accent-soft-2);
-  border: 1px solid var(--accent-line); border-radius: 999px; padding: 4px 11px;
-  white-space: nowrap;
-}
+.plan-flag.rec { color: var(--on-accent); background: var(--accent); }
+.plan-flag.cur { color: var(--link); background: var(--accent-soft-2); border: 1px solid var(--accent-line); }
 
 .plan-price { display: flex; align-items: baseline; gap: 4px; }
-.plan-price .v {
-  font-size: 32px; font-weight: 600; line-height: 1;
-  letter-spacing: -0.02em; color: var(--text);
-  font-variant-numeric: tabular-nums;
+.plan-cur { font-size: 18px; font-weight: 600; color: var(--text); }
+.plan-num { font-size: 34px; font-weight: 600; letter-spacing: -0.02em; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1; }
+.plan-per { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+.plan-billed { font-size: 12px; color: var(--text-faint); margin-top: 6px; min-height: 16px; font-variant-numeric: tabular-nums; }
+
+.plan-tagline { font-size: 13px; line-height: 1.5; color: var(--text-muted); margin: 14px 0 0; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+
+.plan-feats { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 11px; flex: 1; }
+.plan-feats li { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.45; color: var(--text); }
+.plan-feats li svg { flex: none; width: 16px; height: 16px; margin-top: 1px; color: var(--accent); }
+.plan-feats li.dim { color: var(--text-muted); }
+.plan-feats li.dim svg { color: var(--text-faint); }
+.plan-feats li b { font-weight: 600; }
+
+.plan-cta { margin-top: 20px; }
+.plan-cta .pbtn {
+  width: 100%; height: 44px; border-radius: var(--radius);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
 }
-.plan-price .per { font-size: 13px; color: var(--text-muted); }
+.plan-cta .pbtn svg { width: 16px; height: 16px; }
+.pbtn.primary { background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); }
+.pbtn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.pbtn.primary:active { transform: translateY(1px); }
+.pbtn.ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); }
+.pbtn.ghost:hover { border-color: var(--accent); color: var(--link); background: var(--accent-soft); }
+.pbtn.muted { background: transparent; color: var(--text-faint); border: 1px solid var(--border); cursor: default; }
+.pbtn.muted:hover { background: transparent; }
 
-.plan-desc { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.5; }
-
-.plan-features { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.plan-features li { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--text); }
-.plan-features .fic {
-  flex: none; width: 20px; height: 20px; border-radius: 50%;
-  background: var(--accent-soft-2); color: var(--link);
-  display: grid; place-items: center;
-}
-.plan-features .fic svg { width: 12px; height: 12px; }
-
-.plan-card .btn-primary,
-.plan-card .btn-ghost { width: 100%; margin-top: auto; }
-
-/* ---- trust note ---- */
-.trust-note {
-  display: flex; align-items: center; gap: 14px;
-  padding: 20px 22px;
-  border: 1px dashed var(--border-strong);
+/* ============================================================
+   Open-core honesty panel
+   ============================================================ */
+.opencore {
+  display: flex; gap: 18px;
+  margin-top: 30px; padding: 22px 24px;
+  background: var(--accent-soft); border: 1px solid var(--accent-line);
   border-radius: var(--radius-lg);
-  background: transparent;
-  margin-top: 30px;
 }
-.trust-note .ico {
-  flex: none; width: 38px; height: 38px; border-radius: 10px;
-  background: var(--bg-2); color: var(--accent);
-  display: grid; place-items: center;
-  font-family: 'Noto Serif JP', serif; font-size: 18px; line-height: 1;
+.oc-ic {
+  flex: none; width: 38px; height: 38px; border-radius: 11px;
+  background: var(--surface); border: 1px solid var(--accent-line);
+  color: var(--accent); display: grid; place-items: center;
 }
-.trust-note .t { font-size: 14px; font-weight: 550; color: var(--text-muted); margin: 0; line-height: 1.5; }
+.oc-ic svg { width: 20px; height: 20px; }
+.oc-body { min-width: 0; }
+.oc-body h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); margin: 2px 0 7px; }
+.oc-body p { font-size: 13.5px; line-height: 1.6; color: var(--text-muted); margin: 0; max-width: 70ch; }
+.oc-body p b { color: var(--text); font-weight: 600; }
+.oc-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 13px; font-weight: 600; color: var(--link); text-decoration: none; }
+.oc-link svg { width: 15px; height: 15px; transition: transform 0.15s; }
+.oc-link:hover svg { transform: translateX(2px); }
 
-/* ---- FAQ ---- */
-.plans-faq { margin-top: 30px; }
-.faq-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
+/* regional pricing note */
+.region {
+  display: flex; align-items: center; gap: 9px;
+  margin-top: 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.5;
 }
-.faq-row {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 24px; padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-}
-.faq-row:last-child { border-bottom: none; }
-.faq-q { font-size: 14.5px; font-weight: 550; color: var(--text); flex: none; max-width: 22ch; }
-.faq-a { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; max-width: 52ch; }
+.region svg { flex: none; width: 15px; height: 15px; color: var(--text-faint); }
+.region b { color: var(--text-muted); font-weight: 600; }
 
-@media (max-width: 640px) {
-  .faq-row { flex-direction: column; gap: 6px; }
-  .faq-q { max-width: none; }
+/* ============================================================
+   Billing detail (managing)
+   ============================================================ */
+.pay-method { display: flex; align-items: center; gap: 12px; }
+.pay-card {
+  flex: none; width: 40px; height: 28px; border-radius: 6px;
+  background: linear-gradient(150deg, var(--indigo-2), var(--indigo-deep));
+  color: var(--on-indigo); display: grid; place-items: center;
+}
+.pay-card svg { width: 18px; height: 18px; }
+.pay-meta { display: flex; flex-direction: column; gap: 1px; }
+.pay-no { font-size: 14px; font-weight: 550; color: var(--text); font-variant-numeric: tabular-nums; }
+.pay-exp { font-size: 12px; color: var(--text-faint); }
+
+.inv-list { display: flex; flex-direction: column; }
+.invoice-static { font-size: 13.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+.change-head { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); margin: 36px 0 14px; padding: 0 2px; }
+
+.bill-foot { margin-top: 36px; text-align: center; font-size: 12.5px; color: var(--text-faint); }
+.bill-foot a { color: var(--link); text-decoration: none; }
+.bill-foot a:hover { text-decoration: underline; }
+
+@media (max-width: 1080px) {
+  .plans { grid-template-columns: 1fr; }
+  .sub-banner { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .sub-r { text-align: left; }
 }
 
-/* ---- footer ---- */
-.plans-foot {
-  margin-top: 36px; text-align: center;
-  font-size: 12.5px; color: var(--text-faint);
-}
-
-/* ---- segmented control (local copy — settings.css not loaded) ---- */
-.seg { display: inline-flex; background: var(--bg-2); border: 1px solid var(--border); border-radius: 9px; padding: 3px; gap: 2px; }
-.seg-b {
-  border: none; background: transparent; padding: 6px 13px;
-  font-size: 13px; font-weight: 550; color: var(--text-muted);
-  border-radius: 7px; cursor: pointer; transition: background 0.15s var(--ease), color 0.15s var(--ease);
-}
-.seg-b:hover { color: var(--text); }
-.seg-b.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
-
-/* ---- FAQ heading (reuses settings group-header look) ---- */
-.set-gh { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; padding: 0 2px; }
-.set-gh h2 {
-  font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
-  color: var(--text-muted); margin: 0;
+@media (max-width: 760px) {
+  .plans-content { padding: 36px 22px 64px; }
+  .bill-head h1 { font-size: 23px; }
+  .cycle-row { flex-wrap: wrap; justify-content: flex-start; }
+  .opencore { flex-direction: column; gap: 14px; }
 }

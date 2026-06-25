@@ -23,10 +23,13 @@ export default async function Home() {
     comprehension: null,
   }));
 
+  const totalDurationS = videos.reduce((acc, v) => acc + (v.durationS ?? 0), 0);
+
   return (
     <LibraryView
       videos={videos}
       account={{ name: session.user.name ?? session.user.email ?? "You", sub: session.user.email ?? undefined }}
+      stats={{ totalDurationS, videoCount: videos.length }}
     />
   );
 }

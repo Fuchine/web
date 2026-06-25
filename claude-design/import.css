@@ -519,3 +519,15 @@
 .state-fade { animation: state-fade 0.32s var(--ease) 0.04s; }
 @keyframes state-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .state-fade { animation: none; } }
+
+/* ============================================================
+   Responsive — keep the dialog comfortable on small screens
+   ============================================================ */
+@media (max-width: 540px) {
+  .scrim { padding: 16px; }
+  .modal-body { padding: 6px 18px 20px; }
+  .app-ghost .g-side { width: 64px; }
+  .preview { flex-direction: column; }
+  .preview .thumb { width: 100%; }
+  .modal-foot { flex-wrap: wrap; }
+}
