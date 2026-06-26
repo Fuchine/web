@@ -236,7 +236,28 @@
 
 .vd-def { font-size: 16px; line-height: 1.55; color: var(--text); margin: 16px 0 0; text-wrap: pretty; }
 
-.vd-actions { display: flex; gap: 8px; margin-top: 18px; }
+/* status selector — mark New / Learning / Known */
+.vd-statusset { margin-top: 20px; }
+.vd-statusbtns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.vd-statusbtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  height: 42px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--border-strong); background: var(--surface);
+  font: inherit; font-size: 13px; font-weight: 550; color: var(--text-muted);
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease), color 0.15s var(--ease);
+}
+.vd-statusbtn-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border-strong); transition: background 0.15s var(--ease); }
+.vd-statusbtn.s-known .vd-statusbtn-dot { background: var(--ok); }
+.vd-statusbtn.s-learning .vd-statusbtn-dot { background: oklch(0.62 0.10 70); }
+.vd-statusbtn.s-new .vd-statusbtn-dot { background: var(--link); }
+.vd-statusbtn:hover { border-color: var(--text-faint); color: var(--text); }
+.vd-statusbtn.on { color: var(--text); font-weight: 600; }
+.vd-statusbtn.s-known.on    { background: var(--ok-soft); border-color: color-mix(in oklch, var(--ok) 40%, transparent); color: var(--ok); }
+.vd-statusbtn.s-learning.on { background: oklch(0.62 0.10 70 / 0.14); border-color: oklch(0.62 0.10 70 / 0.40); color: oklch(0.50 0.10 70); }
+.vd-statusbtn.s-new.on      { background: var(--accent-soft-2); border-color: var(--accent-line); color: var(--link); }
+[data-theme="dark"] .vd-statusbtn.s-learning.on { color: oklch(0.80 0.10 70); }
+
+.vd-actions { display: flex; gap: 8px; margin-top: 16px; }
 .vd-save {
   flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   height: 40px; border: 1px solid var(--border-strong); background: var(--surface);

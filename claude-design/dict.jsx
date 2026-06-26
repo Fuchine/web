@@ -151,7 +151,7 @@ function FreqDots({ n }) {
 }
 
 /* ---------------- Detail slide-over ---------------- */
-function Detail({ item, kind, idx, saved, onSave, onToast, onClose }) {
+function Detail({ item, kind, idx, saved, onSave, onSetStatus, onToast, onClose }) {
   if (!item) return null;
   const total = item.m.reduce((a, b) => a + b, 0);
   const pct = Math.round((total / (item.m.length * 3)) * 100);
@@ -180,6 +180,22 @@ function Detail({ item, kind, idx, saved, onSave, onToast, onClose }) {
           </div>
 
           <p className="vd-def">{item.def}</p>
+
+          {/* status selector — mark New / Learning / Known */}
+          <div className="vd-statusset">
+            <div className="vd-sh">Your progress</div>
+            <div className="vd-statusbtns" role="group" aria-label="Mark status">
+              {['new','learning','known'].map((s) => (
+                <button key={s}
+                  className={'vd-statusbtn s-' + s + (item.status === s ? ' on' : '')}
+                  aria-pressed={item.status === s}
+                  onClick={() => onSetStatus(s)}>
+                  <span className="vd-statusbtn-dot" />
+                  {STATUS[s].label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="vd-actions">
             <button className={'vd-save' + (saved ? ' saved' : '')} onClick={onSave}>
@@ -253,6 +269,7 @@ function App() {
   const [q, setQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [saved, setSaved] = useState({});
+  const [statusMap, setStatusMap] = useState({});
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
@@ -265,7 +282,20 @@ function App() {
   const toggle = () => { const n = !collapsed; setCollapsed(n); setTweak('collapsed', n); };
 
   const kind = t.tab === 'grammar' ? 'grammar' : 'vocabulary';
-  const source = kind === 'grammar' ? GRAMMAR : WORDS;
+  const rawSource = kind === 'grammar' ? GRAMMAR : WORDS;
+  // user-applied status overrides (per item id), so the badge, card colour
+  // and coverage bar all reflect what you've marked.
+  const source = useMemo(
+    () => rawSource.map((x) => statusMap[x.id] ? { ...x, status: statusMap[x.id] } : x),
+    [rawSource, statusMap]
+  );
+
+  const setStatus = (id, status) => {
+    setStatusMap((m) => ({ ...m, [id]: status }));
+    setToast(status === 'known' ? '✓ Marked as known'
+      : status === 'learning' ? 'Added to Learning'
+      : 'Marked as new');
+  };
 
   const counts = useMemo(() => {
     const c = { new: 0, learning: 0, known: 0 };
@@ -376,6 +406,7 @@ function App() {
 
       {selItem && (
         <Detail item={selItem} kind={kind} idx={selIdx}
+          onSetStatus={(s) => setStatus(selItem.id, s)}
           saved={!!saved[selItem.id]}
           onSave={() => {
             setSaved((s) => ({ ...s, [selItem.id]: !s[selItem.id] }));

@@ -1,0 +1,1 @@
+CREATE INDEX "word_entries_lemma_len_id_idx" ON "word_entries" USING btree ("language",LENGTH("lemma"),"id");

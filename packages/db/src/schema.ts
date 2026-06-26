@@ -15,7 +15,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import type { Token, Explanation, Definition, DailyGoals } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -189,6 +189,7 @@ export const wordEntries = pgTable(
     index("word_entries_lemma_idx").on(t.language, t.lemma), // dictionary lookup
     index("word_entries_reading_idx").on(t.language, t.reading),
     index("word_entries_freq_idx").on(t.language, t.frequencyRank), // recommendation by frequency
+    index("word_entries_lemma_len_id_idx").on(t.language, sql`LENGTH(${t.lemma})`, t.id), // browse by simplicity
     // Identity of a dictionary entry for the seed: lets re-seeding upsert
     // instead of duplicating, and powers exact (lemma, reading) lookups.
     uniqueIndex("word_entries_lemma_reading_uq").on(t.language, t.lemma, t.reading),
