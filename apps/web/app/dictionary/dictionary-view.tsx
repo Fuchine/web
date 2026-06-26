@@ -566,18 +566,18 @@ export function DictionaryView() {
           <div className="voc-none">No {tab === "grammar" ? "grammar points" : "words"} match this filter.</div>
         ) : (
             <div className="voc-grid">
-              {(list as any[]).map((x: any, _i: number) => {
-                const i = (source as any[]).indexOf(x) + 1;
+              {(list as any[]).map((x: any, i: number) => {
+                const idx = i + 1;
                 const display = x.pat ?? x.w ?? "";
                 const reading = x.r ?? null;
                 const total = x.m[0] + x.m[1] + x.m[2] + x.m[3];
                 const status = x.status || (total >= 10 ? "known" : total >= 1 ? "learning" : "new");
                 const isSaved = "saved" in x ? x.saved : savedSet.has(x.id);
               return (
-                <button key={x.id} className={"voc-card s-" + status + (sel === x.id ? " on" : "")} style={{"--idx": i} as React.CSSProperties} onClick={() => void select(x.id)}>
+                <button key={x.id} className={"voc-card s-" + status + (sel === x.id ? " on" : "")} style={{"--idx": idx} as React.CSSProperties} onClick={() => void select(x.id)}>
                   <div className="vc-top">
                     <span className="vc-badge">{STATUS_META[status]?.label ?? "New"}</span>
-                    <span className="vc-num">#{i}</span>
+                    <span className="vc-num">#{idx}</span>
                   </div>
                   <div className="vc-word jp">{display}</div>
                   {showRomaji && reading && <div className="vc-romaji">{reading}</div>}

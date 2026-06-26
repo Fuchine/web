@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { and, asc, eq, gt, inArray, or, sql } from "drizzle-orm";
 import { savedWords, userWordStats, wordEntries } from "@fuchine/db";
 import { freqTier } from "@/lib/dictionary";
+import { computeMastery, firstGloss, grammarPosCondition } from "@/lib/dictionary-utils";
 
 export type BrowseItem = {
   id: string;
@@ -15,29 +16,6 @@ export type BrowseItem = {
   saved: boolean;
   m: number[];
 };
-
-const GRAMMAR_POS = [
-  "Particle",
-  "Auxiliary",
-  "Conjunction",
-  "Adnominal",
-  "Copula",
-  "Prefix",
-  "Suffix",
-  "Phrase",
-  "Expression",
-];
-
-function firstGloss(defs: { glosses: string[] }[]): string {
-  return defs[0]?.glosses?.join("; ") ?? "";
-}
-
-function computeMastery(stats: { reviewsOk: number | null; reviewsTotal: number | null } | null): number[] {
-  if (!stats || !stats.reviewsTotal || stats.reviewsTotal === 0) return [0, 0, 0, 0];
-  const pct = stats.reviewsOk! / stats.reviewsTotal;
-  const level = pct >= 0.7 ? 3 : pct >= 0.3 ? 2 : 1;
-  return [level, level, level, level];
-}
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -53,26 +31,39 @@ export async function GET(req: Request) {
   const grammarOnly = url.searchParams.get("grammar") === "true";
   const posFilter = url.searchParams.get("pos"); // comma-separated JMdict POS tags
 
-  // Build conditions for word_entries query
-  const conditions = [eq(wordEntries.language, "ja")];
+  // Build base conditions (shared between data query and count query)
+  const baseConditions = [eq(wordEntries.language, "ja")];
 
   if (search) {
     const like = `%${search}%`;
-    conditions.push(
+    baseConditions.push(
       sql`(${wordEntries.lemma} ILIKE ${like} OR ${wordEntries.reading} ILIKE ${like})`,
     );
   }
 
   if (grammarOnly) {
-    conditions.push(sql`${wordEntries.pos} = ANY(${sql.raw(`ARRAY[${GRAMMAR_POS.map((p) => `'${p}'`).join(",")}]`)})`);
+    baseConditions.push(grammarPosCondition(wordEntries.pos));
   }
 
   if (posFilter) {
     const tags = posFilter.split(",").filter(Boolean);
     if (tags.length > 0) {
-      conditions.push(sql`string_to_array(${wordEntries.pos}, ',') && ARRAY[${sql.join(tags.map((t) => sql`${t}`), sql`, `)}]::text[]`);
+      baseConditions.push(sql`string_to_array(${wordEntries.pos}, ',') && ARRAY[${sql.join(tags.map((t) => sql`${t}`), sql`, `)}]::text[]`);
     }
   }
+
+  // Total count (only on first page) — uses base conditions, respects all filters
+  let totalCount: number | undefined;
+  if (!cursor) {
+    const [row] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(wordEntries)
+      .where(and(...baseConditions));
+    totalCount = Number(row?.count ?? 0);
+  }
+
+  // Build paginated conditions (base + cursor)
+  const pageConditions = [...baseConditions];
 
   // Keyset pagination: cursor = "l:<lemmaLength>:<id>"
   // Ordered by lemma length (short=simple first), then id for tiebreaking.
@@ -82,7 +73,7 @@ export async function GET(req: Request) {
       const len = parseInt(parts[0]!, 10);
       const idStr = parts.slice(1).join(":");
       if (!isNaN(len) && idStr) {
-        conditions.push(
+        pageConditions.push(
           or(
             sql`LENGTH(${wordEntries.lemma}) < ${len}`,
             and(
@@ -106,7 +97,7 @@ export async function GET(req: Request) {
       frequencyRank: wordEntries.frequencyRank,
     })
     .from(wordEntries)
-    .where(and(...conditions))
+    .where(and(...pageConditions))
     .orderBy(sql`LENGTH(${wordEntries.lemma}) ASC`, asc(wordEntries.id))
     .limit(limit + 1);
 
@@ -155,16 +146,6 @@ export async function GET(req: Request) {
 
   const last = rows[rows.length - 1];
   const nextCursor = hasMore && last ? `l:${last.lemma.length}:${last.id}` : null;
-
-  // Total count (only on first page — constant, so cacheable)
-  let totalCount: number | undefined;
-  if (!cursor) {
-    const [row] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(wordEntries)
-      .where(eq(wordEntries.language, "ja"));
-    totalCount = Number(row?.count ?? 0);
-  }
 
   return NextResponse.json({ items, nextCursor, hasMore, totalCount });
 }

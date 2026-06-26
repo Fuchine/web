@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { savedWords, wordEntries, userWordStats } from "@fuchine/db";
 import { freqTier } from "@/lib/dictionary";
+import { computeMastery, computeStatus, firstGloss, grammarPosCondition } from "@/lib/dictionary-utils";
 
 export type GrammarItem = {
   id: string;
@@ -14,32 +15,6 @@ export type GrammarItem = {
   freq: number;
   m: number[];
 };
-
-const GRAMMAR_POS = [
-  "Particle",
-  "Auxiliary",
-  "Conjunction",
-  "Adnominal",
-  "Copula",
-  "Prefix",
-  "Suffix",
-  "Phrase",
-  "Expression",
-];
-
-function computeMastery(reviewsOk: number | null, reviewsTotal: number | null): number[] {
-  if (!reviewsTotal || reviewsTotal === 0) return [0, 0, 0, 0];
-  const pct = reviewsOk! / reviewsTotal;
-  const level = pct >= 0.7 ? 3 : pct >= 0.3 ? 2 : 1;
-  return [level, level, level, level];
-}
-
-function computeStatus(m: number[]): "known" | "learning" | "new" {
-  const sum = m[0] + m[1] + m[2] + m[3];
-  if (sum >= 10) return "known";
-  if (sum >= 1) return "learning";
-  return "new";
-}
 
 export async function GET() {
   const session = await auth();
@@ -70,17 +45,19 @@ export async function GET() {
     .where(
       and(
         eq(savedWords.userId, session.user.id),
-        inArray(wordEntries.pos, GRAMMAR_POS),
+        grammarPosCondition(wordEntries.pos),
       ),
     );
 
   const items: GrammarItem[] = rows.map((r) => {
-    const m = computeMastery(r.reviewsOk, r.reviewsTotal);
+    const m = computeMastery(
+      r.reviewsTotal != null ? { reviewsOk: r.reviewsOk, reviewsTotal: r.reviewsTotal } : null,
+    );
     return {
       id: r.id,
       pat: r.lemma,
       r: r.reading,
-      def: (r.definitions as { glosses: string[] }[])?.[0]?.glosses?.join("; ") ?? "",
+      def: firstGloss(r.definitions as { glosses: string[] }[]),
       status: computeStatus(m),
       freq: freqTier(r.frequencyRank),
       m,

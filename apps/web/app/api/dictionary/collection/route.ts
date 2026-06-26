@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
 import { savedWords, wordEntries, userWordStats } from "@fuchine/db";
 import { freqTier } from "@/lib/dictionary";
+import { computeMastery, computeStatus, firstGloss } from "@/lib/dictionary-utils";
 
 export type CollectionItem = {
   id: string;
@@ -15,24 +16,6 @@ export type CollectionItem = {
   freq: number;
   m: number[];
 };
-
-function computeMastery(reviewsOk: number | null, reviewsTotal: number | null): number[] {
-  if (!reviewsTotal || reviewsTotal === 0) return [0, 0, 0, 0];
-  const pct = reviewsOk! / reviewsTotal;
-  const level = pct >= 0.7 ? 3 : pct >= 0.3 ? 2 : 1;
-  return [level, level, level, level];
-}
-
-function computeStatus(m: number[]): "known" | "learning" | "new" {
-  const sum = m[0] + m[1] + m[2] + m[3];
-  if (sum >= 10) return "known";
-  if (sum >= 1) return "learning";
-  return "new";
-}
-
-function firstGloss(defs: { glosses: string[] }[]): string {
-  return defs[0]?.glosses?.join("; ") ?? "";
-}
 
 export async function GET() {
   const session = await auth();
@@ -64,7 +47,9 @@ export async function GET() {
     .orderBy(wordEntries.lemma);
 
   const items: CollectionItem[] = rows.map((r) => {
-    const m = computeMastery(r.reviewsOk, r.reviewsTotal);
+    const m = computeMastery(
+      r.reviewsTotal != null ? { reviewsOk: r.reviewsOk, reviewsTotal: r.reviewsTotal } : null,
+    );
     return {
       id: r.id,
       w: r.lemma,

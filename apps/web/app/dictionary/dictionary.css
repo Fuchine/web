@@ -4,7 +4,6 @@
    All colors via design tokens.
    ============================================================ */
 
-.main.vocab-main,
 .vocab-main {
   display: flex;
   flex-direction: column;
