@@ -1,25 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import type { SessionSummary } from "@/lib/summary";
 
-/* ---- mock data ---- */
+/* ---- static labels ---- */
 
-const STATS = { cards: 24, time: "8:12", retention: 88, streak: 12 };
-const GRADES = [
-  { label: "Again", n: 3, cls: "again" },
-  { label: "Hard", n: 5, cls: "hard" },
-  { label: "Good", n: 12, cls: "good" },
-  { label: "Easy", n: 4, cls: "easy" },
-];
-const WEEK = [true, true, true, true, true, true, true];
 const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
-const MATURED = [
-  { w: "川沿い", r: "かわぞい", g: "riverside" },
-  { w: "澄んで", r: "すんで", g: "to be clear" },
-  { w: "最適", r: "さいてき", g: "optimal" },
-];
-
-const total = GRADES.reduce((s, g) => s + g.n, 0);
 
 const today = new Date();
 const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][today.getDay()];
@@ -42,13 +28,31 @@ const NAV = [
 interface Props {
   accountName: string;
   accountEmail: string;
+  data: SessionSummary;
 }
 
 /* ---- component ---- */
 
-export function SummaryView({ accountName, accountEmail }: Props) {
+export function SummaryView({ accountName, accountEmail, data }: Props) {
   const router = useRouter();
   const initial = accountName.charAt(0).toUpperCase();
+
+  const STATS = {
+    cards: data.cardsReviewed,
+    time: data.timeLabel,
+    retention: data.retentionPct,
+    streak: data.streak,
+  };
+  const GRADES = [
+    { label: "Again", n: data.grades.again, cls: "again" },
+    { label: "Hard", n: data.grades.hard, cls: "hard" },
+    { label: "Good", n: data.grades.good, cls: "good" },
+    { label: "Easy", n: data.grades.easy, cls: "easy" },
+  ];
+  const WEEK = data.week;
+  const MATURED = data.matured.map((m) => ({ w: m.word, r: m.reading, g: m.gloss }));
+  const total = GRADES.reduce((s, g) => s + g.n, 0);
+  const streakDays = WEEK.filter(Boolean).length;
 
   return (
     <>
@@ -193,7 +197,11 @@ export function SummaryView({ accountName, accountEmail }: Props) {
                     ))}
                   </div>
                   <p className="mt-4 text-pretty text-[12.5px] leading-[1.5] text-muted">
-                    Reviewed every day this week. Come back tomorrow to keep it alive.
+                    {streakDays >= 7
+                      ? "Reviewed every day this week. Come back tomorrow to keep it alive."
+                      : streakDays > 0
+                        ? `Active ${streakDays} of the last 7 days. Keep the streak going.`
+                        : "No reviews yet this week — start today to build a streak."}
                   </p>
                 </div>
 
@@ -201,8 +209,11 @@ export function SummaryView({ accountName, accountEmail }: Props) {
                 <div className="rounded-[var(--radius-lg)] border border-border bg-surface px-[22px] py-5 shadow-[var(--shadow-sm)]">
                   <div className="mb-4 flex items-baseline justify-between gap-4">
                     <span className="text-[13px] font-[600] uppercase tracking-[0.04em] text-muted">Words matured</span>
-                    <span className="tabular-nums text-[12.5px] text-faint">+3 known</span>
+                    <span className="tabular-nums text-[12.5px] text-faint">+{MATURED.length} known</span>
                   </div>
+                  {MATURED.length === 0 && (
+                    <p className="m-0 py-2 text-[13px] text-faint">No words reached &ldquo;Known&rdquo; this session — keep reviewing.</p>
+                  )}
                   <ul className="m-0 flex list-none flex-col p-0">
                     {MATURED.map((m) => (
                       <li key={m.w} className="flex items-center gap-[10px] border-b border-border py-[10px] last:border-b-0">
