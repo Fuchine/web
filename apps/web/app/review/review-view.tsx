@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button, ReviewSession, type ReviewSessionProps, type ReviewItem } from "@fuchine/ui";
 
 function youtubeThumbnail(sourceId: string) {
@@ -20,12 +21,25 @@ const PlayIcon = () => (
 );
 
 export function ReviewView({ initialQueue }: { initialQueue: ReviewItem[] }) {
+  const router = useRouter();
   const [mode, setMode] = useState<"list" | "session">("list");
   const [queue] = useState(initialQueue as ReviewItem[]);
+  const sessionStart = useRef<string | null>(null);
   const calm = queue.length === 0;
 
+  const startSession = () => {
+    sessionStart.current = new Date().toISOString();
+    setMode("session");
+  };
+
+  // On finish, hand the session window to the summary via ?since=.
+  const finishSession = () => {
+    const since = sessionStart.current;
+    router.push(since ? `/summary?since=${encodeURIComponent(since)}` : "/summary");
+  };
+
   if (mode === "session") {
-    return <ReviewSession queue={initialQueue as ReviewSessionProps["queue"]} onComplete={() => setMode("list")} />;
+    return <ReviewSession queue={initialQueue as ReviewSessionProps["queue"]} onComplete={finishSession} />;
   }
 
   return (
@@ -69,7 +83,7 @@ export function ReviewView({ initialQueue }: { initialQueue: ReviewItem[] }) {
         </div>
 
         {!calm && (
-          <Button variant="primary" icon={<PlayIcon />} onClick={() => setMode("session")}>
+          <Button variant="primary" icon={<PlayIcon />} onClick={startSession}>
             Review now
           </Button>
         )}

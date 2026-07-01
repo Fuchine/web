@@ -1,47 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import type { StatsData } from "@/lib/stats";
 
-/* ---- data ---- */
-
-const KPIS = [
-  { k: "Words known", v: "340", d: "+18", up: true, sub: "this week" },
-  { k: "Watch time", v: "12.4", u: "h", d: "+2.1h", up: true, sub: "this week" },
-  { k: "Day streak", v: "12", d: "Best: 21", up: null, sub: "days" },
-  { k: "Retention", v: "88", u: "%", d: "+3%", up: true, sub: "30-day avg" },
-];
+/* ---- static labels ---- */
 
 const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
-const ACTIVITY = [24, 38, 12, 45, 30, 52, 41];
 
-const VOCAB = [
-  { label: "Known", n: 340, cls: "known" },
-  { label: "Learning", n: 86, cls: "learning" },
-  { label: "New", n: 24, cls: "new" },
-];
-
-const TOP = [
-  { title: "Kyoto Slow Living", words: 42, dur: "14:22" },
-  { title: "ニュースで学ぶ日本語", words: 28, dur: "6:48" },
-  { title: "簡単な味噌汁の作り方", words: 19, dur: "9:10" },
-  { title: "VLOG：東京の電車に乗ってみた", words: 15, dur: "11:37" },
-];
-
-const HEAT = (() => {
-  const w: number[][] = [];
-  let seed = 7;
-  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
-  for (let c = 0; c < 17; c++) {
-    const col: number[] = [];
-    for (let r = 0; r < 7; r++) {
-      const x = rnd();
-      col.push(x < 0.28 ? 0 : x < 0.5 ? 1 : x < 0.72 ? 2 : x < 0.9 ? 3 : 4);
-    }
-    w.push(col);
-  }
-  for (let c = 14; c < 17; c++) for (let r = 0; r < 7; r++) if (w[c][r] === 0) w[c][r] = 2;
-  return w;
-})();
+/** Format seconds as m:ss (matches the design's duration style). */
+function fmtDuration(totalS: number | null): string {
+  if (!totalS || totalS <= 0) return "—";
+  const m = Math.floor(totalS / 60);
+  const s = totalS % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
 
 /* ---- icons ---- */
 
@@ -59,11 +31,60 @@ const SparkIcon = () => (
 
 /* ---- component ---- */
 
-export function StatsView() {
+export function StatsView({ data }: { data: StatsData }) {
   const [range, setRange] = useState("week");
-  const maxAct = Math.max(...ACTIVITY);
+  const { kpis } = data;
+
+  const KPIS = [
+    {
+      k: "Words known",
+      v: String(kpis.wordsKnown),
+      d: kpis.wordsKnownDelta > 0 ? `+${kpis.wordsKnownDelta}` : "—",
+      up: kpis.wordsKnownDelta > 0 ? true : null,
+      sub: "this week",
+    },
+    {
+      k: "Watch time",
+      v: kpis.watchTimeHours.toFixed(1),
+      u: "h",
+      d: "this week",
+      up: null,
+      sub: "tracked",
+    },
+    {
+      k: "Day streak",
+      v: String(kpis.dayStreak),
+      d: `Best: ${kpis.bestStreak}`,
+      up: null,
+      sub: "days",
+    },
+    {
+      k: "Retention",
+      v: String(kpis.retentionPct),
+      u: "%",
+      d: "30-day avg",
+      up: null,
+      sub: "correct",
+    },
+  ];
+
+  const ACTIVITY = data.dailyActivityMin;
+  const VOCAB = [
+    { label: "Known", n: data.vocab.known, cls: "known" },
+    { label: "Learning", n: data.vocab.learning, cls: "learning" },
+    { label: "New", n: data.vocab.new, cls: "new" },
+  ];
+  const TOP = data.topSources.map((s) => ({
+    title: s.title,
+    words: s.words,
+    dur: fmtDuration(s.durationS),
+  }));
+  const HEAT = data.heatmap;
+
+  const maxAct = Math.max(1, ...ACTIVITY);
   const vocabTotal = VOCAB.reduce((s, v) => s + v.n, 0);
-  const maxWords = Math.max(...TOP.map((x) => x.words));
+  const maxWords = Math.max(1, ...TOP.map((x) => x.words));
+  const peakDay = ACTIVITY.indexOf(Math.max(...ACTIVITY));
 
   return (
     <>
@@ -138,7 +159,7 @@ export function StatsView() {
                 <div key={i} className="flex flex-1 flex-col items-center gap-[9px] h-full">
                   <div className="flex w-full flex-1 items-end">
                     <div
-                      className={`relative w-full min-h-[4px] rounded-[7px_7px_3px_3px] bg-accent-soft-2 ${i === 5 ? "peak" : ""}`}
+                      className={`relative w-full min-h-[4px] rounded-[7px_7px_3px_3px] bg-accent-soft-2 ${i === peakDay && m > 0 ? "peak" : ""}`}
                       style={{ height: `${(m / maxAct) * 100}%` }}
                     >
                       <span className="bar-val text-[11px] font-[600] tabular-nums text-muted">{m}</span>
@@ -179,7 +200,14 @@ export function StatsView() {
             </div>
             <div className="mt-[18px] flex items-center gap-2 border-t border-border pt-4 text-[12.5px] text-muted">
               <span className="flex-none text-link"><SparkIcon /></span>
-              18 words moved to <b className="font-[600] text-fg">Known</b> this week.
+              {kpis.wordsKnownDelta > 0 ? (
+                <>
+                  {kpis.wordsKnownDelta} word{kpis.wordsKnownDelta === 1 ? "" : "s"} moved to{" "}
+                  <b className="font-[600] text-fg">Known</b> this week.
+                </>
+              ) : (
+                <>{vocabTotal > 0 ? "Keep reviewing to grow your Known count." : "Mine words to start tracking vocabulary."}</>
+              )}
             </div>
           </div>
         </div>
@@ -188,7 +216,7 @@ export function StatsView() {
         <div className="rise-3 rounded-[var(--radius-lg)] border border-border bg-surface p-[20px_22px] shadow-[var(--shadow-sm)]">
           <div className="mb-5 flex items-baseline justify-between gap-4">
             <span className="text-[13px] font-[600] uppercase tracking-[0.04em] text-muted">Review consistency</span>
-            <span className="tabular-nums text-[12.5px] text-faint">Last 17 weeks · 12-day streak</span>
+            <span className="tabular-nums text-[12.5px] text-faint">Last 17 weeks · {kpis.dayStreak}-day streak</span>
           </div>
           <div className="flex gap-[10px]">
             <div className="flex flex-col justify-between pb-0.5 pt-[14px] text-[10.5px] text-faint">
@@ -239,6 +267,9 @@ export function StatsView() {
             <span className="text-[13px] font-[600] uppercase tracking-[0.04em] text-muted">Top sources by words mined</span>
           </div>
           <div className="flex flex-col gap-[4px]">
+            {TOP.length === 0 && (
+              <p className="m-0 py-2 text-[13.5px] text-faint">No mined words yet — save phrases from the player to see your top sources.</p>
+            )}
             {TOP.map((v, i) => (
               <div key={i} className="flex items-center gap-[14px] border-b border-border py-[10px] last:border-b-0">
                 <span className="grid h-[22px] w-[22px] flex-none place-items-center rounded-[6px] border border-border bg-bg-2 text-[12px] font-[600] text-muted">
