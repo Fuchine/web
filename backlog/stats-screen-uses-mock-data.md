@@ -1,87 +1,36 @@
 # backlog: Stats Screen — Data Is Still Mock/Fake
 
-**Date:** 2026-06-24
+**Date:** 2026-06-24 · **Updated:** 2026-06-30
 **Feature:** Stats (T2.x)
-**Branch:** `feat/stats-screen`
-**Status:** SCREEN IMPLEMENTED — DATA IS HARDCODED
+**Status:** RESOLVED (data wired) — RESIDUAL: watch-time instrumentation
 
 ---
 
-## O que foi implementado
+## Resolução (2026-06-30)
 
-- **stats/page.tsx** — server component com auth gate + AppLayout
-- **stats/stats-view.tsx** — client component fiel ao Claude Design com:
+`apps/web/lib/stats.ts` (`getStats`) agrega direto das tabelas fonte
+(sempre populadas), e `stats-view.tsx` recebe os dados via prop do server
+component (`stats/page.tsx`). Sem mais mocks. Fontes:
 
-| Seção | Status |
+| Métrica | Fonte real |
 |---|---|
-| Header + segmented range (Week/Month/Year) | ✅ layout |
-| 4 KPI cards | ✅ layout (dados fake) |
-| Bar chart — daily watch time | ✅ layout (dados fake) |
-| Vocabulary stacked bar + legend | ✅ layout (dados fake) |
-| Review consistency heatmap (17×7) | ✅ layout (PRNG determinístico) |
-| Top sources by words mined | ✅ layout (dados fake) |
-| Animações rise/rise-2/rise-3 | ✅ |
-| Dark mode via `[data-theme="dark"]` | ✅ (herdado) |
+| Words known / Vocabulary (known/learning/new) | `sentence_cards.state` (FSRS: 2=known, 1/3=learning, 0=new) |
+| Retention (30d) | `review_logs` — `grade >= 3` / total |
+| Day streak / Best streak | dias ativos de `review_logs` + `sentence_cards` (`computeStreaks`) |
+| Review heatmap (17 semanas) | `review_logs` por dia → `heatLevel` |
+| Top sources | `sentence_cards` JOIN `videos`, count por vídeo |
+| Watch time + daily chart | `user_daily_stats.ms_watched` |
 
-## O problema: todos os dados são mocks
+Helpers puros (`computeStreaks`, `heatLevel`) cobertos por `lib/stats.test.ts`.
+Empty states adicionados (sem cards minerados, sem streak).
 
-### Dados hardcoded em `stats-view.tsx`
+## Residual (não bloqueia)
 
-```ts
-const KPIS = [
-  { k: "Words known", v: "340", d: "+18", up: true, sub: "this week" },
-  { k: "Watch time", v: "12.4", u: "h", d: "+2.1h", up: true, sub: "this week" },
-  { k: "Day streak", v: "12", d: "Best: 21", up: null, sub: "days" },
-  { k: "Retention", v: "88", u: "%", d: "+3%", up: true, sub: "30-day avg" },
-];
-
-const ACTIVITY = [24, 38, 12, 45, 30, 52, 41]; // minutos/dia
-
-const VOCAB = [
-  { label: "Known", n: 340, cls: "known" },
-  { label: "Learning", n: 86, cls: "learning" },
-  { label: "New", n: 24, cls: "new" },
-];
-
-const TOP = [
-  { title: "Kyoto Slow Living", words: 42, dur: "14:22" },
-  { title: "ニュースで学ぶ日本語", words: 28, dur: "6:48" },
-  { title: "簡単な味噌汁の作り方", words: 19, dur: "9:10" },
-  { title: "VLOG：東京の電車に乗ってみた", words: 15, dur: "11:37" },
-];
-```
-
-### Navegação adicionada
-
-- `packages/ui/src/components/AppShell/nav.tsx` — Stats inserido como item ativo no sidebar entre Dictionary e Phrases; Albums adicionado como `soon`
-
----
-
-## O que falta (dados reais)
-
-### Queries necessárias em `lib/stats.ts`
-
-| Métrica | Fonte | Query |
-|---|---|---|
-| Words known | `saved_words` | `count(distinct word_entry_id)` do usuário |
-| Watch time | `user_daily_stats.msWatched` | `sum(ms_watched)` do período (ou fallback: duração dos vídeos com cards minerados) |
-| Day streak | `review_logs.reviewedAt` + `sentence_cards.createdAt` | Dias consecutivos com atividade |
-| Retention | `review_logs` | Razão (grade 3 + grade 4) / total no período |
-| Daily watch time | `user_daily_stats` | Últimos 7 dias agregados por `day` |
-| Vocab status | `saved_words` + `user_word_stats` | Classificar por `reviewsOk` (0=new, 1=learning, 2+=known) |
-| Heatmap | `user_daily_stats.reviewsDone` | Últimas 17 semanas |
-| Top sources | `sentence_cards` JOIN `videos` | `group by video_id` ordenado por count |
-
-### Observações
-
-- `userDailyStats` e `userWordStats` existem no schema mas **não são populados** durante uso normal do app — precisam ser alimentados por jobs ou triggers
-- Alternativa: agregar direto das tabelas fonte (`sentenceCards`, `reviewLogs`, `savedWords`, `videos`) sem depender de pré-agregação — mais queries mas funciona imediatamente
-
----
-
-## Tracking
-
-- [ ] Criar `lib/stats.ts` com queries de agregação (seguir padrão de `study.ts`, `cards.ts`)
-- [ ] Substituir dados mock do `stats-view.tsx` por props vindas do server component
-- [ ] Decidir: popular `userDailyStats` ou agregar direto das tabelas fonte?
-- [ ] Garantir que empty state funcione para novos usuários sem dados
+- **Watch time depende de `user_daily_stats`, que ainda não tem writer** durante
+  uso normal. Até o player ser instrumentado (registrar `ms_watched`/`lines_seen`
+  por dia), o KPI "Watch time" e o gráfico "Daily watch time" mostram 0. As
+  demais métricas são reais. → tarefa separada: instrumentar o player.
+- **Segmented range (Week/Month/Year)** é visual — os dados usam janelas fixas
+  (30d retention, 7d watch, 17 semanas heatmap). Refetch por range fica para
+  depois (exige client fetch ou server action).
+- POS/coverage residuais do dicionário seguem em [dictionary-screen-state.md].
