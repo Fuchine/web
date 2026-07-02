@@ -10,7 +10,7 @@ import {
   subtitleTranslationChunks,
 } from "@fuchine/db";
 import { type LlmProvider } from "@fuchine/llm";
-import { houseProvider } from "./house-provider";
+import { houseMtProvider } from "./house-provider";
 import { lineRangeForChunk } from "@fuchine/core";
 
 export type ChunkLine = { id: string; textTranslation: string | null };
@@ -98,7 +98,7 @@ export async function translateChunk(
   }
 
   // Miss → translate.
-  const provider = deps.provider ?? houseProvider();
+  const provider = deps.provider ?? houseMtProvider();
   const translations = await provider.translateBatch(
     lines.map((l) => l.textOriginal),
     { from: video.language, to: "en" },
@@ -107,12 +107,14 @@ export async function translateChunk(
     return { status: 502, body: { error: "could not translate this section right now" } };
   }
 
-  for (let i = 0; i < lines.length; i++) {
-    await db
-      .update(subtitleLines)
-      .set({ textTranslation: translations[i] ?? null })
-      .where(eq(subtitleLines.id, lines[i]!.id));
-  }
+  await Promise.all(
+    lines.map((l, i) =>
+      db
+        .update(subtitleLines)
+        .set({ textTranslation: translations[i] ?? null })
+        .where(eq(subtitleLines.id, l.id)),
+    ),
+  );
   await db
     .insert(subtitleTranslationChunks)
     .values({ videoId, chunkIdx, status: "done" })
