@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { cn } from "../../lib/cn";
 import { AppShell } from "../AppShell/AppShell";
 import { buildAppNav } from "../AppShell/nav";
-import { pickCurrentLine, formatTimecode as fmt, lineHasAudio, chunkIndexForLine } from "@fuchine/core";
+import { pickCurrentLine, formatTimecode as fmt, lineHasAudio, chunkIndexForLine, chunkPumpOrder } from "@fuchine/core";
 import { PlayerTopBar } from "./PlayerTopBar";
 import { PlayerStage, type PlayerVideoHandle, type DictPopupState } from "./PlayerStage";
 import { PlayerTranscript, type TranscriptLine, type TranscriptToken } from "./PlayerTranscript";
@@ -245,18 +245,14 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     return () => window.removeEventListener("keydown", onKey);
   }, [lines.length]);
 
-  // Lazy translation: ensure the current chunk + 1 ahead are translated.
-  useEffect(() => {
-    if (!onFetchChunk || currentLineIdx < 0) return;
-    const cur = lines[currentLineIdx] as PlayerSubtitleLine | undefined;
-    if (!cur) return;
-    const lastLine = lines[lines.length - 1] as PlayerSubtitleLine | undefined;
-    const maxChunk = lastLine ? chunkIndexForLine(lastLine.idx) : 0;
-    const base = chunkIndexForLine(cur.idx);
-    for (const c of [base, base + 1]) {
-      if (c < 0 || c > maxChunk || doneChunksRef.current.has(c) || inFlightChunksRef.current.has(c)) continue;
+  // One chunk fetch, shared by the focal effect and the background pump. The
+  // done/in-flight refs make the two dedupe against each other; failures are
+  // swallowed (degrade: keep JP only; a later trigger may retry the chunk).
+  const fetchChunk = useCallback(
+    (c: number): Promise<void> | null => {
+      if (!onFetchChunk || doneChunksRef.current.has(c) || inFlightChunksRef.current.has(c)) return null;
       inFlightChunksRef.current.add(c);
-      onFetchChunk(c)
+      return onFetchChunk(c)
         .then((rows) => {
           setTranslations((prev) => {
             const next = new Map(prev);
@@ -266,13 +262,51 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
           doneChunksRef.current.add(c);
         })
         .catch(() => {
-          /* degrade: keep JP only; a later trigger may retry this chunk */
+          /* degrade: keep JP only */
         })
         .finally(() => {
           inFlightChunksRef.current.delete(c);
         });
+    },
+    [onFetchChunk],
+  );
+
+  // Lazy translation, focal priority: ensure the current chunk + 1 ahead.
+  useEffect(() => {
+    if (!onFetchChunk || currentLineIdx < 0) return;
+    const cur = lines[currentLineIdx] as PlayerSubtitleLine | undefined;
+    if (!cur) return;
+    const lastLine = lines[lines.length - 1] as PlayerSubtitleLine | undefined;
+    const maxChunk = lastLine ? chunkIndexForLine(lastLine.idx) : 0;
+    const base = chunkIndexForLine(cur.idx);
+    for (const c of [base, base + 1]) {
+      if (c < 0 || c > maxChunk) continue;
+      void fetchChunk(c);
     }
-  }, [currentLineIdx, lines, onFetchChunk]);
+  }, [currentLineIdx, lines, onFetchChunk, fetchChunk]);
+
+  // Background pump: translate the whole video starting at the current chunk
+  // (then wrapping to the start), one request in flight, so cold seeks never
+  // hit an untranslated chunk. Already-done chunks are free (marker cache);
+  // failed chunks are skipped — the focal effect retries them on demand.
+  // A dep change or unmount cancels the loop; the refs make a restart cheap.
+  useEffect(() => {
+    if (!onFetchChunk || lines.length === 0) return;
+    let cancelled = false;
+    const lastLine = lines[lines.length - 1] as PlayerSubtitleLine;
+    const maxChunk = chunkIndexForLine(lastLine.idx);
+    const cur = lines[Math.max(currentLineIdxRef.current, 0)] as PlayerSubtitleLine | undefined;
+    const start = cur ? chunkIndexForLine(cur.idx) : 0;
+    void (async () => {
+      for (const c of chunkPumpOrder(start, maxChunk)) {
+        if (cancelled) return;
+        await fetchChunk(c);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lines, onFetchChunk, fetchChunk]);
 
   const seekToLine = useCallback(
     (idx: number) => {
