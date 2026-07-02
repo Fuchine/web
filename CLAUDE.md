@@ -110,7 +110,10 @@ Pacotes e seus pontos de entrada:
   /api/review/queue` + `POST /api/review/[cardId]` (FSRS), `GET /api/dictionary`
   (por id ou busca) e `POST /api/lines/[id]/explain` (camada 2, cache-first +
   BYOK). Lógica testável em `lib/` (`import`, `study`, `cards`, `dictionary`,
-  `explain`); fila lazy em `lib/queue.ts`. UI: Tailwind v4 (`app/globals.css`
+  `explain`, `translate` — chunk lazy com `houseMtProvider()`: MT dedicado via
+  env `MT_PROVIDER`/`MT_API_KEY` (DeepL recomendado) com `FallbackProvider`
+  caindo para o LLM house; o Player traduz o vídeo inteiro em background ao
+  abrir); fila lazy em `lib/queue.ts`. UI: Tailwind v4 (`app/globals.css`
   importa `@fuchine/ui/theme-map.css` + `@source` dos componentes); `/login`
   (composição `Login`) e `/` (Home/Library: `AppShell` + `VideoCard` sobre
   `listVideos`, com gate de auth → `/login`). Demais telas a integrar.
