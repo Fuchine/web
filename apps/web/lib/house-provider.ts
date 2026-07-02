@@ -27,12 +27,20 @@ export function houseProvider(): LlmProvider {
 export function houseMtProvider(): LlmProvider {
   const mt = process.env.MT_PROVIDER as ProviderName | undefined;
   if (!mt) return houseProvider();
-  return new FallbackProvider(
-    createProvider({
+  let primary: LlmProvider;
+  try {
+    primary = createProvider({
       provider: mt,
       apiKey: process.env.MT_API_KEY,
       baseUrl: process.env.MT_BASE_URL || undefined,
-    }),
-    houseProvider(),
-  );
+    });
+  } catch (err) {
+    // Misconfigured MT env (missing key, unknown provider) must not mute the
+    // app: degrade to the house LLM and make the reason visible.
+    console.warn(
+      `[llm] MT provider "${mt}" misconfigured (${(err as Error).message}); using house LLM for translation`,
+    );
+    return houseProvider();
+  }
+  return new FallbackProvider(primary, houseProvider());
 }

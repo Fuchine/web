@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { EchoProvider, FallbackProvider } from "@fuchine/llm";
 import { houseMtProvider } from "./house-provider";
 
@@ -21,5 +21,13 @@ describe("houseMtProvider", () => {
     const p = houseMtProvider();
     expect(p).toBeInstanceOf(FallbackProvider);
     expect((p as FallbackProvider).name).toBe("fallback(deepl→echo)");
+  });
+
+  it("degrades to the house provider when the MT provider is misconfigured", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    process.env.MT_PROVIDER = "deepl"; // MT_API_KEY intentionally unset
+    expect(houseMtProvider()).toBeInstanceOf(EchoProvider);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 });
