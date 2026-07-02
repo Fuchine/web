@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { FallbackProvider } from "./fallback";
 import { ProviderError, RateLimitError } from "../errors";
 import type { LlmProvider, SubtitleLineCtx } from "../contract";
@@ -24,6 +24,10 @@ function fake(over: Partial<LlmProvider> & { name?: string }): LlmProvider & { n
 
 beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("FallbackProvider.translateBatch", () => {
