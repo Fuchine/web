@@ -11,6 +11,7 @@ export {
   type OpenAICompatibleConfig,
   type ChatFn,
 } from "./openai-compatible";
+export { FallbackProvider } from "./fallback";
 
 export type ProviderName =
   | "minimax"
