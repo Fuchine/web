@@ -7,8 +7,8 @@ import { encryptApiKey } from "@fuchine/llm";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
-export const ALLOWED_PROVIDERS = ["minimax", "openai"] as const;
-export const ALLOWED_LANGUAGES = ["en", "ja"] as const;
+export const ALLOWED_PROVIDERS = ["minimax", "openai", "anthropic", "gemini", "openai-compatible", "local"] as const;
+export const ALLOWED_LANGUAGES = ["en", "ja", "pt", "es", "zh", "ko"] as const;
 
 export type ParsedSettings = {
   llmProvider?: (typeof ALLOWED_PROVIDERS)[number];
@@ -102,4 +102,23 @@ export async function updateSettings(
       hasApiKey: !!row?.apiKeyEnc,
     },
   };
+}
+
+/** Mark onboarding as complete for the given user. */
+export async function completeOnboarding(db: Database, userId: string): Promise<void> {
+  const now = new Date();
+  await db
+    .insert(userSettings)
+    .values({ userId, onboardingCompletedAt: now })
+    .onConflictDoUpdate({ target: userSettings.userId, set: { onboardingCompletedAt: now } });
+}
+
+/** Return true when the user has completed onboarding. */
+export async function isOnboardingDone(db: Database, userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ onboardingCompletedAt: userSettings.onboardingCompletedAt })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .limit(1);
+  return !!row?.onboardingCompletedAt;
 }

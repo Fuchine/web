@@ -4,6 +4,7 @@ import type { NavItem } from "./AppShell";
 /** Canonical sidebar icons for the app shell — single source of truth. */
 export const NAV_ICONS: Record<string, ReactNode> = {
   home: (<svg viewBox="0 0 24 24" fill="none"><path d="M4 11l8-7 8 7M6 10v9h12v-9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>),
+  library: (<svg viewBox="0 0 24 24" fill="none"><path d="M4 6.5h16M4 12h16M4 17.5h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /><rect x="14" y="14" width="6" height="5" rx="1" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>),
   review: (<svg viewBox="0 0 24 24" fill="none"><path d="M20 11A8 8 0 1 0 18 16.5M20 5v6h-6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>),
   settings: (<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.7" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>),
   dictionary: (<svg viewBox="0 0 24 24" fill="none"><path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V4zM7 4v14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>),
@@ -32,12 +33,13 @@ export interface BuildAppNavOptions {
 export function buildAppNav({ activeKey, onNavigate, reviewDue }: BuildAppNavOptions): NavItem[] {
   return [
     { key: "home", label: "Home", icon: NAV_ICONS.home, active: activeKey === "home", onSelect: () => onNavigate("home") },
+    { key: "library", label: "Library", icon: NAV_ICONS.library, active: activeKey === "library", onSelect: () => onNavigate("library") },
     { key: "review", label: "Review", icon: NAV_ICONS.review, badge: reviewDue || undefined, active: activeKey === "review", onSelect: () => onNavigate("review") },
     { key: "kana", label: "Kana", icon: NAV_ICONS.kana, active: activeKey === "kana", onSelect: () => onNavigate("kana") },
     { key: "settings", label: "Settings", icon: NAV_ICONS.settings, active: activeKey === "settings", onSelect: () => onNavigate("settings") },
     { key: "dictionary", label: "Dictionary", icon: NAV_ICONS.dictionary, active: activeKey === "dictionary", onSelect: () => onNavigate("dictionary") },
     { key: "stats", label: "Stats", icon: NAV_ICONS.stats, active: activeKey === "stats", onSelect: () => onNavigate("stats") },
-    { key: "phrases", label: "Phrases", icon: NAV_ICONS.phrases, soon: true },
+    { key: "phrases", label: "Phrases", icon: NAV_ICONS.phrases, active: activeKey === "phrases", onSelect: () => onNavigate("phrases") },
     { key: "albums", label: "Albums", icon: NAV_ICONS.albums, soon: true },
   ];
 }

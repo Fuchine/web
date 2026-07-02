@@ -106,6 +106,8 @@ export const userSettings = pgTable("user_settings", {
   learningLanguage: text("learning_language").notNull().default("ja"),
   explanationLanguage: text("explanation_language").notNull().default("en"),
   dailyGoals: jsonb("daily_goals").$type<DailyGoals>(),
+  // Null = onboarding never finished; set on first completion.
+  onboardingCompletedAt: timestamp("onboarding_completed_at", { withTimezone: true }),
 });
 
 /* ------------------------------------------------------------------ */
@@ -331,6 +333,7 @@ export const albums = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
   },
   (t) => [index("albums_user_idx").on(t.userId)],
 );

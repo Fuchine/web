@@ -24,7 +24,12 @@ export function AppLayout({ account, reviewDue, activeKey, collapsed, onCollapse
   const nav = buildAppNav({
     activeKey,
     reviewDue,
-    onNavigate: (key) => router.push(key === "home" ? "/" : `/${key}`),
+    onNavigate: (key) => {
+      if (key === "home") router.push("/");
+      else if (key === "library") router.push("/library");
+      else if (key === "phrases") router.push("/phrases");
+      else router.push(`/${key}`);
+    },
   });
 
   return (

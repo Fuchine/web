@@ -411,12 +411,13 @@ function FirstRun({ onAdd }: { onAdd: () => void }) {
 }
 
 export function LibraryView({
-  videos, account, reviewDue, stats,
+  videos, account, reviewDue, stats, activeKey = "library",
 }: {
   videos: LibraryVideo[];
   account: { name: string; sub?: string };
   reviewDue?: number;
   stats: LibraryStats;
+  activeKey?: string;
 }) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -498,7 +499,7 @@ export function LibraryView({
   const gridSub = mine ? `${list.length} of your imports` : q ? `${list.length} found` : `${list.length} videos`;
 
   return (
-    <AppLayout account={account} reviewDue={reviewDue} activeKey="home" collapsed={collapsed} onCollapsedChange={setCollapsed}>
+    <AppLayout account={account} reviewDue={reviewDue} activeKey={activeKey} collapsed={collapsed} onCollapsedChange={setCollapsed}>
       {firstRun ? (
         <FirstRun onAdd={() => setModal(true)} />
       ) : (
