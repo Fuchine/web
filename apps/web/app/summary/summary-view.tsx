@@ -56,12 +56,6 @@ export function SummaryView({ accountName, accountEmail, data }: Props) {
 
   return (
     <>
-      <style>{`
-        .sum-rise { animation: sum-rise 0.4s var(--ease); }
-        @keyframes sum-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-        @media (prefers-reduced-motion: reduce) { .sum-rise { animation: none; } }
-      `}</style>
-
       <div className="grid h-full" style={{ gridTemplateColumns: "76px 1fr" }}>
         {/* sidebar */}
         <aside className="flex flex-col overflow-hidden border-r border-border bg-bg-2 px-[14px] pb-4 pt-[18px]">
@@ -112,7 +106,7 @@ export function SummaryView({ accountName, accountEmail, data }: Props) {
         {/* main */}
         <div className="flex min-w-0 overflow-hidden">
           <div className="flex flex-1 justify-center overflow-y-auto px-[26px] py-14 pb-12">
-            <div className="sum-rise w-full" style={{ maxWidth: 620 }}>
+            <div className="motion-safe:animate-[sum-rise_0.4s_var(--ease)] w-full" style={{ maxWidth: 620 }}>
               {/* header */}
               <div className="mb-[34px] text-center">
                 <span className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-[16px] bg-accent text-[28px] text-on-accent shadow-[var(--shadow)]"

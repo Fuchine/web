@@ -334,7 +334,7 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
       </Group>
 
       <p className="mt-10 text-center text-[12.5px] text-faint">
-        Fuchine · v0.4 · <button className="text-link hover:text-link-hover">What&apos;s new</button>
+        Fuchine · v0.4 · <button className="text-link hover:text-[var(--link-hover)]">What&apos;s new</button>
       </p>
     </div>
   );

@@ -50,11 +50,83 @@
   to   { opacity: 1; transform: none; }
 }
 
-.rise   { animation: rise 0.5s var(--ease) 0.05s; }
-.rise-2 { animation: rise 0.5s var(--ease) 0.11s; }
-.rise-3 { animation: rise 0.5s var(--ease) 0.17s; }
+.rise   { animation: rise 0.5s var(--ease) 0.05s both; }
+.rise-2 { animation: rise 0.5s var(--ease) 0.11s both; }
+.rise-3 { animation: rise 0.5s var(--ease) 0.17s both; }
+
+@keyframes sum-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes ob-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .home-toast { animation: none; }
   .rise, .rise-2, .rise-3 { animation: none; }
+}
+
+/* Dictionary screen animations */
+@keyframes dict-card-pop {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes dict-sk-shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+
+@keyframes dict-scrim-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes dict-detail-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+
+@keyframes dict-toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Kana Practice animations */
+@keyframes kn-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes kn-charin {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes kn-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.14); }
+  100% { transform: scale(1); }
+}
+
+@keyframes kn-shake {
+  0%,100% { transform: translateX(0); }
+  20%     { transform: translateX(-9px); }
+  40%     { transform: translateX(8px); }
+  60%     { transform: translateX(-5px); }
+  80%     { transform: translateX(3px); }
+}
+
+@keyframes kn-bump {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+@keyframes kn-reveal-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
 }

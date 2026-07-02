@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AppLayout } from "@/components/AppLayout";
 import { DictionaryView } from "./dictionary-view";
-import "./dictionary.css";
 
 export default async function DictionaryPage() {
   const session = await auth();

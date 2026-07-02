@@ -88,18 +88,6 @@ export function StatsView({ data }: { data: StatsData }) {
 
   return (
     <>
-      <style>{`
-        .rise { animation: rise 0.5s var(--ease) 0.05s both; }
-        .rise-2 { animation: rise 0.5s var(--ease) 0.11s both; }
-        .rise-3 { animation: rise 0.5s var(--ease) 0.17s both; }
-        @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-        @media (prefers-reduced-motion: reduce) { .rise, .rise-2, .rise-3 { animation: none; } }
-
-        .peak { background: var(--accent) !important; }
-        .peak .bar-val { color: var(--link) !important; }
-        .bar-val { position: absolute; top: -19px; left: 50%; transform: translateX(-50%); }
-      `}</style>
-
       <div className="mx-auto max-w-[900px] px-8 py-14 pb-[72px]">
         {/* header */}
         <div className="rise mb-[26px] flex items-start justify-between gap-6">
@@ -159,10 +147,10 @@ export function StatsView({ data }: { data: StatsData }) {
                 <div key={i} className="flex flex-1 flex-col items-center gap-[9px] h-full">
                   <div className="flex w-full flex-1 items-end">
                     <div
-                      className={`relative w-full min-h-[4px] rounded-[7px_7px_3px_3px] bg-accent-soft-2 ${i === peakDay && m > 0 ? "peak" : ""}`}
+                      className={`relative w-full min-h-[4px] rounded-[7px_7px_3px_3px] ${i === peakDay && m > 0 ? "bg-accent" : "bg-accent-soft-2"}`}
                       style={{ height: `${(m / maxAct) * 100}%` }}
                     >
-                      <span className="bar-val text-[11px] font-[600] tabular-nums text-muted">{m}</span>
+                      <span className={`absolute top-[-19px] left-1/2 -translate-x-1/2 text-[11px] font-[600] tabular-nums ${i === peakDay && m > 0 ? "text-link" : "text-muted"}`}>{m}</span>
                     </div>
                   </div>
                   <span className="text-[12px] font-[500] text-faint">{DAYS[i]}</span>

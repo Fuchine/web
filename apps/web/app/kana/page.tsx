@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AppLayout } from "@/components/AppLayout";
 import { KanaView } from "./kana-view";
-import "./kana.css";
 
 export default async function KanaPage() {
   const session = await auth();

@@ -26,6 +26,7 @@
   --color-accent-ring: var(--accent-ring);
   --color-on-accent: var(--on-accent);
   --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
 
   --color-indigo: var(--indigo);
   --color-indigo-2: var(--indigo-2);

@@ -1,6 +1,5 @@
 "use client";
 
-import "./onboarding.css";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -73,13 +72,25 @@ function Progress({ step }: { step: Step }) {
   const idx = NUMBERED.indexOf(step);
   const current = idx < 0 ? NUMBERED.length : idx;
   return (
-    <div className="ob-progress">
-      <div className="ob-track">
+    <div className="flex items-center gap-[13px] mb-[30px]">
+      <div className="flex gap-[6px]">
         {NUMBERED.map((_, i) => (
-          <i key={i} className={i < current ? "done" : i === current ? "on" : ""} />
+          <i
+            key={i}
+            className={[
+              "not-italic h-[3px] rounded-[3px]",
+              "transition-[width,background,opacity] duration-[0.4s] ease-[var(--ease)]",
+              "motion-reduce:transition-none",
+              i < current
+                ? "w-[24px] bg-accent opacity-50"
+                : i === current
+                  ? "w-[32px] bg-accent"
+                  : "w-[24px] bg-border-strong",
+            ].join(" ")}
+          />
         ))}
       </div>
-      <span className="ob-step-label">
+      <span className="text-[12px] font-medium tracking-[0.03em] text-faint">
         {idx < 0 ? "Setup complete" : `Step ${idx + 1} of ${NUMBERED.length}`}
       </span>
     </div>
@@ -89,36 +100,61 @@ function Progress({ step }: { step: Step }) {
 /* ---- Step 1: Welcome ---- */
 function StepWelcome({ name, onNext, onSkip }: { name: string; onNext: () => void; onSkip: () => void }) {
   return (
-    <div key="welcome" className="ob-anim">
+    <div key="welcome" className="motion-safe:animate-[ob-rise_0.5s_var(--ease)_both]">
       <Progress step="welcome" />
-      <span className="ob-eyebrow"><span className="ko">淵</span> Welcome</span>
-      <h1 className="ob-title">
+      <span className="inline-flex items-center gap-[8px] text-[12px] font-[550] tracking-[0.06em] uppercase text-link mb-[14px]">
+        <span style={{ fontFamily: "'Noto Serif JP', serif" }} className="text-[14px] tracking-normal normal-case opacity-85">淵</span>
+        {" "}Welcome
+      </span>
+      <h1 className="text-[28px] font-semibold tracking-[-0.022em] leading-[1.18] m-0 mb-[10px] [text-wrap:pretty] max-sm:text-[24px]">
         {name ? `Welcome to Fuchine, ${name}.` : "Welcome to Fuchine."}
       </h1>
-      <p className="ob-sub">
+      <p className="text-[15px] leading-[1.6] text-muted m-0 [text-wrap:pretty]">
         Learn Japanese by watching real videos — with{" "}
-        <span className="em">smart dual subtitles</span> that translate and explain,
+        <span className="text-fg font-medium">smart dual subtitles</span> that translate and explain,
         line by line, as you watch.
       </p>
 
-      <div className="ob-demo">
-        <div className="ob-demo-frame">
-          <span className="cc"><CaptionIcon /></span>
+      {/* demo card */}
+      <div className="mt-[28px] bg-surface border border-border rounded-[var(--radius-lg)] shadow-[var(--shadow)] px-[22px] pt-[20px] pb-[18px] relative overflow-hidden">
+        <div className="flex items-center gap-[7px] text-[11px] font-medium tracking-[0.04em] text-faint mb-[16px]">
+          <span className="inline-grid place-items-center text-accent">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="w-[16px] h-[16px]">
+              <rect x="3" y="5" width="18" height="14" rx="2.5" />
+              <path d="M7 11.5h2.5M7 14.5h4" />
+              <path d="M13.5 11.5H17M13.5 14.5h2" />
+            </svg>
+          </span>
           <span>Dual subtitles</span>
-          <span className="grow" />
-          <span className="ts">02:14</span>
+          <span className="flex-1" />
+          <span className="tabular-nums">02:14</span>
         </div>
-        <div className="ob-demo-jp">水の<b>淵</b>に、静かに沈んでいく。</div>
-        <div className="ob-demo-en">Sinking quietly into the depths of the water.</div>
-        <div className="ob-demo-track"><i /><i /><i /><i /></div>
+        <div className="text-[19px] leading-[1.7] tracking-[0.01em] text-fg mb-[7px]">
+          水の<b className="font-medium text-accent border-b-2 border-accent-line pb-[1px]">淵</b>に、静かに沈んでいく。
+        </div>
+        <div className="text-[13.5px] leading-[1.5] text-muted">Sinking quietly into the depths of the water.</div>
+        <div className="flex gap-[5px] mt-[16px]">
+          <i className="not-italic h-[3px] rounded-[3px] bg-border-strong flex-1" />
+          <i className="not-italic h-[3px] rounded-[3px] bg-accent opacity-85 flex-[0_0_34px]" />
+          <i className="not-italic h-[3px] rounded-[3px] bg-border-strong flex-1" />
+          <i className="not-italic h-[3px] rounded-[3px] bg-border-strong flex-1" />
+        </div>
       </div>
 
-      <div className="ob-actions">
-        <button className="ob-btn ob-btn-primary" onClick={onNext}>
+      <div className="mt-[30px]">
+        <button
+          className="w-full h-[47px] text-[14.5px] font-[550] tracking-[0.005em] rounded-[var(--radius)] cursor-pointer flex items-center justify-content-center gap-[9px] justify-center transition-[background] duration-[0.18s] ease-[var(--ease)] text-on-accent bg-accent border-none hover:bg-accent-hover active:bg-accent-press active:[transform:translateY(0.5px)] [&_svg]:w-[17px] [&_svg]:h-[17px]"
+          onClick={onNext}
+        >
           Get started <ArrowIcon />
         </button>
-        <div className="ob-sub-actions">
-          <button className="ob-quiet" onClick={onSkip}>Skip setup</button>
+        <div className="flex items-center justify-center gap-[8px] mt-[16px]">
+          <button
+            className="bg-none border-none px-[8px] py-[6px] text-[13.5px] font-medium text-muted cursor-pointer rounded-[7px] transition-[color] duration-[0.16s] ease-[var(--ease)] hover:text-fg"
+            onClick={onSkip}
+          >
+            Skip setup
+          </button>
         </div>
       </div>
     </div>
@@ -136,51 +172,98 @@ function StepLanguage({
   onSkip: () => void;
 }) {
   return (
-    <div key="language" className="ob-anim">
+    <div key="language" className="motion-safe:animate-[ob-rise_0.5s_var(--ease)_both]">
       <Progress step="language" />
-      <span className="ob-eyebrow">Explanations</span>
-      <h1 className="ob-title">Which language should Fuchine explain in?</h1>
-      <p className="ob-sub">
+      <span className="inline-flex items-center gap-[8px] text-[12px] font-[550] tracking-[0.06em] uppercase text-link mb-[14px]">
+        Explanations
+      </span>
+      <h1 className="text-[28px] font-semibold tracking-[-0.022em] leading-[1.18] m-0 mb-[10px] [text-wrap:pretty] max-sm:text-[24px]">
+        Which language should Fuchine explain in?
+      </h1>
+      <p className="text-[15px] leading-[1.6] text-muted m-0 [text-wrap:pretty]">
         Translations and AI explanations will appear in this language — it&apos;s how
-        Fuchine explains things <span className="em">to you</span>. Change it anytime in
+        Fuchine explains things <span className="text-fg font-medium">to you</span>. Change it anytime in
         Settings.
       </p>
 
-      <div className="ob-opts" role="radiogroup" aria-label="Explanation language">
-        {LANGS.map((l) => (
-          <button
-            key={l.v}
-            role="radio"
-            aria-checked={value === l.v}
-            className={"ob-opt" + (value === l.v ? " on" : "")}
-            onClick={() => onChange(l.v)}
-          >
-            <span className="ob-radio"><i /></span>
-            <span className="ob-opt-text">
-              <span className="ob-opt-name">{l.name}</span>
-              {l.native !== l.name && <span className="ob-opt-native">{l.native}</span>}
-            </span>
-            {l.flag && <span className="ob-opt-flag">{l.flag}</span>}
-          </button>
-        ))}
+      <div className="grid gap-[8px] mt-[26px]" role="radiogroup" aria-label="Explanation language">
+        {LANGS.map((l) => {
+          const isOn = value === l.v;
+          return (
+            <button
+              key={l.v}
+              role="radio"
+              aria-checked={isOn}
+              className={[
+                "flex items-center gap-[14px] w-full text-left px-[16px] py-[13px]",
+                "border rounded-[var(--radius)] cursor-pointer font-[inherit]",
+                "transition-[border-color,background,box-shadow] duration-[0.16s] ease-[var(--ease)]",
+                isOn
+                  ? "border-accent bg-accent-soft shadow-[0_0_0_3px_var(--accent-ring)]"
+                  : "border-border-strong bg-surface hover:border-faint",
+              ].join(" ")}
+              onClick={() => onChange(l.v)}
+            >
+              <span
+                className={[
+                  "w-[18px] h-[18px] rounded-full border-[1.6px] flex-none grid place-items-center",
+                  "transition-[border-color] duration-[0.16s] ease-[var(--ease)]",
+                  isOn ? "border-accent" : "border-border-strong",
+                ].join(" ")}
+              >
+                <i
+                  className={[
+                    "not-italic w-[9px] h-[9px] rounded-full bg-accent",
+                    "transition-transform duration-[0.18s] ease-[var(--ease)]",
+                    isOn ? "scale-100" : "scale-0",
+                  ].join(" ")}
+                />
+              </span>
+              <span className="flex-1 min-w-0 flex flex-col">
+                <span className="block text-[14.5px] font-medium text-fg">{l.name}</span>
+                {l.native !== l.name && (
+                  <span className="block text-[12.5px] text-faint mt-[2px]">{l.native}</span>
+                )}
+              </span>
+              {l.flag && <span className="text-[12px] text-faint">{l.flag}</span>}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="ob-fixed">
-        <span className="lock"><LockIcon /></span>
-        <span className="grow">
-          You&apos;re learning <span className="jpchip">日本語 · Japanese</span>
+      {/* studying-fixed pill */}
+      <div className="flex items-center gap-[11px] mt-[18px] px-[15px] py-[11px] bg-bg-2 border border-border rounded-[var(--radius)] text-[13px] text-muted">
+        <span className="text-faint flex-none [&_svg]:w-[15px] [&_svg]:h-[15px] [&_svg]:block">
+          <LockIcon />
         </span>
-        <span className="tag">FIXED FOR NOW</span>
+        <span className="flex-1">
+          You&apos;re learning{" "}
+          <span className="font-semibold text-fg whitespace-nowrap">日本語 · Japanese</span>
+        </span>
+        <span className="text-[11px] tracking-[0.04em] text-faint whitespace-nowrap">FIXED FOR NOW</span>
       </div>
 
-      <div className="ob-actions">
-        <button className="ob-btn ob-btn-primary" onClick={onNext}>
+      <div className="mt-[30px]">
+        <button
+          className="w-full h-[47px] text-[14.5px] font-[550] tracking-[0.005em] rounded-[var(--radius)] cursor-pointer flex items-center justify-center gap-[9px] transition-[background] duration-[0.18s] ease-[var(--ease)] text-on-accent bg-accent border-none hover:bg-accent-hover active:bg-accent-press active:[transform:translateY(0.5px)] [&_svg]:w-[17px] [&_svg]:h-[17px]"
+          onClick={onNext}
+        >
           Continue <ArrowIcon />
         </button>
-        <div className="ob-sub-actions">
-          <button className="ob-quiet" onClick={onBack}>Back</button>
-          <span className="dot" />
-          <button className="ob-quiet" onClick={onSkip}>Skip for now</button>
+        <div className="flex items-center justify-center gap-[8px] mt-[16px]">
+          <button
+            className="bg-none border-none px-[8px] py-[6px] text-[13.5px] font-medium text-muted cursor-pointer rounded-[7px] transition-[color] duration-[0.16s] ease-[var(--ease)] hover:text-fg"
+            onClick={onBack}
+          >
+            Back
+          </button>
+          <span className="w-[3px] h-[3px] rounded-full bg-faint opacity-60" />
+          <button
+            className="bg-none border-none px-[8px] py-[6px] text-[13.5px] font-medium text-muted cursor-pointer rounded-[7px] transition-[color] duration-[0.16s] ease-[var(--ease)] hover:text-fg"
+            onClick={onSkip}
+          >
+            Skip for now
+          </button>
         </div>
       </div>
     </div>
@@ -204,39 +287,72 @@ function StepKey({
   const isLocal = provider === "local";
 
   return (
-    <div key="key" className="ob-anim">
+    <div key="key" className="motion-safe:animate-[ob-rise_0.5s_var(--ease)_both]">
       <Progress step="key" />
-      <span className="ob-eyebrow">AI key · Optional</span>
-      <h1 className="ob-title">Bring your own AI key</h1>
-      <p className="ob-sub">
+      <span className="inline-flex items-center gap-[8px] text-[12px] font-[550] tracking-[0.06em] uppercase text-link mb-[14px]">
+        AI key · Optional
+      </span>
+      <h1 className="text-[28px] font-semibold tracking-[-0.022em] leading-[1.18] m-0 mb-[10px] [text-wrap:pretty] max-sm:text-[24px]">
+        Bring your own AI key
+      </h1>
+      <p className="text-[15px] leading-[1.6] text-muted m-0 [text-wrap:pretty]">
         Paste a key to switch on AI translation and explanations. Fuchine self-hosts
-        your key — it&apos;s <span className="em">encrypted at rest</span>, never
+        your key — it&apos;s <span className="text-fg font-medium">encrypted at rest</span>, never
         shared, never logged.
       </p>
 
-      <div className="ob-seg" role="tablist" aria-label="Provider">
-        {PROVIDERS.map((p) => (
-          <button
-            key={p.v}
-            role="tab"
-            aria-selected={provider === p.v}
-            className={"ob-seg-b" + (provider === p.v ? " on" : "")}
-            onClick={() => onProvider(p.v)}
-          >
-            {p.l}
-          </button>
-        ))}
+      {/* provider segmented control */}
+      <div
+        className="grid grid-cols-4 gap-[2px] bg-bg-2 border border-border rounded-[11px] p-[3px] mt-[24px] mb-[16px] max-sm:grid-cols-2"
+        role="tablist"
+        aria-label="Provider"
+      >
+        {PROVIDERS.map((p) => {
+          const isOn = provider === p.v;
+          return (
+            <button
+              key={p.v}
+              role="tab"
+              aria-selected={isOn}
+              className={[
+                "border-none px-[4px] py-[8px] rounded-[8px] font-[inherit] text-[13px] font-[550] cursor-pointer",
+                "transition-[background,color] duration-[0.14s] ease-[var(--ease)]",
+                isOn
+                  ? "bg-surface text-fg shadow-[var(--shadow-sm)]"
+                  : "bg-transparent text-muted hover:text-fg",
+              ].join(" ")}
+              onClick={() => onProvider(p.v)}
+            >
+              {p.l}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="ob-keyrow">
-        <span className="label">{isLocal ? "Endpoint" : "API key"}</span>
-        <button className="ob-howto" type="button" onClick={() => {}}>
+      {/* key row label */}
+      <div className="flex items-baseline justify-between mb-[8px]">
+        <span className="text-[12.5px] font-medium text-muted tracking-[0.005em]">
+          {isLocal ? "Endpoint" : "API key"}
+        </span>
+        <button
+          className="bg-none border-none p-0 font-[inherit] text-[12.5px] font-medium text-link cursor-pointer hover:text-link-hover hover:underline hover:[text-underline-offset:3px]"
+          type="button"
+          onClick={() => {}}
+        >
           How to get a key
         </button>
       </div>
-      <div className="ob-key">
+
+      {/* key input */}
+      <div className="relative flex items-center">
         <input
-          className="input"
+          className={[
+            "w-full h-[47px] pr-[46px] pl-[15px] font-[inherit] text-[14px] tracking-[0.02em] text-fg",
+            "bg-[var(--field-bg,var(--surface))] border border-border-strong rounded-[var(--radius)] outline-none",
+            "transition-[border-color,box-shadow] duration-[0.18s] ease-[var(--ease)]",
+            "placeholder:text-faint placeholder:tracking-normal",
+            "hover:border-faint focus:border-accent focus:shadow-[0_0_0_3.5px_var(--accent-ring)]",
+          ].join(" ")}
           type={show || isLocal ? "text" : "password"}
           placeholder={prov.ph}
           value={keyVal}
@@ -246,7 +362,12 @@ function StepKey({
         />
         {!isLocal && (
           <button
-            className="ob-eye"
+            className={[
+              "absolute right-[8px] w-[32px] h-[32px] grid place-items-center bg-none border-none text-faint cursor-pointer rounded-[7px]",
+              "transition-[color,background] duration-[0.15s] ease-[var(--ease)]",
+              "hover:text-muted hover:bg-bg-2",
+              "[&_svg]:w-[18px] [&_svg]:h-[18px]",
+            ].join(" ")}
             onClick={() => setShow((s) => !s)}
             aria-label={show ? "Hide key" : "Show key"}
             type="button"
@@ -256,28 +377,47 @@ function StepKey({
         )}
       </div>
 
-      <div className="ob-secure">
-        <span className="lock"><LockIcon /></span>
+      {/* secure note */}
+      <div className="flex items-start gap-[9px] mt-[14px] text-[12.5px] leading-[1.5] text-muted">
+        <span className="flex-none text-ok mt-[1px] [&_svg]:w-[15px] [&_svg]:h-[15px] [&_svg]:block">
+          <LockIcon />
+        </span>
         <span>Stored encrypted on your account. You can rotate or remove it anytime in Settings.</span>
       </div>
 
-      <div className="ob-note">
-        <span className="ni"><InfoIcon /></span>
-        <p>
-          <span className="em">No key? You&apos;re still set.</span> Dictionary lookups
+      {/* info note */}
+      <div className="flex gap-[11px] mt-[20px] px-[16px] py-[14px] bg-accent-soft border border-accent-line rounded-[var(--radius)]">
+        <span className="flex-none text-accent mt-[1px] [&_svg]:w-[17px] [&_svg]:h-[17px] [&_svg]:block">
+          <InfoIcon />
+        </span>
+        <p className="m-0 text-[12.8px] leading-[1.5] text-muted">
+          <span className="text-fg font-[550]">No key? You&apos;re still set.</span> Dictionary lookups
           and sentence tokenization work fully without one. Turn on AI translation later
           in Settings.
         </p>
       </div>
 
-      <div className="ob-actions">
-        <button className="ob-btn ob-btn-primary" onClick={onFinish}>
+      <div className="mt-[30px]">
+        <button
+          className="w-full h-[47px] text-[14.5px] font-[550] tracking-[0.005em] rounded-[var(--radius)] cursor-pointer flex items-center justify-center gap-[9px] transition-[background] duration-[0.18s] ease-[var(--ease)] text-on-accent bg-accent border-none hover:bg-accent-hover active:bg-accent-press active:[transform:translateY(0.5px)] [&_svg]:w-[17px] [&_svg]:h-[17px]"
+          onClick={onFinish}
+        >
           {keyVal.trim() ? "Save & finish" : "Finish"} <CheckIcon />
         </button>
-        <div className="ob-sub-actions">
-          <button className="ob-quiet" onClick={onBack}>Back</button>
-          <span className="dot" />
-          <button className="ob-quiet" onClick={onSkip}>Skip for now</button>
+        <div className="flex items-center justify-center gap-[8px] mt-[16px]">
+          <button
+            className="bg-none border-none px-[8px] py-[6px] text-[13.5px] font-medium text-muted cursor-pointer rounded-[7px] transition-[color] duration-[0.16s] ease-[var(--ease)] hover:text-fg"
+            onClick={onBack}
+          >
+            Back
+          </button>
+          <span className="w-[3px] h-[3px] rounded-full bg-faint opacity-60" />
+          <button
+            className="bg-none border-none px-[8px] py-[6px] text-[13.5px] font-medium text-muted cursor-pointer rounded-[7px] transition-[color] duration-[0.16s] ease-[var(--ease)] hover:text-fg"
+            onClick={onSkip}
+          >
+            Skip for now
+          </button>
         </div>
       </div>
     </div>
@@ -287,16 +427,23 @@ function StepKey({
 /* ---- Step 4: Done ---- */
 function StepDone({ onEnter }: { onEnter: () => void }) {
   return (
-    <div key="done" className="ob-anim ob-done">
+    <div key="done" className="motion-safe:animate-[ob-rise_0.5s_var(--ease)_both] text-center flex flex-col items-center">
       <Progress step="done" />
-      <div className="ob-check"><CheckIcon /></div>
-      <h1 className="ob-title">You&apos;re all set.</h1>
-      <p className="ob-sub">
+      <div className="w-[64px] h-[64px] rounded-full bg-accent-soft border border-accent-line grid place-items-center text-accent mb-[26px] [&_svg]:w-[30px] [&_svg]:h-[30px]">
+        <CheckIcon />
+      </div>
+      <h1 className="text-[28px] font-semibold tracking-[-0.022em] leading-[1.18] m-0 mb-[12px] [text-wrap:pretty] max-sm:text-[24px]">
+        You&apos;re all set.
+      </h1>
+      <p className="text-[15px] leading-[1.6] text-muted m-0 [text-wrap:pretty] max-w-[30ch]">
         Your space is ready. Dive in whenever you are — everything else can be tuned
         later in Settings.
       </p>
-      <div className="ob-actions">
-        <button className="ob-btn ob-btn-primary" onClick={onEnter}>
+      <div className="mt-[30px] w-full max-w-[300px]">
+        <button
+          className="w-full h-[47px] text-[14.5px] font-[550] tracking-[0.005em] rounded-[var(--radius)] cursor-pointer flex items-center justify-center gap-[9px] transition-[background] duration-[0.18s] ease-[var(--ease)] text-on-accent bg-accent border-none hover:bg-accent-hover active:bg-accent-press active:[transform:translateY(0.5px)] [&_svg]:w-[17px] [&_svg]:h-[17px]"
+          onClick={onEnter}
+        >
           Enter Fuchine <ArrowIcon />
         </button>
       </div>
@@ -348,23 +495,41 @@ export function OnboardingView({ name }: { name: string }) {
   };
 
   return (
-    <div className="ob">
-      <div className="ob-watermark" aria-hidden="true">淵</div>
+    <div className="relative min-h-dvh flex flex-col bg-bg overflow-hidden">
+      {/* watermark */}
+      <div
+        aria-hidden="true"
+        className="absolute right-[-0.10em] bottom-[-0.24em] text-[52vh] leading-[1] text-accent opacity-[0.04] pointer-events-none select-none z-0"
+        style={{ fontFamily: "'Noto Serif JP', serif", fontWeight: 400 }}
+      >
+        淵
+      </div>
 
-      <header className="ob-top">
-        <div className="ob-wordmark">
-          <span className="mark">淵</span>
+      {/* top bar */}
+      <header className="relative z-[2] flex items-center justify-between px-[40px] py-[28px] flex-none max-sm:px-[22px]">
+        <div className="flex items-center gap-[9px] text-[15px] font-semibold tracking-[-0.01em] text-fg">
+          <span
+            className="w-[22px] h-[22px] rounded-[6px] bg-accent text-on-accent grid place-items-center text-[13px] font-medium pb-[1px]"
+            style={{ fontFamily: "'Noto Serif JP', serif" }}
+          >
+            淵
+          </span>
           <span>Fuchine</span>
         </div>
         {step !== "done" && (
-          <button className="ob-escape" onClick={skip} title="You can finish setup later in Settings">
+          <button
+            className="bg-none border-none px-[2px] py-[6px] font-[inherit] text-[13px] font-medium text-faint cursor-pointer transition-[color] duration-[0.16s] ease-[var(--ease)] hover:text-muted"
+            onClick={skip}
+            title="You can finish setup later in Settings"
+          >
             Set up later
           </button>
         )}
       </header>
 
-      <main className="ob-stage">
-        <div className="ob-inner">
+      {/* centered stage */}
+      <main className="relative z-[1] flex-1 flex flex-col items-center justify-center px-[24px] pt-[12px] pb-[72px] min-h-0">
+        <div className="w-full max-w-[452px]">
           {step === "welcome" && (
             <StepWelcome name={name} onNext={() => go("language")} onSkip={skip} />
           )}
@@ -391,7 +556,7 @@ export function OnboardingView({ name }: { name: string }) {
           {step === "done" && <StepDone onEnter={enter} />}
 
           {step !== "done" && (
-            <div className="ob-foot">
+            <div className="mt-[22px] flex items-center justify-center gap-[7px] text-[12.5px] text-faint text-center [&_svg]:w-[14px] [&_svg]:h-[14px] [&_svg]:flex-none">
               <LockIcon />
               You can skip any step and finish setup later in Settings.
             </div>
