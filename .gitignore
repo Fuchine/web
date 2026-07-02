@@ -39,3 +39,4 @@ packages/db/seeds/data/
 # Agent / workflow scratch (not tracked in repo)
 /AGENTS.md
 /docs/superpowers/
+.superpowers/
