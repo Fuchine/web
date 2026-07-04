@@ -118,9 +118,12 @@ Pacotes e seus pontos de entrada:
   (composição `Login`) e `/` (Home/Library: `AppShell` + `VideoCard` sobre
   `listVideos`, com gate de auth → `/login`). Demais telas a integrar.
 - `apps/worker` — Worker BullMQ + pipeline de import. Enriquece as legendas
-  enviadas pela extensão: camada 0 (`analyzeLine` → tokens + dicionário) e
-  camada 1 (`translateBatch` via env `LLM_PROVIDER=minimax` + `LLM_API_KEY`,
-  degradando para JP-only se falhar). Fetch server-side é só fallback (gated).
+  enviadas pela extensão: camada 0 (`analyzeLine` → tokens + dicionário).
+  Pós-import, enfileira **pre-warm de explicações** (fila `explain`): gera a
+  camada 2 do vídeo inteiro em background via provider house
+  (`prewarmVideoExplanations` em `@fuchine/llm` — cache-first, idempotente,
+  pool interno de 2; pulado se o provider for `echo`). `backfill:explain`
+  cobre vídeos antigos. Fetch server-side é só fallback (gated).
 
 `docker-compose.yml` sobe Postgres + Redis. Comandos: `pnpm dev`,
 `pnpm typecheck`, `pnpm db:generate`, `pnpm db:migrate`.
