@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "../../lib/cn";
+import { pickPrefetchTarget } from "../../lib/prefetch";
 import { AppShell } from "../AppShell/AppShell";
 import { buildAppNav } from "../AppShell/nav";
 import { pickCurrentLine, formatTimecode as fmt, lineHasAudio, chunkIndexForLine, chunkPumpOrder } from "@fuchine/core";
@@ -71,7 +72,9 @@ export interface PlayerProps {
 const POLL_MS = 250;
 const SCROLL_GRACE_MS = 1200;
 const CLICK_GRACE_MS = 600;
-const PREFETCH_AHEAD = 4;
+const PREFETCH_AHEAD = 6;
+const PREFETCH_CONCURRENCY = 3;
+const PREFETCH_WAIT_MS = 30_000;
 
 function toFocal(
   line: PlayerSubtitleLine | undefined,
@@ -472,38 +475,40 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     void fetchFocalExplanation(line.id);
   }, [activeRailTab, currentLineIdx, lines, explanations, fetchFocalExplanation]);
 
-  // Prefetch a window of upcoming lines so they're warm before the user clicks.
-  // Sequential (one at a time): the provider serializes requests per key, so
-  // fanning out only queues them. The pump re-reads the live position each step,
-  // so a seek reprioritizes the window toward where the user actually is.
+  // Prefetch a window of upcoming lines so they're warm before the user
+  // clicks. PREFETCH_CONCURRENCY slots run in parallel; ensureExplanation
+  // registers the pending promise synchronously, so slots never double-fire
+  // a line. Each slot re-reads the live position, so a seek reprioritizes
+  // the window. A slot waits at most PREFETCH_WAIT_MS on one line — a stuck
+  // generation keeps running in pendingExplainRef (a focal click still
+  // latches onto it) but stops blocking the window.
   const pumpPrefetch = useCallback(async () => {
     if (!onFetchExplanation || prefetchRunningRef.current) return;
     prefetchRunningRef.current = true;
-    try {
+    const state = {
+      has: (id: string) => explanationsRef.current.has(id),
+      pending: (id: string) => pendingExplainRef.current.has(id),
+      failed: (id: string) => failedExplainRef.current.has(id),
+    };
+    const slot = async () => {
       for (;;) {
-        const base = currentLineIdxRef.current;
-        if (base < 0) break;
-        let target: PlayerSubtitleLine | null = null;
-        for (let d = 1; d <= PREFETCH_AHEAD; d++) {
-          const idx = base + d;
-          if (idx >= lines.length) break;
-          const line = lines[idx] as PlayerSubtitleLine;
-          if (
-            explanationsRef.current.has(line.id) ||
-            pendingExplainRef.current.has(line.id) ||
-            failedExplainRef.current.has(line.id)
-          )
-            continue;
-          target = line;
-          break;
-        }
-        if (!target) break;
-        try {
-          await ensureExplanation(target.id);
-        } catch {
-          /* prefetch failures are non-critical */
-        }
+        const target = pickPrefetchTarget(
+          lines,
+          currentLineIdxRef.current,
+          PREFETCH_AHEAD,
+          state,
+        );
+        if (!target) return;
+        const p = ensureExplanation(target.id);
+        if (!p) return;
+        await Promise.race([
+          p.catch(() => undefined), // prefetch failures are non-critical
+          new Promise((resolve) => setTimeout(resolve, PREFETCH_WAIT_MS)),
+        ]);
       }
+    };
+    try {
+      await Promise.all(Array.from({ length: PREFETCH_CONCURRENCY }, slot));
     } finally {
       prefetchRunningRef.current = false;
     }
