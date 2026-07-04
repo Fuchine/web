@@ -25,4 +25,9 @@ async function main() {
   await connection.quit();
 }
 
-void main();
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error("[backfill] failed", err);
+    process.exit(1);
+  });
