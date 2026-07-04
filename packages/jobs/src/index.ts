@@ -25,3 +25,13 @@ export function bullConnection(redis: Redis): ConnectionOptions {
 export function getImportQueue(redis: Redis): Queue<ImportJob> {
   return new Queue<ImportJob>(IMPORT_QUEUE, { connection: bullConnection(redis) });
 }
+
+export const EXPLAIN_QUEUE = "explain";
+
+/** Enqueued after import: pre-generate layer-2 explanations for a video. */
+export type ExplainJob = { videoId: string; explanationLanguage: string };
+
+/** Producer-side handle to the explain pre-warm queue. */
+export function getExplainQueue(redis: Redis): Queue<ExplainJob> {
+  return new Queue<ExplainJob>(EXPLAIN_QUEUE, { connection: bullConnection(redis) });
+}
