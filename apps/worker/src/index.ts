@@ -21,11 +21,17 @@ const importWorker = new Worker<ImportJob>(
     // Layer-2 pre-warm: the cache is shared (D3), so generating ahead is an
     // investment every future viewer inherits. English is the product default;
     // other explanation languages stay on the on-demand path.
-    if (hasHouseLlm()) {
-      await explainQueue.add("explain", {
-        videoId: job.data.videoId,
-        explanationLanguage: "en",
-      });
+    try {
+      if (hasHouseLlm()) {
+        await explainQueue.add("explain", {
+          videoId: job.data.videoId,
+          explanationLanguage: "en",
+        });
+      }
+    } catch (err) {
+      // Pre-warm is an optimization: a failed enqueue must never fail the
+      // import that just succeeded.
+      console.error(`[explain] enqueue failed for ${job.data.videoId}`, err);
     }
   },
   { connection: bullConn, concurrency: 2 },
