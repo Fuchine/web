@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { signOut } from "next-auth/react";
 import { Button } from "@fuchine/ui";
 
 const CheckIcon = () => (
@@ -333,13 +334,13 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
         icon={(<svg viewBox="0 0 24 24" fill="none"><path d="M12 4v10M8 10.5l4 4 4-4M5 19.5h14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>)}
         title="Data"
       >
-        <Row title="Export deck" desc="Download your mined cards as an Anki package.">
-          <Button variant="ghost" size="sm">
-            Export .apkg
+        <Row title="Export deck" desc="Download your mined cards as an Anki-importable file.">
+          <Button variant="ghost" size="sm" onClick={() => { window.location.href = "/api/export/deck"; }}>
+            Export deck
           </Button>
         </Row>
         <Row title="Sign out" desc="You can sign back in any time." last>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" onClick={() => void signOut({ callbackUrl: "/login" })}>
             Sign out
           </Button>
         </Row>
