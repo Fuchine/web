@@ -5,9 +5,19 @@ import { useRouter } from "next/navigation";
 import { Player, type PlayerProps } from "@fuchine/ui";
 import type { Explanation } from "@fuchine/db";
 
-export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "onFetchChunk" | "onFetchExplanation" | "onSaveWord">) {
+export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "onFetchChunk" | "onFetchExplanation" | "onSaveWord" | "onProgress">) {
   const router = useRouter();
   const videoId = props.video.id;
+
+  const onProgress = useCallback((p: { msWatched: number; lineIds: string[] }) => {
+    // keepalive lets the final flush survive tab close / navigation.
+    fetch(`/api/videos/${videoId}/progress`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(p),
+      keepalive: true,
+    }).catch(() => {});
+  }, [videoId]);
 
   const onFetchChunk = useCallback(
     async (chunkIdx: number) => {
@@ -52,6 +62,7 @@ export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "o
       onFetchChunk={onFetchChunk}
       onFetchExplanation={onFetchExplanation}
       onSaveWord={onSaveWord}
+      onProgress={onProgress}
       onBack={() => router.push("/")}
       onNavigate={(key) => router.push(key === "home" ? "/" : `/${key}`)}
     />

@@ -66,10 +66,13 @@ export interface PlayerProps {
   savedWordIds?: string[];
   /** Persist a bookmark toggle; resolves to the new saved state. */
   onSaveWord?: (wordEntryId: string, save: boolean) => Promise<boolean>;
+  /** Batched study-activity beacon: watch time + lines seen since the last call. */
+  onProgress?: (progress: { msWatched: number; lineIds: string[] }) => void;
   className?: string;
 }
 
 const POLL_MS = 250;
+const PROGRESS_FLUSH_MS = 15_000;
 const SCROLL_GRACE_MS = 1200;
 const CLICK_GRACE_MS = 600;
 const PREFETCH_AHEAD = 6;
@@ -114,7 +117,7 @@ function toExplainFocal(focal: FocalLine): ExplainFocal {
   return { textOriginal: focal.textOriginal, textTranslation: focal.textTranslation, focusSurface: null };
 }
 
-export function Player({ video, lines, account, translatedChunks, onFetchChunk, onFetchExplanation, onBack, onNavigate, className, initialLineId, savedWordIds, onSaveWord }: PlayerProps) {
+export function Player({ video, lines, account, translatedChunks, onFetchChunk, onFetchExplanation, onBack, onNavigate, className, initialLineId, savedWordIds, onSaveWord, onProgress }: PlayerProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMs, setCurrentMs] = useState(0);
@@ -177,6 +180,12 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   } | null>(null);
   const [isMining, setIsMining] = useState(false);
 
+  // ---- Study-activity accumulators (flushed via onProgress) ----
+  const pendingMsRef = useRef(0);
+  const pendingLinesRef = useRef<Set<string>>(new Set());
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
+
   useEffect(() => {
     if (!isReady || !isPlaying) return;
     const id = window.setInterval(() => {
@@ -186,7 +195,11 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       if (Number.isNaN(t)) return;
       const ms = t * 1000;
       setCurrentMs(ms);
+      pendingMsRef.current += POLL_MS;
       const newIdx = pickCurrentLine(lines, ms);
+      if (newIdx >= 0 && newIdx < lines.length) {
+        pendingLinesRef.current.add((lines[newIdx] as PlayerSubtitleLine).id);
+      }
       if (newIdx !== previousLineIdxRef.current) {
         const prev = previousLineIdxRef.current;
         if (loopLine && prev >= 0 && prev < lines.length && lineHasAudio(lines[prev] as Parameters<typeof lineHasAudio>[0])) {
@@ -202,6 +215,29 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     }, POLL_MS);
     return () => window.clearInterval(id);
   }, [isReady, isPlaying, loopLine, lines]);
+
+  // Flush accumulated watch time + seen lines: every PROGRESS_FLUSH_MS, when
+  // the tab is hidden, and on unmount. No-op when nothing accumulated.
+  useEffect(() => {
+    const flush = () => {
+      const msWatched = pendingMsRef.current;
+      const lineIds = [...pendingLinesRef.current];
+      if (msWatched === 0 && lineIds.length === 0) return;
+      pendingMsRef.current = 0;
+      pendingLinesRef.current.clear();
+      onProgressRef.current?.({ msWatched, lineIds });
+    };
+    const id = window.setInterval(flush, PROGRESS_FLUSH_MS);
+    const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, []);
 
   useLayoutEffect(() => {
     if (userIsScrolling) return;
@@ -552,6 +588,8 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     setDictLoading(true);
     setDictError(null);
     setDictEntry(null);
+    // Fire-and-forget click stat; harmless when the endpoint is absent (Storybook).
+    fetch(`/api/dictionary/${encodeURIComponent(openWordId)}/click`, { method: "POST" }).catch(() => {});
     fetch(`/api/dictionary?id=${encodeURIComponent(openWordId)}`)
       .then((r) => {
         if (!r.ok) throw new Error(r.status === 404 ? "not found" : "fetch failed");

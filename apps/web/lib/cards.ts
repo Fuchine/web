@@ -3,6 +3,7 @@
 import { and, asc, eq, inArray, lte } from "drizzle-orm";
 import { type Database, sentenceCards, subtitleLines, videos, reviewLogs, wordEntries, type Token, type Definition } from "@fuchine/db";
 import { newCardState, reviewCard, previewIntervals, type CardState, type ReviewGrade } from "@fuchine/core";
+import { bumpDailyStats, bumpWordReviews } from "./progress";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
@@ -44,7 +45,10 @@ export async function mineSentence(
     .onConflictDoNothing()
     .returning();
 
-  if (inserted.length > 0) return { status: 201, body: { card: inserted[0], created: true } };
+  if (inserted.length > 0) {
+    await bumpDailyStats(db, userId, { cardsCreated: 1 });
+    return { status: 201, body: { card: inserted[0], created: true } };
+  }
 
   // Already mined — return the existing card so the UI can offer to view it.
   const [existing] = await db
@@ -148,6 +152,18 @@ export async function reviewCardById(
     stability: log.stability, difficulty: log.difficulty,
     elapsedDays: log.elapsedDays, lastElapsedDays: log.lastElapsedDays, scheduledDays: log.scheduledDays,
   });
+
+  // Feed the stats read-sides: daily streaks/heatmap + per-word review counts.
+  await bumpDailyStats(db, userId, { reviewsDone: 1 });
+  const [line] = await db
+    .select({ tokens: subtitleLines.tokens })
+    .from(subtitleLines)
+    .where(eq(subtitleLines.id, card.subtitleLineId))
+    .limit(1);
+  const wordIds = ((line?.tokens as Token[]) ?? [])
+    .map((t) => t.wordEntryId)
+    .filter((id): id is string => !!id);
+  await bumpWordReviews(db, userId, wordIds, grade >= 3);
 
   return { status: 200, body: { cardId, due: next.due, state: next.state, reps: next.reps } };
 }
