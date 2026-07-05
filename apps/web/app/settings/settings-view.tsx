@@ -68,6 +68,7 @@ interface SettingsViewProps {
     explanationLanguage: string;
     llmProvider: string | null;
     hasApiKey: boolean;
+    dailyGoals: { newCardsPerDay?: number; reviewMinutesPerDay?: number; watchMinutesPerDay?: number } | null;
   };
 }
 
@@ -80,6 +81,7 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
   const [hasApiKey, setHasApiKey] = useState<boolean>(settings.hasApiKey);
   const [keyInput, setKeyInput] = useState("");
   const [editingKey, setEditingKey] = useState(false);
+  const [newCardsPerDay, setNewCardsPerDay] = useState<number>(settings.dailyGoals?.newCardsPerDay ?? 20);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -309,7 +311,17 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
       {/* Review */}
       <Group icon={ICONS.review} title="Review">
         <Row title="New cards per day" desc="How many freshly mined cards to introduce daily.">
-          <Stepper value={20} />
+          <Stepper
+            value={newCardsPerDay}
+            min={1}
+            max={500}
+            step={5}
+            disabled={saving}
+            onChange={(v) => {
+              setNewCardsPerDay(v);
+              void save({ dailyGoals: { newCardsPerDay: v } });
+            }}
+          />
         </Row>
         <Row title="Maximum reviews per day" desc="Cap on cards due in a single session." last>
           <Stepper value={200} />
@@ -358,12 +370,25 @@ function Toggle({ initialOn }: { initialOn: boolean }) {
   );
 }
 
-function Stepper({ value }: { value: number }) {
+function Stepper({ value, min = 1, max = 999, step = 1, disabled, onChange }: {
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  disabled?: boolean;
+  onChange?: (v: number) => void;
+}) {
+  const bump = (dir: 1 | -1) => {
+    if (!onChange) return;
+    onChange(Math.min(max, Math.max(min, value + dir * step)));
+  };
   return (
     <div className="flex items-center gap-0 rounded-[8px] border border-border">
-      <button className="grid h-8 w-8 place-items-center text-faint hover:text-fg" aria-label="decrease">−</button>
+      <button className="grid h-8 w-8 place-items-center text-faint hover:text-fg disabled:opacity-50" aria-label="decrease"
+        disabled={disabled || !onChange || value <= min} onClick={() => bump(-1)}>−</button>
       <span className="w-12 text-center text-[14px] tabular-nums text-fg">{value}</span>
-      <button className="grid h-8 w-8 place-items-center text-faint hover:text-fg" aria-label="increase">+</button>
+      <button className="grid h-8 w-8 place-items-center text-faint hover:text-fg disabled:opacity-50" aria-label="increase"
+        disabled={disabled || !onChange || value >= max} onClick={() => bump(1)}>+</button>
     </div>
   );
 }

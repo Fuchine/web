@@ -30,6 +30,7 @@ export default async function SettingsPage() {
           explanationLanguage: settings?.explanationLanguage ?? "en",
           llmProvider: settings?.llmProvider ?? null,
           hasApiKey: !!settings?.apiKeyEnc,
+          dailyGoals: settings?.dailyGoals ?? null,
         }}
       />
     </AppLayout>

@@ -1,6 +1,43 @@
 import { describe, it, expect } from "vitest";
 import { parseSettingsInput } from "./settings";
 
+describe("parseSettingsInput — dailyGoals", () => {
+  it("accepts valid goals and keeps only the known fields", () => {
+    const r = parseSettingsInput({ dailyGoals: { newCardsPerDay: 10, watchMinutesPerDay: 30, bogus: 1 } });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.dailyGoals).toEqual({ newCardsPerDay: 10, watchMinutesPerDay: 30 });
+  });
+
+  it("accepts null to clear the goals", () => {
+    const r = parseSettingsInput({ dailyGoals: null });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.dailyGoals).toBeNull();
+  });
+
+  it("rejects a non-object dailyGoals", () => {
+    expect(parseSettingsInput({ dailyGoals: "lots" }).ok).toBe(false);
+  });
+
+  it("rejects negative, zero, or fractional goal values", () => {
+    expect(parseSettingsInput({ dailyGoals: { newCardsPerDay: -1 } }).ok).toBe(false);
+    expect(parseSettingsInput({ dailyGoals: { newCardsPerDay: 0 } }).ok).toBe(false);
+    expect(parseSettingsInput({ dailyGoals: { watchMinutesPerDay: 2.5 } }).ok).toBe(false);
+  });
+
+  it("rejects absurd goal values", () => {
+    expect(parseSettingsInput({ dailyGoals: { newCardsPerDay: 501 } }).ok).toBe(false);
+    expect(parseSettingsInput({ dailyGoals: { watchMinutesPerDay: 1441 } }).ok).toBe(false);
+    expect(parseSettingsInput({ dailyGoals: { reviewMinutesPerDay: 1441 } }).ok).toBe(false);
+  });
+
+  it("omits dailyGoals when not provided", () => {
+    const r = parseSettingsInput({});
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.dailyGoals).toBeUndefined();
+  });
+});
+
 describe("parseSettingsInput", () => {
   it("accepts a valid provider, language, and key (action=set)", () => {
     const r = parseSettingsInput({ llmProvider: "minimax", explanationLanguage: "ja", apiKey: "sk-123" });
