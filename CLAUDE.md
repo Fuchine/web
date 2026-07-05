@@ -108,9 +108,25 @@ Pacotes e seus pontos de entrada:
   estudo (F1, completa): `GET /api/videos` (biblioteca), `GET /api/videos/[id]`
   (payload do player), `POST /api/cards` (minerar, dedup), `GET
   /api/review/queue` + `POST /api/review/[cardId]` (FSRS), `GET /api/dictionary`
-  (por id ou busca) e `POST /api/lines/[id]/explain` (camada 2, cache-first +
-  BYOK). Lógica testável em `lib/` (`import`, `study`, `cards`, `dictionary`,
-  `explain`, `translate` — chunk lazy com `houseMtProvider()`: MT dedicado via
+  (por id ou busca), `POST /api/lines/[id]/explain` (camada 2, cache-first +
+  BYOK) e álbuns (F2): `GET/POST /api/albums`, `PATCH/DELETE /api/albums/[id]`,
+  `POST/DELETE /api/albums/[id]/videos` (list com contagem de vídeos, dedup por
+  PK composta, ownership por usuário; na biblioteca, "Add to album" abre modal
+  com criação inline; E2E em `scripts/e2e-albums.ts`). **Writers de atividade**
+  (`lib/progress.ts`): `POST /api/videos/[id]/progress` (beacon do player a
+  cada 15s: ms assistidos + linhas vistas → `user_daily_stats` +
+  `user_word_stats.views`) e `POST /api/dictionary/[id]/click` (popup →
+  `clicks`); minerar/revisar incrementam `cards_created`/`reviews_done` e
+  `reviews_ok/total` por palavra da linha. Comprehension por vídeo/usuário
+  (`getComprehensionByVideo` em `lib/study.ts`: % de palavras distintas
+  conhecidas — reviewsOk≥1 ou views≥5 — via `word_examples`⋈`user_word_stats`,
+  mínimo 10 palavras) alimenta a biblioteca; o StatBar da biblioteca usa
+  horas/palavras/streak reais de `getStats`. Metas diárias: `PATCH
+  /api/settings` aceita `dailyGoals` (validado com teto por campo, merge
+  parcial no jsonb); o stepper "New cards per day" em `/settings` persiste
+  `newCardsPerDay`. E2E: `e2e-progress.ts`, `e2e-comprehension.ts`. Lógica testável em
+  `lib/` (`import`, `study`, `cards`, `dictionary`, `explain`, `albums`,
+  `progress`, `translate` — chunk lazy com `houseMtProvider()`: MT dedicado via
   env `MT_PROVIDER`/`MT_API_KEY` (DeepL recomendado) com `FallbackProvider`
   caindo para o LLM house; o Player traduz o vídeo inteiro em background ao
   abrir); fila lazy em `lib/queue.ts`. UI: Tailwind v4 (`app/globals.css`
@@ -123,7 +139,12 @@ Pacotes e seus pontos de entrada:
   camada 2 do vídeo inteiro em background via provider house
   (`prewarmVideoExplanations` em `@fuchine/llm` — cache-first, idempotente,
   pool interno de 2; pulado se o provider for `echo`). `backfill:explain`
-  cobre vídeos antigos. Fetch server-side é só fallback (gated).
+  cobre vídeos antigos. No fim do import, `estimateVideoLevel` grava
+  `videos.level_estimate` (mediana do frequency_rank das palavras distintas;
+  `src/level.ts`, mínimo 20 palavras ranqueadas; `backfill:level` para vídeos
+  antigos). **Atenção:** só funciona com a lista de frequência seedada
+  (`pnpm --filter @fuchine/db seed:jmdict <frequency.tsv>` — o seed atual do
+  dev rodou sem ela, ranks nulos). Fetch server-side é só fallback (gated).
 
 `docker-compose.yml` sobe Postgres + Redis. Comandos: `pnpm dev`,
 `pnpm typecheck`, `pnpm db:generate`, `pnpm db:migrate`.
