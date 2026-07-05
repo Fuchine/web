@@ -106,15 +106,17 @@ export function VideoCard({
         <p className="m-0 truncate text-[12.5px] text-faint">{channel}</p>
       </div>
 
-      {comprehension != null && (
+      {(comprehension != null || onOverflow) && (
         <div className="mt-[11px] flex items-center gap-[10px]">
-          <span className="inline-flex items-center gap-2">
-            {comprehensionStyle === "ring" && <Ring pct={comprehension} />}
-            <span className="text-[12px] tabular-nums text-muted">
-              {comprehensionStyle === "text" ? "Comprehension " : ""}
-              <b className="font-[600] text-fg">{comprehension}%</b>
+          {comprehension != null && (
+            <span className="inline-flex items-center gap-2">
+              {comprehensionStyle === "ring" && <Ring pct={comprehension} />}
+              <span className="text-[12px] tabular-nums text-muted">
+                {comprehensionStyle === "text" ? "Comprehension " : ""}
+                <b className="font-[600] text-fg">{comprehension}%</b>
+              </span>
             </span>
-          </span>
+          )}
           <span className="flex-1" />
           {onOverflow && (
             <button

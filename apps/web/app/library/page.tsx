@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { listVideos } from "@/lib/study";
+import { listVideos, getComprehensionByVideo } from "@/lib/study";
 import { getReviewQueue } from "@/lib/cards";
+import { getStats } from "@/lib/stats";
 import { LibraryView, type LibraryVideo } from "../library-view";
 
 const LEVEL: Record<string, number> = { beginner: 1, intermediate: 3, advanced: 5 };
@@ -12,9 +13,11 @@ export default async function LibraryPage() {
   if (!session?.user?.id) redirect("/login");
 
   const userId = session.user.id;
-  const [rows, queue] = await Promise.all([
+  const [rows, queue, comprehension, stats] = await Promise.all([
     listVideos(db),
     getReviewQueue(db, userId),
+    getComprehensionByVideo(db, userId),
+    getStats(db, userId),
   ]);
 
   const videos: LibraryVideo[] = rows.map((v) => ({
@@ -26,17 +29,20 @@ export default async function LibraryPage() {
     durationS: v.durationS,
     status: v.status,
     level: v.levelEstimate ? (LEVEL[v.levelEstimate] ?? null) : null,
-    comprehension: null,
+    comprehension: comprehension.get(v.id) ?? null,
   }));
-
-  const totalDurationS = videos.reduce((acc, v) => acc + (v.durationS ?? 0), 0);
 
   return (
     <LibraryView
       videos={videos}
       account={{ name: session.user.name ?? session.user.email ?? "You", sub: session.user.email ?? undefined }}
       reviewDue={queue.length}
-      stats={{ totalDurationS, videoCount: videos.length }}
+      stats={{
+        watchTimeHours: stats.kpis.watchTimeHours,
+        videoCount: videos.length,
+        wordsLearned: stats.kpis.wordsKnown,
+        dayStreak: stats.kpis.dayStreak,
+      }}
       activeKey="library"
     />
   );

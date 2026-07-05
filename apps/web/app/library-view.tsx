@@ -19,8 +19,10 @@ export type LibraryVideo = {
 };
 
 export type LibraryStats = {
-  totalDurationS: number;
+  watchTimeHours: number; // real tracked watch time (user_daily_stats)
   videoCount: number;
+  wordsLearned: number;
+  dayStreak: number;
 };
 
 function youtubeThumbnail(sourceId: string) {
@@ -109,15 +111,15 @@ function StatBar({ stats }: { stats: LibraryStats }) {
   return (
     <div className="mt-[9px] flex items-center gap-3 text-[12.5px] text-faint">
       <span className="inline-flex items-baseline gap-[5px] whitespace-nowrap">
-        <b className="font-[600] tabular-nums text-muted">{stats.totalDurationS > 0 ? hrs(stats.totalDurationS) : "0"}</b> hours watched
+        <b className="font-[600] tabular-nums text-muted">{stats.watchTimeHours.toFixed(1)}</b> hours watched
       </span>
       <span className="h-[3px] w-[3px] rounded-full bg-border-strong" />
       <span className="inline-flex items-baseline gap-[5px] whitespace-nowrap">
-        <b className="font-[600] tabular-nums text-muted">0</b> words learned
+        <b className="font-[600] tabular-nums text-muted">{stats.wordsLearned}</b> words learned
       </span>
       <span className="h-[3px] w-[3px] rounded-full bg-border-strong" />
       <span className="inline-flex items-baseline gap-[5px] whitespace-nowrap">
-        <b className="font-[600] tabular-nums text-muted">0</b> day streak
+        <b className="font-[600] tabular-nums text-muted">{stats.dayStreak}</b> day streak
       </span>
     </div>
   );
@@ -254,15 +256,16 @@ function VideoCardWithMenu({
   onAction: (action: string, v: LibraryVideo) => void;
 }) {
   const router = useRouter();
-  const btnRef = useRef<HTMLButtonElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const open = openMenu === v.id;
   const isSaved = saved.has(v.id);
 
   const handleOverflow = () => {
     if (open) { setOpenMenu(null); return; }
-    if (btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
+    const btn = rootRef.current?.querySelector('button[aria-label="More"]');
+    if (btn) {
+      const r = btn.getBoundingClientRect();
       setMenuPos({ top: r.bottom + 6, left: Math.max(12, r.right - 196) });
     }
     setOpenMenu(v.id);
@@ -285,7 +288,7 @@ function VideoCardWithMenu({
   const status = STATUS[v.status];
 
   return (
-    <div>
+    <div ref={rootRef}>
       <VideoCard
         title={v.title}
         channel={v.channel ?? ""}
@@ -313,7 +316,7 @@ function VideoCardWithMenu({
         </div>
       )}
       {open && menuPos && createPortal(
-        <div className="fixed z-50 w-[192px] animate-[pop-in_0.15s_var(--ease)] rounded-[var(--radius)] border border-border bg-surface p-[6px] shadow-[var(--shadow-lg)]"
+        <div className="card-menu fixed z-50 w-[192px] animate-[pop-in_0.15s_var(--ease)] rounded-[var(--radius)] border border-border bg-surface p-[6px] shadow-[var(--shadow-lg)]"
           style={{ top: menuPos.top, left: menuPos.left }} onClick={(e) => e.stopPropagation()}>
           <button className="flex w-full items-center gap-[11px] rounded-[7px] px-[10px] py-[9px] text-left text-[13px] text-fg transition-colors hover:bg-bg-2" onClick={act("album")}>
             <SFolderPlus className="h-4 w-4 flex-none text-faint" /> Add to album
@@ -380,6 +383,131 @@ function AddModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+type AlbumOption = { id: string; name: string; videoCount: number };
+
+function AlbumPickerModal({ video, onClose, onToast }: {
+  video: LibraryVideo;
+  onClose: () => void;
+  onToast: (msg: string) => void;
+}) {
+  const [albums, setAlbums] = useState<AlbumOption[] | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/albums")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
+      .then((data) => { if (!cancelled) setAlbums(data.albums ?? []); })
+      .catch(() => { if (!cancelled) { setAlbums([]); setError("Couldn't load your albums."); } });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [onClose]);
+
+  const addTo = async (album: AlbumOption) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/albums/${album.id}/videos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId: video.id }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error ?? "failed");
+      onToast(data.added ? `Added to ${album.name}` : `Already in ${album.name}`);
+      onClose();
+    } catch {
+      setError("Couldn't add to that album. Try again.");
+      setBusy(false);
+    }
+  };
+
+  const createAndAdd = async () => {
+    const trimmed = name.trim();
+    if (!trimmed || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/albums", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error ?? "failed");
+      await addTo({ id: data.album.id, name: data.album.name, videoCount: 0 });
+    } catch {
+      setError("Couldn't create the album. Try again.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] grid animate-[scrim-in_0.2s_var(--ease)] place-items-center bg-[rgba(17,22,34,0.30)] p-9 backdrop-blur-[3px]" onMouseDown={onClose}>
+      <div className="w-full max-w-[400px] animate-[modal-in_0.34s_var(--ease)] overflow-hidden rounded-[var(--radius-xl)] border border-border bg-surface shadow-[var(--shadow-lg)]" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-[11px] px-5 pb-[14px] pt-[18px]">
+          <span className="grid h-[30px] w-[30px] flex-none place-items-center rounded-lg bg-accent-soft-2 text-link">
+            <SFolderPlus className="h-[17px] w-[17px]" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-[600] -tracking-[0.01em]">Add to album</span>
+            <span className="block truncate text-[12.5px] text-faint">{video.title}</span>
+          </span>
+          <button aria-label="Close" onClick={onClose}
+            className="grid h-[30px] w-[30px] flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-faint transition-colors hover:bg-bg-2 hover:text-muted">
+            <SClose className="h-[17px] w-[17px]" />
+          </button>
+        </div>
+        <div className="px-4 pb-4">
+          {albums === null ? (
+            <p className="m-0 px-2 py-6 text-center text-[13px] text-faint">Loading albums…</p>
+          ) : albums.length === 0 && !creating ? (
+            <p className="m-0 px-2 pb-4 pt-2 text-[13px] leading-[1.55] text-muted">No albums yet. Create your first one to group videos by theme, series, or level.</p>
+          ) : (
+            <div className="mb-2 max-h-[264px] overflow-y-auto">
+              {albums.map((a) => (
+                <button key={a.id} disabled={busy} onClick={() => addTo(a)}
+                  className="flex w-full items-center gap-[11px] rounded-[9px] px-[10px] py-[10px] text-left text-[13.5px] text-fg transition-colors hover:bg-bg-2 disabled:opacity-60">
+                  <SFolderPlus className="h-4 w-4 flex-none text-faint" />
+                  <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                  <span className="flex-none text-[12px] tabular-nums text-faint">{a.videoCount}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {creating ? (
+            <div className="flex gap-2">
+              <input autoFocus value={name} onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") createAndAdd(); }}
+                placeholder="Album name" maxLength={100}
+                className="h-10 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-field px-3 text-[13.5px] text-fg outline-none transition-[border-color,box-shadow] placeholder:text-faint hover:border-faint focus:border-accent focus:shadow-[0_0_0_3.5px_var(--accent-ring)]" />
+              <button onClick={createAndAdd} disabled={busy || !name.trim()}
+                className="inline-flex h-10 flex-none items-center rounded-[var(--radius)] border-0 bg-accent px-4 text-[13px] font-[550] text-on-accent transition-colors hover:bg-accent-hover active:bg-accent-press disabled:opacity-60">
+                Create
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setCreating(true)} disabled={busy}
+              className="flex w-full items-center gap-[11px] rounded-[9px] px-[10px] py-[10px] text-left text-[13.5px] font-[550] text-link transition-colors hover:bg-bg-2 disabled:opacity-60">
+              <SPlus className="h-4 w-4 flex-none" /> New album
+            </button>
+          )}
+          {error && <p className="m-0 mt-2 px-1 text-[12.5px] text-[var(--error)]">{error}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FirstRun({ onAdd }: { onAdd: () => void }) {
   const router = useRouter();
   const [url, setUrl] = useState("");
@@ -429,6 +557,7 @@ export function LibraryView({
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState<Set<string>>(new Set());
+  const [albumFor, setAlbumFor] = useState<LibraryVideo | null>(null);
   const [toast, setToast] = useState<{ msg: string; undo?: () => void } | null>(null);
 
   useEffect(() => {
@@ -439,7 +568,7 @@ export function LibraryView({
 
   const onAction = useCallback((action: string, v: LibraryVideo) => {
     if (action === "album") {
-      setToast({ msg: "Added to album" });
+      setAlbumFor(v);
     } else if (action === "save") {
       setSaved((s) => {
         const n = new Set(s);
@@ -457,7 +586,7 @@ export function LibraryView({
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
-      if ((e.target as HTMLElement)?.closest?.(".overflow-btn, .card-menu")) return;
+      if ((e.target as HTMLElement)?.closest?.('.overflow-btn, .card-menu, button[aria-label="More"]')) return;
       setOpenMenu(null);
     };
     document.addEventListener("click", close);
@@ -541,6 +670,9 @@ export function LibraryView({
         </>
       )}
       {modal && <AddModal onClose={() => setModal(false)} />}
+      {albumFor && (
+        <AlbumPickerModal video={albumFor} onClose={() => setAlbumFor(null)} onToast={(msg) => setToast({ msg })} />
+      )}
       {toast && (
         <div className="fixed bottom-[26px] left-1/2 z-[90] inline-flex -translate-x-1/2 animate-[home-toast-in_0.22s_var(--ease)] items-center gap-[10px] rounded-full bg-fg px-[18px] py-3 text-[13.5px] font-[550] text-surface shadow-[var(--shadow-lg)]">
           <SCheck className="h-4 w-4" />
