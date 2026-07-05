@@ -9,9 +9,11 @@
 // (explainLine) is on demand in the app, not here.
 
 import { asc, eq } from "drizzle-orm";
-import { type Database, videos, subtitleLines, wordExamples } from "@fuchine/db";
+import { type Database, videos, subtitleLines, wordExamples, wordEntries } from "@fuchine/db";
+import { inArray } from "drizzle-orm";
 import { analyzeLine } from "@fuchine/nlp";
 import type { ImportJob } from "./queue";
+import { estimateLevel } from "./level";
 
 export type Caption = { idx: number; startMs: number; endMs: number; text: string };
 
@@ -88,11 +90,24 @@ export async function importVideo(
       await db.insert(wordExamples).values(exampleRows).onConflictDoNothing();
     }
 
-    await db.update(videos).set({ status: "done" }).where(eq(videos.id, video.id));
+    const levelEstimate = await estimateVideoLevel(db, exampleRows.map((r) => r.wordEntryId));
+
+    await db.update(videos).set({ status: "done", levelEstimate }).where(eq(videos.id, video.id));
   } catch (err) {
     await db.update(videos).set({ status: "failed" }).where(eq(videos.id, video.id));
     throw err;
   }
+}
+
+/** Median frequency rank of the video's distinct words → beginner/intermediate/advanced. */
+export async function estimateVideoLevel(db: Database, wordEntryIds: string[]) {
+  const unique = [...new Set(wordEntryIds)];
+  if (unique.length === 0) return null;
+  const rows = await db
+    .select({ frequencyRank: wordEntries.frequencyRank })
+    .from(wordEntries)
+    .where(inArray(wordEntries.id, unique));
+  return estimateLevel(rows.map((r) => r.frequencyRank));
 }
 
 function loadLines(db: Database, videoId: string) {
