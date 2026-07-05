@@ -1,8 +1,8 @@
 # backlog: Stats Screen — Data Is Still Mock/Fake
 
-**Date:** 2026-06-24 · **Updated:** 2026-06-30
+**Date:** 2026-06-24 · **Updated:** 2026-07-04
 **Feature:** Stats (T2.x)
-**Status:** RESOLVED (data wired) — RESIDUAL: watch-time instrumentation
+**Status:** RESOLVED (data wired; watch-time instrumentation shipped 2026-07-04)
 
 ---
 
@@ -26,10 +26,12 @@ Empty states adicionados (sem cards minerados, sem streak).
 
 ## Residual (não bloqueia)
 
-- **Watch time depende de `user_daily_stats`, que ainda não tem writer** durante
-  uso normal. Até o player ser instrumentado (registrar `ms_watched`/`lines_seen`
-  por dia), o KPI "Watch time" e o gráfico "Daily watch time" mostram 0. As
-  demais métricas são reais. → tarefa separada: instrumentar o player.
+- ~~**Watch time depende de `user_daily_stats`, que ainda não tem writer**~~
+  **RESOLVIDO 2026-07-04**: o player agora acumula tempo/linhas e envia beacon
+  para `POST /api/videos/[id]/progress` (`lib/progress.ts` escreve
+  `user_daily_stats` + `user_word_stats`). Watch time e daily chart são reais.
+- **Streak/heatmap ainda só contam revisões** — dias só de imersão não contam.
+  → [streak-ignores-watch-days.md]
 - **Segmented range (Week/Month/Year)** é visual — os dados usam janelas fixas
   (30d retention, 7d watch, 17 semanas heatmap). Refetch por range fica para
   depois (exige client fetch ou server action).
