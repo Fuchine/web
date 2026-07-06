@@ -9,9 +9,9 @@
 ## Problema
 
 O grupo "Account" do Settings (`settings-view.tsx:135-136`) tem uma única
-ação, "Sign out" (`:341`) — que, como já anotado em
-[anki-export-not-implemented.md], está **sem handler**. Não existe rota nem UI
-de **delete account** em lugar nenhum do app.
+ação, "Sign out" — que o PR #16 (2026-07-05) ligou (`signOut()` em
+`settings-view.tsx:354`). Não existe rota nem UI de **delete account** em
+lugar nenhum do app.
 
 Para o self-host de 1 usuário é cosmético; para qualquer instância
 compartilhada é básico ("quero sair e levar embora meus dados"), e na cloud
@@ -30,10 +30,9 @@ usuário.
 2. **UI:** row "Delete account" no grupo Account com dialog de confirmação —
    strings em inglês ("This permanently deletes your cards, review history and
    stats. Videos stay in the shared library.").
-3. **Na mesma passada, ligar o Sign out** (`signOut()` do next-auth) — fiação
-   trivial já apontada no backlog.
-4. Export de dados fica com o item do Anki
-   ([anki-export-not-implemented.md]) — deletar e exportar são pedidos irmãos.
+3. ~~Ligar o Sign out~~ — feito pelo PR #16.
+4. Export de dados: o TSV shipped no #16 cobre os cards
+   ([anki-export-not-implemented.md]); deletar e exportar são pedidos irmãos.
 
 ## Esforço / prioridade
 

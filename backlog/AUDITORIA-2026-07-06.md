@@ -44,17 +44,17 @@ achado propõe violá-las.
 - [summary-screen-uses-mock-data.md](summary-screen-uses-mock-data.md) —
   residual: `cardsReviewed` superconta cards revisados com grades distintas.
 
-## Itens abertos antes da auditoria (continuam válidos)
+## Itens abertos antes da auditoria
 
-[streak-ignores-watch-days.md](streak-ignores-watch-days.md) ·
-[albums-screen-missing.md](albums-screen-missing.md) ·
-[daily-goals-not-consumed.md](daily-goals-not-consumed.md) ·
-[anki-export-not-implemented.md](anki-export-not-implemented.md) ·
-[embed-blocked-videos.md](embed-blocked-videos.md) ·
-[library-video-actions-not-persisted.md](library-video-actions-not-persisted.md) ·
-[library-categories-are-decorative.md](library-categories-are-decorative.md) ·
-[frequency-list-not-seeded.md](frequency-list-not-seeded.md) ·
-[dependabot-alerts.md](dependabot-alerts.md)
+> **Atualização (mesmo dia):** o PR #16 ("Backlog sweep") resolveu quase todos
+> os itens pré-auditoria que estavam destravados — streak com imersão, telas de
+> álbuns, export TSV, flags de vídeo (save/hide), categorias, embed-blocked,
+> Dependabot e o seed de frequência (em código). O status de cada um vive no
+> próprio arquivo. Continuam com trabalho aberto:
+> [daily-goals-not-consumed.md](daily-goals-not-consumed.md) (PARTIAL — falta
+> dashboard/onboarding), [frequency-list-not-seeded.md](frequency-list-not-seeded.md)
+> (falta rodar o seed no banco) e os residuais de
+> [dictionary-screen-state.md](dictionary-screen-state.md).
 
 ## Análise complementar
 
@@ -68,10 +68,12 @@ com índice próprio: **[PRODUCAO-2026-07-06.md](PRODUCAO-2026-07-06.md)**
 1. **Quick wins de uma sessão (alta razão impacto/custo):**
    [ci-package-tests-missing.md] + [library-dashboard-overfetch.md] +
    [translation-pump-no-circuit-breaker.md].
-2. **Funcionalidade de maior valor no backlog:** [streak-ignores-watch-days.md]
-   junto com [stats-unbounded-review-scan.md] — é o mesmo trecho de código, e
-   hoje o produto pune o comportamento central (imersão sem revisão não conta
-   streak).
+2. ~~Funcionalidade de maior valor: streak com imersão~~ **resolvido pelo
+   PR #16 (mesmo dia)**. O que restou dessa dupla é só
+   [stats-unbounded-review-scan.md] — e ficou mais simples: com os writers de
+   review/mining também alimentando `user_daily_stats`, os dois scans sem
+   limite de `review_logs`/`sentence_cards` podem ser removidos por completo
+   (ver atualização no item).
 3. **Antes de qualquer divulgação/multiusuário:**
    [ai-endpoints-no-rate-limit.md] e [import-validation-caps.md] — são a
    superfície de abuso de custo.

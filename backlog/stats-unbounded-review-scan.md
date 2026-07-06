@@ -42,3 +42,20 @@ destrava um item de produto já aberto no mesmo commit.
 - `apps/web/lib/stats.ts:148-160` (`getStats`), `lib/summary.ts:83-88`
 - Writers: `apps/web/lib/progress.ts` (`bumpDailyStats`)
 - Relacionado (mesmo fix): [streak-ignores-watch-days.md]
+
+---
+
+## Atualização (2026-07-06, pós-PR #16)
+
+O PR #16 resolveu o [streak-ignores-watch-days.md] adicionando os dias de
+imersão via `user_daily_stats` — **mas os dois scans sem limite continuam**
+(`stats.ts:165-172`: todos os `review_logs` + todos os `sentence_cards` do
+usuário, linha a linha, para derivar dias de review/mining).
+
+A proposta fica mais simples do que a original: como `reviews_done` e
+`cards_created` também são bumpados em `user_daily_stats` (writers de
+2026-07-04), os dias ativos podem vir **exclusivamente** da query de
+`user_daily_stats` que o #16 já adicionou (1 linha por dia ativo) — as duas
+queries unbounded podem ser removidas. Ressalva: dias de review anteriores aos
+writers (antes de 2026-07-04) não existem em `user_daily_stats`; um backfill
+único a partir de `review_logs` preserva os streaks históricos.
