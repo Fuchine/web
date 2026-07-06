@@ -33,6 +33,7 @@ export default async function LibraryPage() {
     level: v.levelEstimate ? (LEVEL[v.levelEstimate] ?? null) : null,
     comprehension: comprehension.get(v.id) ?? null,
     embeddable: v.embeddable,
+    category: v.category,
   }));
 
   return (

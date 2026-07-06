@@ -17,6 +17,7 @@ export type LibraryVideo = {
   level: number | null;
   comprehension: number | null;
   embeddable?: boolean | null; // false = owner blocked embedded playback
+  category?: string | null;
 };
 
 export type LibraryStats = {
@@ -630,7 +631,7 @@ export function LibraryView({
     return videos
       .filter((v) => {
         if (hidden.has(v.id)) return false;
-        if (cat !== "All") return false;
+        if (cat !== "All" && v.category !== cat) return false;
         if (mine && v.status !== "done") return false;
         if (q && !(v.title.toLowerCase().includes(q) || (v.channel ?? "").toLowerCase().includes(q))) return false;
         return true;

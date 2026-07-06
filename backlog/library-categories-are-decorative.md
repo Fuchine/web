@@ -1,8 +1,30 @@
 # backlog: Library — tabs de categoria são decorativas
 
-**Date:** 2026-07-04
+**Date:** 2026-07-04 · **Updated:** 2026-07-05
 **Feature:** Biblioteca (F1)
-**Status:** OPEN — bloqueado em decisão de schema/pipeline
+**Status:** RESOLVED (2026-07-05) — heurística v1; upgrade opcional
+
+---
+
+## Resolução (2026-07-05)
+
+Decisão: **coluna `videos.category text` nullable** (migration `0011`),
+classificada no worker por **heurística de palavras-chave** (sem API key, sem
+custo de LLM). `apps/worker/src/category.ts` (`classifyCategory`, puro e testado
+em `category.test.ts`) casa título+canal (JP+EN) contra os buckets das tabs;
+retorna null quando não tem certeza (nunca esconde vídeo por chute errado —
+regra específica antes de broad, ex.: VTuber antes de Gaming). Ligado no
+pipeline (grava no fim do import, preserva categoria existente). `listVideos`
+expõe a coluna e a biblioteca filtra de verdade:
+`if (cat !== "All" && v.category !== cat) return false`.
+
+## Residual
+
+- **Vídeos antigos** ficam sem categoria até reprocessar (não há
+  `backfill:category` ainda — seguir o padrão de `backfill:level`).
+- **Precisão da heurística** é modesta; um upgrade (YouTube category API via
+  extensão, ou LLM barato na camada 1) pode entrar atrás do mesmo
+  `classifyCategory`.
 
 ---
 

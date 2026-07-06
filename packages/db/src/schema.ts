@@ -136,6 +136,8 @@ export const videos = pgTable(
     levelEstimate: contentLevel("level_estimate"), // null until computed
     // null = not checked; false = owner disabled embedded playback (IFrame 150/101).
     embeddable: boolean("embeddable"),
+    // Coarse content category (heuristic at import); null = uncategorized.
+    category: text("category"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

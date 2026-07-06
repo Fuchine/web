@@ -15,6 +15,7 @@ import { analyzeLine } from "@fuchine/nlp";
 import type { ImportJob } from "./queue";
 import { estimateLevel } from "./level";
 import { checkEmbeddable } from "./embeddable";
+import { classifyCategory } from "./category";
 
 export type Caption = { idx: number; startMs: number; endMs: number; text: string };
 
@@ -98,10 +99,12 @@ export async function importVideo(
     // Probe once (skip if already known) so the library can flag dead players.
     const embeddable =
       video.embeddable == null ? await probeEmbeddable(video.sourceId) : video.embeddable;
+    // Best-guess category (heuristic); keep any existing one.
+    const category = video.category ?? classifyCategory(video.title, video.channel);
 
     await db
       .update(videos)
-      .set({ status: "done", levelEstimate, embeddable })
+      .set({ status: "done", levelEstimate, embeddable, category })
       .where(eq(videos.id, video.id));
   } catch (err) {
     await db.update(videos).set({ status: "failed" }).where(eq(videos.id, video.id));
