@@ -142,9 +142,11 @@ Pacotes e seus pontos de entrada:
   cobre vídeos antigos. No fim do import, `estimateVideoLevel` grava
   `videos.level_estimate` (mediana do frequency_rank das palavras distintas;
   `src/level.ts`, mínimo 20 palavras ranqueadas; `backfill:level` para vídeos
-  antigos). **Atenção:** só funciona com a lista de frequência seedada
-  (`pnpm --filter @fuchine/db seed:jmdict <frequency.tsv>` — o seed atual do
-  dev rodou sem ela, ranks nulos). Fetch server-side é só fallback (gated).
+  antigos). **Frequência:** `frequency_rank` é derivado dos tags `nfXX` do
+  próprio JMdict no seed (`mapper.ts` `nfRankFromTags` — bandas de 500,
+  license-clean, sem lista externa); uma lista TSV opcional ainda sobrepõe se
+  fornecida. O banco de dev precisa re-rodar o `seed` + `backfill:level` para
+  popular os ranks. Fetch server-side é só fallback (gated).
 
 `docker-compose.yml` sobe Postgres + Redis. Comandos: `pnpm dev`,
 `pnpm typecheck`, `pnpm db:generate`, `pnpm db:migrate`.
