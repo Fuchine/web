@@ -39,3 +39,8 @@ faz sessionization por gap (>30 min separa sessões, `resolveSessionStart`).
   para o próximo vídeo recomendado.
 - **Fuso**: bucketing de dias usa a TZ local do processo. Consistente com o Stats;
   reconciliar se o deploy usar TZ diferente do usuário.
+- **(2026-07-06, auditoria) `cardsReviewed` superconta**: a query agrupa por
+  grade e soma `count(distinct card_id)` **por grupo**
+  (`apps/web/lib/summary.ts:99-118`) — um card revisado com Again e depois Good
+  na mesma sessão conta 2×. Fix: um `count(distinct card_id)` da janela em
+  query separada (S).
