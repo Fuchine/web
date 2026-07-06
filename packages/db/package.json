@@ -29,6 +29,6 @@
   "devDependencies": {
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.2",
-    "vitest": "^2.1.9"
+    "vitest": "^3.2.7"
   }
 }
