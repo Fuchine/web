@@ -52,6 +52,12 @@ O **cache compartilhado é o fosso estrutural da cloud:** cada vídeo processado
 2. Construir a cloud paga **apenas quando os sinais aparecerem**: issues pedindo versão hospedada, self-hosters reclamando de manutenção, crescimento de stars/tráfego. Cada sinal é validação gratuita de demanda.
 3. Âncora de preço quando chegar a hora: HayaiLearn cobra ~US$ 10/mês. Posicionar próximo ou abaixo, com a vantagem de confiança do código aberto e **preço regional em real** — algo que nenhum concorrente estrangeiro faz bem.
 
+> **Atualização 2026-07-06:** foco comercial definido em **clientes pagantes
+> em dólar** — preço único em US$ no lançamento da cloud; o preço regional em
+> real passa a alavanca de expansão posterior. Números, cenários e racional em
+> `docs/ANALISE_CUSTOS.md` (§6.1: Pro US$ 8/mês · US$ 79/ano, a lápis até
+> haver medição de uso real).
+
 ---
 
 ## 3. Decisões arquiteturais travadas

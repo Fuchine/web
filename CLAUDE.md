@@ -18,6 +18,12 @@ UI é em inglês.
 - `docs/CONTRATO_IA.md` — formato de entrada/saída das funções de IA
   (`translateBatch`, `explainLine`) e o contrato de cache. Ancora a coluna
   `ai_explanations.content` e o campo `text_translation`.
+- `docs/ANALISE_CUSTOS.md` — modelo de custo unitário e base de precificação
+  da cloud (foco: clientes pagantes em dólar; Pro US$ 8/mês a lápis).
+  Estimativas pré-medição; validar com o item de metering do backlog.
+- `backlog/AUDITORIA-2026-07-06.md` e `backlog/PRODUCAO-2026-07-06.md` —
+  índices da auditoria de código e da análise de prontidão de produção
+  (mapas de leitura do backlog, por prioridade e por portão de lançamento).
 - `docs/INVENTARIO_TELAS.md` e `docs/PROMPT_PACK_TELAS.md` — telas do produto
   (o design em si é gerado fora, no Claude Design).
 - `screens.md` — guia para gerar telas (handoff para IA): sistema visual,
