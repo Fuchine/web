@@ -8,6 +8,7 @@ import {
   text,
   integer,
   doublePrecision,
+  boolean,
   timestamp,
   date,
   jsonb,
@@ -133,6 +134,8 @@ export const videos = pgTable(
     language: text("language").notNull().default("ja"), // D4: multilingual by design
     status: videoStatus("status").notNull().default("pending"),
     levelEstimate: contentLevel("level_estimate"), // null until computed
+    // null = not checked; false = owner disabled embedded playback (IFrame 150/101).
+    embeddable: boolean("embeddable"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

@@ -16,6 +16,7 @@ export type LibraryVideo = {
   status: "pending" | "processing" | "done" | "failed";
   level: number | null;
   comprehension: number | null;
+  embeddable?: boolean | null; // false = owner blocked embedded playback
 };
 
 export type LibraryStats = {
@@ -312,6 +313,17 @@ function VideoCardWithMenu({
               "bg-faint"
             }`} />
             {status.label}
+          </span>
+        </div>
+      )}
+      {v.embeddable === false && (
+        <div className="mt-[7px]">
+          <span
+            className="inline-flex items-center gap-[6px] rounded-full bg-amber-50 px-[9px] py-[3px] text-[11.5px] font-[500] text-amber-700"
+            title="The owner disabled embedded playback — it won't play inside the app, but captions, dictionary and mining still work."
+          >
+            <span className="h-[5px] w-[5px] rounded-full bg-amber-500" />
+            Not playable in app
           </span>
         </div>
       )}
