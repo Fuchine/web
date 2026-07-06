@@ -5,6 +5,7 @@ import { listVideos, getComprehensionByVideo } from "@/lib/study";
 import { getReviewQueue } from "@/lib/cards";
 import { getStats } from "@/lib/stats";
 import { getVideoFlags } from "@/lib/video-flags";
+import { getAlbumMemberships } from "@/lib/albums";
 import { LibraryView, type LibraryVideo } from "../library-view";
 
 const LEVEL: Record<string, number> = { beginner: 1, intermediate: 3, advanced: 5 };
@@ -14,12 +15,13 @@ export default async function LibraryPage() {
   if (!session?.user?.id) redirect("/login");
 
   const userId = session.user.id;
-  const [rows, queue, comprehension, stats, flags] = await Promise.all([
+  const [rows, queue, comprehension, stats, flags, albums] = await Promise.all([
     listVideos(db),
     getReviewQueue(db, userId),
     getComprehensionByVideo(db, userId),
     getStats(db, userId),
     getVideoFlags(db, userId),
+    getAlbumMemberships(db, userId),
   ]);
 
   const videos: LibraryVideo[] = rows.map((v) => ({
@@ -50,6 +52,7 @@ export default async function LibraryPage() {
       activeKey="library"
       initialSaved={flags.saved}
       initialHidden={flags.hidden}
+      albums={albums}
     />
   );
 }

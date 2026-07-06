@@ -73,6 +73,25 @@ export async function listAlbums(db: Database, userId: string) {
     .orderBy(desc(albums.createdAt));
 }
 
+export type AlbumMembership = { id: string; name: string; videoIds: string[] };
+
+/** Non-empty albums with their member video ids, for the library album filter. */
+export async function getAlbumMemberships(db: Database, userId: string): Promise<AlbumMembership[]> {
+  const rows = await db
+    .select({ id: albums.id, name: albums.name, videoId: albumVideos.videoId })
+    .from(albums)
+    .innerJoin(albumVideos, eq(albumVideos.albumId, albums.id))
+    .where(eq(albums.userId, userId))
+    .orderBy(asc(albums.name));
+  const byId = new Map<string, AlbumMembership>();
+  for (const r of rows) {
+    let a = byId.get(r.id);
+    if (!a) { a = { id: r.id, name: r.name, videoIds: [] }; byId.set(r.id, a); }
+    a.videoIds.push(r.videoId);
+  }
+  return [...byId.values()];
+}
+
 export type AlbumView = {
   id: string;
   name: string;

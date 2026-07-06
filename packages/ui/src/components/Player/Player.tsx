@@ -700,6 +700,25 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     setMinedCard(null);
   }, []);
 
+  // The user's albums, offered as a destination for the mined line's video.
+  const [albums, setAlbums] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/albums")
+      .then((r) => (r.ok ? r.json() : { albums: [] }))
+      .then((d) => { if (live) setAlbums((d.albums ?? []).map((a: { id: string; name: string }) => ({ id: a.id, name: a.name }))); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
+
+  const handleMinedAddToAlbum = useCallback((albumId: string) => {
+    fetch(`/api/albums/${albumId}/videos`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ videoId: video.id }),
+    }).catch(() => {});
+  }, [video.id]);
+
   const nav = useMemo(
     () => buildAppNav({ activeKey: "home", onNavigate: (key) => onNavigate?.(key) }),
     [onNavigate],
@@ -802,6 +821,8 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
             onMinedUndo={handleMinedUndo}
             onMinedViewDeck={handleMinedViewDeck}
             onMinedClose={handleMinedClose}
+            minedAlbums={albums}
+            onMinedAddToAlbum={handleMinedAddToAlbum}
             controlBar={{
               isPlaying,
               currentMs,

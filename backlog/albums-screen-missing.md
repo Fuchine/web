@@ -40,8 +40,15 @@ removido em `nav.tsx`; Albums agora navega para `/albums`).
 
 ## Residual (do inventário, fora desta tela)
 
-1. **Álbum como filtro** na biblioteca / phrases / stats.
-2. **Minerar → escolher álbum/coleção** no player.
+1. ~~**Álbum como filtro** na biblioteca~~ — **FEITO 2026-07-05**. Seção
+   "Album" no dropdown de Filter da biblioteca (`getAlbumMemberships` +
+   `library-view`); a grade filtra pelos vídeos do álbum, o heading vira o nome
+   do álbum, e o botão Filter fica ativo. (phrases/stats ainda podem ganhar o
+   mesmo filtro depois.)
+2. ~~**Minerar → escolher álbum/coleção** no player~~ — **FEITO 2026-07-05**.
+   Como álbuns colecionam **vídeos** (não há deck de cards no schema), o card
+   minerado agora oferece **"Add video to album"** com chips dos álbuns do
+   usuário (`MinedCard` + `Player` → `POST /api/albums/[id]/videos`).
 
 ---
 

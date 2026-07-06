@@ -129,6 +129,7 @@ function StatBar({ stats }: { stats: LibraryStats }) {
 
 function TopBar({
   stats, query, setQuery, sort, setSort, mine, setMine, onAdd,
+  albums, albumFilter, setAlbumFilter,
 }: {
   stats: LibraryStats;
   query: string;
@@ -138,6 +139,9 @@ function TopBar({
   mine: boolean;
   setMine: (m: boolean) => void;
   onAdd: () => void;
+  albums: LibraryAlbum[];
+  albumFilter: string | null;
+  setAlbumFilter: (id: string | null) => void;
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -165,14 +169,14 @@ function TopBar({
         <div className="relative" ref={wrapRef}>
           <button onClick={() => setFilterOpen((o) => !o)}
             className={`inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-[var(--radius)] border px-[13px] text-[13.5px] font-medium transition-[border-color,background,color] ${
-              sort !== "newest"
+              sort !== "newest" || albumFilter
                 ? "border-accent-line bg-accent-soft text-link"
                 : "border-border-strong bg-field text-muted hover:border-faint hover:text-fg"
             }`}>
             <SFilter className="h-[17px] w-[17px]" /> Filter
           </button>
           {filterOpen && (
-            <div className="absolute right-0 top-[calc(100%+8px)] z-40 w-[232px] animate-[pop-in_0.16s_var(--ease)] rounded-[var(--radius-lg)] border border-border bg-surface p-2 shadow-[var(--shadow-lg)]">
+            <div className="absolute right-0 top-[calc(100%+8px)] z-40 max-h-[70vh] w-[232px] overflow-y-auto animate-[pop-in_0.16s_var(--ease)] rounded-[var(--radius-lg)] border border-border bg-surface p-2 shadow-[var(--shadow-lg)]">
               <div className="px-[10px] pb-[5px] pt-2 text-[10.5px] font-[600] uppercase tracking-[0.06em] text-faint">Sort by</div>
               {SORT_OPTIONS.map((s) => (
                 <button key={s.key} onClick={() => { setSort(s.key); setFilterOpen(false); }}
@@ -181,6 +185,25 @@ function TopBar({
                   {sort === s.key && <SCheck className="ml-auto h-[15px] w-[15px] text-link" />}
                 </button>
               ))}
+              {albums.length > 0 && (
+                <>
+                  <div className="my-1 h-px bg-border" />
+                  <div className="px-[10px] pb-[5px] pt-2 text-[10.5px] font-[600] uppercase tracking-[0.06em] text-faint">Album</div>
+                  <button onClick={() => { setAlbumFilter(null); setFilterOpen(false); }}
+                    className={`flex w-full items-center gap-[10px] rounded-lg px-[10px] py-[9px] text-left text-[13.5px] transition-colors hover:bg-bg-2 ${!albumFilter ? "font-[550] text-link" : "text-fg"}`}>
+                    <SFolderPlus className="h-4 w-4 flex-none text-faint" /> All albums
+                    {!albumFilter && <SCheck className="ml-auto h-[15px] w-[15px] text-link" />}
+                  </button>
+                  {albums.map((a) => (
+                    <button key={a.id} onClick={() => { setAlbumFilter(a.id); setFilterOpen(false); }}
+                      className={`flex w-full items-center gap-[10px] rounded-lg px-[10px] py-[9px] text-left text-[13.5px] transition-colors hover:bg-bg-2 ${albumFilter === a.id ? "font-[550] text-link" : "text-fg"}`}>
+                      <SFolderPlus className="h-4 w-4 flex-none text-faint" /> <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                      <span className="text-[11.5px] text-faint">{a.videoIds.length}</span>
+                      {albumFilter === a.id && <SCheck className="ml-auto h-[15px] w-[15px] text-link" />}
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -551,9 +574,11 @@ function FirstRun({ onAdd }: { onAdd: () => void }) {
   );
 }
 
+export type LibraryAlbum = { id: string; name: string; videoIds: string[] };
+
 export function LibraryView({
   videos, account, reviewDue, stats, activeKey = "library",
-  initialSaved = [], initialHidden = [],
+  initialSaved = [], initialHidden = [], albums = [],
 }: {
   videos: LibraryVideo[];
   account: { name: string; sub?: string };
@@ -562,12 +587,14 @@ export function LibraryView({
   activeKey?: string;
   initialSaved?: string[];
   initialHidden?: string[];
+  albums?: LibraryAlbum[];
 }) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [cat, setCat] = useState("All");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("newest");
+  const [albumFilter, setAlbumFilter] = useState<string | null>(null);
   const [mine, setMine] = useState(false);
   const [modal, setModal] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -627,10 +654,17 @@ export function LibraryView({
   const firstRun = videos.length === 0;
   const q = query.trim().toLowerCase();
 
+  const activeAlbum = albumFilter ? albums.find((a) => a.id === albumFilter) ?? null : null;
+  const albumVideoIds = useMemo(
+    () => (activeAlbum ? new Set(activeAlbum.videoIds) : null),
+    [activeAlbum],
+  );
+
   const list = useMemo(() => {
     return videos
       .filter((v) => {
         if (hidden.has(v.id)) return false;
+        if (albumVideoIds && !albumVideoIds.has(v.id)) return false;
         if (cat !== "All" && v.category !== cat) return false;
         if (mine && v.status !== "done") return false;
         if (q && !(v.title.toLowerCase().includes(q) || (v.channel ?? "").toLowerCase().includes(q))) return false;
@@ -643,9 +677,9 @@ export function LibraryView({
         if (sort === "level") return (a.level ?? 99) - (b.level ?? 99);
         return 0;
       });
-  }, [videos, hidden, cat, mine, q, sort]);
+  }, [videos, hidden, albumVideoIds, cat, mine, q, sort]);
 
-  const browsing = cat === "All" && !mine && !q;
+  const browsing = cat === "All" && !mine && !q && !albumFilter;
   const continueList = useMemo(
     () => videos.filter((v) => v.comprehension != null && !hidden.has(v.id)).sort((a, b) => (b.comprehension ?? 0) - (a.comprehension ?? 0)),
     [videos, hidden]
@@ -655,7 +689,7 @@ export function LibraryView({
     [videos, hidden]
   );
 
-  const gridHeading = mine ? "My imports" : q ? `Results for "${query.trim()}"` : cat === "All" ? "All videos" : cat;
+  const gridHeading = activeAlbum ? activeAlbum.name : mine ? "My imports" : q ? `Results for "${query.trim()}"` : cat === "All" ? "All videos" : cat;
   const gridSub = mine ? `${list.length} of your imports` : q ? `${list.length} found` : `${list.length} videos`;
 
   return (
@@ -665,7 +699,8 @@ export function LibraryView({
       ) : (
         <>
           <div className="sticky top-0 z-20 border-b border-border bg-[color-mix(in_oklch,var(--bg)_86%,transparent)] backdrop-blur-[14px] saturate-[140%]">
-            <TopBar stats={stats} query={query} setQuery={setQuery} sort={sort} setSort={setSort} mine={mine} setMine={setMine} onAdd={() => setModal(true)} />
+            <TopBar stats={stats} query={query} setQuery={setQuery} sort={sort} setSort={setSort} mine={mine} setMine={setMine} onAdd={() => setModal(true)}
+              albums={albums} albumFilter={albumFilter} setAlbumFilter={setAlbumFilter} />
             <Tabs active={cat} onPick={(c) => { setCat(c); setQuery(""); }} />
           </div>
           <div className="px-10 pb-20 pt-[30px]">
