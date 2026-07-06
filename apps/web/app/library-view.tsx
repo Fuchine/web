@@ -540,12 +540,15 @@ function FirstRun({ onAdd }: { onAdd: () => void }) {
 
 export function LibraryView({
   videos, account, reviewDue, stats, activeKey = "library",
+  initialSaved = [], initialHidden = [],
 }: {
   videos: LibraryVideo[];
   account: { name: string; sub?: string };
   reviewDue?: number;
   stats: LibraryStats;
   activeKey?: string;
+  initialSaved?: string[];
+  initialHidden?: string[];
 }) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -555,8 +558,8 @@ export function LibraryView({
   const [mine, setMine] = useState(false);
   const [modal, setModal] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
-  const [saved, setSaved] = useState<Set<string>>(new Set());
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set(initialHidden));
+  const [saved, setSaved] = useState<Set<string>>(() => new Set(initialSaved));
   const [albumFor, setAlbumFor] = useState<LibraryVideo | null>(null);
   const [toast, setToast] = useState<{ msg: string; undo?: () => void } | null>(null);
 
@@ -566,23 +569,38 @@ export function LibraryView({
     return () => clearTimeout(id);
   }, [toast]);
 
+  const persistFlag = useCallback((videoId: string, flag: string, set: boolean) => {
+    fetch(`/api/videos/${videoId}/flags`, {
+      method: set ? "POST" : "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ flag }),
+    }).catch(() => {});
+  }, []);
+
   const onAction = useCallback((action: string, v: LibraryVideo) => {
     if (action === "album") {
       setAlbumFor(v);
     } else if (action === "save") {
+      const willSave = !saved.has(v.id);
       setSaved((s) => {
         const n = new Set(s);
-        n.has(v.id) ? n.delete(v.id) : n.add(v.id);
+        willSave ? n.add(v.id) : n.delete(v.id);
         return n;
       });
-    } else if (action === "hide") {
+      persistFlag(v.id, "saved", willSave);
+    } else if (action === "hide" || action === "not-interested") {
+      const flag = action === "hide" ? "hidden" : "not_interested";
       setHidden((s) => new Set(s).add(v.id));
-      setToast({ msg: "Video hidden", undo: () => setHidden((s) => { const n = new Set(s); n.delete(v.id); return n; }) });
-    } else if (action === "not-interested") {
-      setHidden((s) => new Set(s).add(v.id));
-      setToast({ msg: "Got it — we'll show less like this", undo: () => setHidden((s) => { const n = new Set(s); n.delete(v.id); return n; }) });
+      persistFlag(v.id, flag, true);
+      setToast({
+        msg: action === "hide" ? "Video hidden" : "Got it — we'll show less like this",
+        undo: () => {
+          setHidden((s) => { const n = new Set(s); n.delete(v.id); return n; });
+          persistFlag(v.id, flag, false);
+        },
+      });
     }
-  }, []);
+  }, [saved, persistFlag]);
 
   useEffect(() => {
     const close = (e: MouseEvent) => {

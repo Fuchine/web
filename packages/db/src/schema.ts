@@ -38,6 +38,9 @@ export const userPlan = pgEnum("user_plan", ["free", "pro"]); // only meaningful
 // Manual learning-status override the user sets in the dictionary. Null column =
 // no override, fall back to the mastery-derived status.
 export const wordStatus = pgEnum("word_status", ["known", "learning", "new"]);
+// Per-user reaction to a shared-cache video. "not_interested" is kept distinct
+// from "hidden" so it can feed recommendations (F2); both hide the card today.
+export const videoFlag = pgEnum("video_flag", ["saved", "hidden", "not_interested"]);
 
 /* ------------------------------------------------------------------ */
 /* Users & settings                                                    */
@@ -358,6 +361,26 @@ export const albumVideos = pgTable(
   ],
 );
 
+// Per-user flags on a (shared-cache) video: save for later, hide, not
+// interested. videos has no user_id, so the reaction lives in its own table.
+export const userVideoFlags = pgTable(
+  "user_video_flags",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    videoId: uuid("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+    flag: videoFlag("flag").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.videoId, t.flag] }), // one row per (user, video, flag)
+    index("user_video_flags_video_idx").on(t.videoId),
+  ],
+);
+
 /* ------------------------------------------------------------------ */
 /* Stats                                                               */
 /* ------------------------------------------------------------------ */
@@ -522,6 +545,11 @@ export const userWordStatsRelations = relations(userWordStats, ({ one }) => ({
 
 export const userDailyStatsRelations = relations(userDailyStats, ({ one }) => ({
   user: one(users, { fields: [userDailyStats.userId], references: [users.id] }),
+}));
+
+export const userVideoFlagsRelations = relations(userVideoFlags, ({ one }) => ({
+  user: one(users, { fields: [userVideoFlags.userId], references: [users.id] }),
+  video: one(videos, { fields: [userVideoFlags.videoId], references: [videos.id] }),
 }));
 
 /* ------------------------------------------------------------------ */

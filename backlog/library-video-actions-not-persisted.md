@@ -1,8 +1,24 @@
 # backlog: Library — Save/Hide/Not interested não persistem
 
-**Date:** 2026-07-04
+**Date:** 2026-07-04 · **Updated:** 2026-07-05
 **Feature:** Biblioteca (F1)
-**Status:** OPEN — bloqueado em decisão de schema
+**Status:** RESOLVED (2026-07-05)
+
+---
+
+## Resolução (2026-07-05)
+
+Decisão: **uma tabela de flags** (segue o precedente de albums), com
+`not_interested` distinto de `hidden` pra poder alimentar recomendação (F2) —
+hoje ambos escondem o card. `user_video_flags(user_id, video_id, flag,
+created_at)` com PK composta + enum `video_flag` (migration `0009`).
+
+- `lib/video-flags.ts`: `setVideoFlag`/`clearVideoFlag` (idempotentes) e
+  `getVideoFlags` → `{ saved, hidden }` (hidden = hidden ∪ not_interested).
+- Rota `POST/DELETE /api/videos/[id]/flags` com `{ flag }` validado.
+- `library/page.tsx` hidrata `initialSaved`/`initialHidden`; `library-view.tsx`
+  usa como estado inicial e persiste cada ação (save toggla, hide/not-interested
+  POSTam com undo que faz DELETE). Sobrevive ao reload.
 
 ---
 
