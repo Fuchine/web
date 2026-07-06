@@ -54,6 +54,8 @@ export interface PlayerStageProps {
   onMinedUndo?: () => void;
   onMinedViewDeck?: () => void;
   onMinedClose?: () => void;
+  minedAlbums?: { id: string; name: string }[];
+  onMinedAddToAlbum?: (albumId: string) => void;
   className?: string;
 }
 
@@ -90,6 +92,8 @@ export function PlayerStage({
   onMinedUndo,
   onMinedViewDeck,
   onMinedClose,
+  minedAlbums,
+  onMinedAddToAlbum,
   className,
 }: PlayerStageProps): ReactNode {
   return (
@@ -142,6 +146,8 @@ export function PlayerStage({
           onUndo={onMinedUndo ?? (() => {})}
           onViewDeck={onMinedViewDeck ?? (() => {})}
           onClose={onMinedClose ?? (() => {})}
+          albums={minedAlbums}
+          onAddToAlbum={onMinedAddToAlbum}
         />
       )}
     </div>

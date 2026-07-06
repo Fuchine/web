@@ -23,6 +23,8 @@ export async function listVideos(db: Database) {
       language: videos.language,
       status: videos.status,
       levelEstimate: videos.levelEstimate,
+      embeddable: videos.embeddable,
+      category: videos.category,
       createdAt: videos.createdAt,
       lineCount: count(subtitleLines.id),
     })

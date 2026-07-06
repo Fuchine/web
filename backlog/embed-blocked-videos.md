@@ -1,10 +1,32 @@
 # backlog: Vídeos com embed bloqueado falham no player (erro 150)
 
-**Date:** 2026-07-04
+**Date:** 2026-07-04 · **Updated:** 2026-07-05
 **Feature:** Player / Import
-**Status:** OPEN — destravado (só código)
+**Status:** RESOLVED (2026-07-05)
 
 ---
+
+## Resolução (2026-07-05)
+
+Decisão de schema: **coluna `videos.embeddable boolean` nullable** (null = não
+checado; false = embed bloqueado), migration `0010`.
+
+1. **Detecção no import**: `apps/worker/src/embeddable.ts` (`checkEmbeddable`)
+   consulta o oEmbed público (401/403 → não embedável, ok → embedável, resto →
+   null/inconclusivo, com timeout). O pipeline chama e grava no fim do import
+   (injetável via `ImportDeps.checkEmbeddable`; só checa se ainda null).
+2. **Selo na biblioteca**: badge "Not playable in app" no card quando
+   `embeddable === false` (`library-view.tsx`; `listVideos` expõe a coluna).
+3. **Estado de erro no player**: em 150/101, `Player.tsx` mostra mensagem
+   específica + botão "Watch on YouTube" (deep link com `&t=<s>` do
+   `currentMs`) e deixa claro que legendas/dicionário/explicação/mineração
+   seguem funcionando.
+
+## Residual
+
+- **SRS de card de vídeo bloqueado** ainda toca o clipe mudo — degradar para
+  frase + link fica como follow-up (a fila de review não recebe `embeddable`
+  hoje).
 
 ## Problema
 

@@ -40,6 +40,6 @@ export function buildAppNav({ activeKey, onNavigate, reviewDue }: BuildAppNavOpt
     { key: "dictionary", label: "Dictionary", icon: NAV_ICONS.dictionary, active: activeKey === "dictionary", onSelect: () => onNavigate("dictionary") },
     { key: "stats", label: "Stats", icon: NAV_ICONS.stats, active: activeKey === "stats", onSelect: () => onNavigate("stats") },
     { key: "phrases", label: "Phrases", icon: NAV_ICONS.phrases, active: activeKey === "phrases", onSelect: () => onNavigate("phrases") },
-    { key: "albums", label: "Albums", icon: NAV_ICONS.albums, soon: true },
+    { key: "albums", label: "Albums", icon: NAV_ICONS.albums, active: activeKey === "albums", onSelect: () => onNavigate("albums") },
   ];
 }

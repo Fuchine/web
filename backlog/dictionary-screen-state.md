@@ -12,14 +12,19 @@
 
 ## Problemas conhecidos
 
-### 1. Status override não é persistente
-O `statusMap` é `useState` local — muda a badge e o detail na hora, mas some ao recarregar a página. Não tem endpoint de PATCH nem coluna no schema (`saved_words` não tem `status`).
+### 1. Status override não é persistente — ✅ CORRIGIDO (2026-07-05)
+~~O `statusMap` era `useState` local e sumia no reload.~~ Adicionada a coluna
+`saved_words.status` (enum `word_status`, nullable = usa o status derivado de
+mastery), migration `0008`. Novo `PATCH /api/dictionary/[id]/saved` com
+`{status}` (`setWordStatus` faz upsert — marcar status salva a palavra).
+`GET /api/dictionary/saved` devolve `statuses` e a view hidrata o `statusMap`;
+`/collection` aplica o override (`r.override ?? computeStatus(m)`).
 
-### 2. Grammar tab nunca retorna resultados
-O endpoint `GET /api/dictionary/grammar` filtra por `inArray(wordEntries.pos, GRAMMAR_POS)` com valores `"Particle"`, `"Auxiliary"`, `"Conjunction"`, etc. — nomes em inglês. A coluna `wordEntries.pos` armazena tags JMdict reais (`"v5r"`, `"n"`, `"adj-i"`, `"prt"`, etc.), que nunca batem com esses nomes. A query sempre retorna 0 linhas.
+### 2. Grammar tab nunca retorna resultados — ✅ CORRIGIDO (antes de 2026-07-05)
+~~O endpoint filtrava por nomes em inglês (`"Particle"`, `"Auxiliary"`…) que nunca batiam com as tags JMdict reais.~~ O código atual usa `grammarPosCondition` (`lib/dictionary-utils.ts`), que compara `string_to_array(pos, ',')` contra tags JMdict reais (`GRAMMAR_POS = aux, aux-adj, aux-v, conj, cop, prt, pref, suf, ctr`). Como `word_entries.pos` é gravado como CSV dessas tags (`seed/mapper.ts`: `pos.join(",")`), a query agora casa. O mesmo `grammarPosCondition` alimenta o `grammar=true` da browse. **Verificar em runtime com o banco seedado** (não coberto por teste com DB aqui).
 
-### 3. Grammar tab ignora o POS filter da browse
-Mesmo que o grammar endpoint fosse corrigido, ele tem seu próprio conjunto fixo de POS (`GRAMMAR_POS`) que não se alinha com os chips de POS filter da browse (Verb/Adjective/Adverb/Noun/Grammar/Expression). As duas features operam com lógicas diferentes.
+### 3. Grammar tab ignora o POS filter da browse — parcialmente obsoleto
+Browse e grammar hoje compartilham `grammarPosCondition`, então o filtro "Grammar" da browse e o endpoint de grammar usam a mesma lógica de POS. O que resta é conceitual: o endpoint `/api/dictionary/grammar` opera sobre a **coleção salva** do usuário (`saved_words`), enquanto os chips da browse filtram o dicionário inteiro — são superfícies diferentes de propósito, não um bug.
 
 ### 4. POS filter incompleto (Browse)
 Os chips de POS filter da browse têm 6 categorias (Verb, Adjective, Adverb, Noun, Grammar, Expression) — cada uma mapeada a um conjunto de JMdict POS tags. Mas a gramática completa do JMdict (136+ tags) cobre muitos outros POS que não estão representados (ex.: pronomes, advérbios interrogativos, prefixos, sufixos, numerais, etc.). Foi um recorte para a UI.

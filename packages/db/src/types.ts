@@ -47,6 +47,7 @@ export type Definition = {
 // user_settings.daily_goals
 export type DailyGoals = {
   newCardsPerDay?: number;
+  maxReviewsPerDay?: number; // cap on due (non-new) cards surfaced per day
   reviewMinutesPerDay?: number;
   watchMinutesPerDay?: number;
 };

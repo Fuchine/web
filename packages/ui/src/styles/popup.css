@@ -170,6 +170,24 @@
 .mined-target .r { font-size: 12px; font-weight: 400; color: var(--text-muted); margin-left: 5px; }
 .mined-from { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-faint); }
 .mined-from svg { width: 15px; height: 15px; }
+/* add-to-album picker */
+.mined-albums { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.mined-albums-label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 8px; }
+.mined-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mined-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  max-width: 100%; padding: 5px 10px;
+  border: 1px solid var(--border-strong); background: var(--surface);
+  border-radius: 999px; font: inherit; font-size: 12px; font-weight: 550; color: var(--text);
+  cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.mined-chip svg { flex: none; color: var(--text-faint); }
+.mined-chip:hover { border-color: var(--accent); color: var(--link); }
+.mined-chip:hover svg { color: var(--link); }
+.mined-chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--link); cursor: default; }
+.mined-chip.on svg { color: var(--link); }
+
 .mined-actions { display: flex; gap: 8px; margin-top: 14px; }
 .mined-btn {
   flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px;

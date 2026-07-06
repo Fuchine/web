@@ -1,7 +1,9 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { cn } from "../../lib/cn";
+
+export type MinedAlbum = { id: string; name: string };
 
 export type MinedCardProps = {
   created: boolean;
@@ -12,6 +14,10 @@ export type MinedCardProps = {
   onUndo: () => void;
   onViewDeck: () => void;
   onClose: () => void;
+  /** The user's albums, offered as a destination for this line's video. */
+  albums?: MinedAlbum[];
+  /** Add the current video to an album (idempotent). */
+  onAddToAlbum?: (albumId: string) => void;
   className?: string;
 };
 
@@ -25,6 +31,14 @@ function CheckIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="13" height="13">
+      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -99,8 +113,15 @@ export function MinedCard({
   onUndo,
   onViewDeck,
   onClose,
+  albums,
+  onAddToAlbum,
   className,
 }: MinedCardProps) {
+  const [added, setAdded] = useState<Set<string>>(() => new Set());
+  const handleAdd = (id: string) => {
+    setAdded((s) => new Set(s).add(id));
+    onAddToAlbum?.(id);
+  };
   return (
     <div className={cn("mined-wrap", className)} role="status" aria-live="polite">
       <div className="mined" onClick={(e) => e.stopPropagation()}>
@@ -144,6 +165,29 @@ export function MinedCard({
             </span>
           </div>
         </div>
+
+        {albums && albums.length > 0 && onAddToAlbum && (
+          <div className="mined-albums">
+            <span className="mined-albums-label">Add video to album</span>
+            <div className="mined-chips">
+              {albums.map((a) => {
+                const on = added.has(a.id);
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    className={cn("mined-chip", on && "on")}
+                    disabled={on}
+                    onClick={() => handleAdd(a.id)}
+                    title={on ? `Added to ${a.name}` : `Add to ${a.name}`}
+                  >
+                    {on ? <CheckIcon /> : <PlusIcon />} {a.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="mined-actions">
           <button type="button" className="mined-btn" onClick={onUndo}>

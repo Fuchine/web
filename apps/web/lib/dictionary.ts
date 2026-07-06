@@ -87,6 +87,41 @@ export async function unsaveWord(db: Database, userId: string, wordEntryId: stri
   await db.delete(savedWords).where(and(eq(savedWords.userId, userId), eq(savedWords.wordEntryId, wordEntryId)));
 }
 
+export type WordStatus = "known" | "learning" | "new";
+
+/**
+ * Set (or clear, with null) the manual status override for a word. Setting a
+ * status implies saving the word, so this upserts the saved_words row.
+ */
+export async function setWordStatus(
+  db: Database,
+  userId: string,
+  wordEntryId: string,
+  status: WordStatus | null,
+): Promise<void> {
+  await db
+    .insert(savedWords)
+    .values({ userId, wordEntryId, status })
+    .onConflictDoUpdate({
+      target: [savedWords.userId, savedWords.wordEntryId],
+      set: { status },
+    });
+}
+
+/** The user's manual status overrides, keyed by word_entry id (nulls omitted). */
+export async function getSavedStatuses(
+  db: Database,
+  userId: string,
+): Promise<Record<string, WordStatus>> {
+  const rows = await db
+    .select({ wordEntryId: savedWords.wordEntryId, status: savedWords.status })
+    .from(savedWords)
+    .where(eq(savedWords.userId, userId));
+  const out: Record<string, WordStatus> = {};
+  for (const r of rows) if (r.status) out[r.wordEntryId] = r.status;
+  return out;
+}
+
 /** Pick the search mode for an Auto query: any Japanese char → "ja", else "en". */
 export function detectMode(q: string): "ja" | "en" {
   return /[぀-ヿ㐀-鿿]/.test(q) ? "ja" : "en";

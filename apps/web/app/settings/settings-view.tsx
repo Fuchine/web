@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { signOut } from "next-auth/react";
 import { Button } from "@fuchine/ui";
 
 const CheckIcon = () => (
@@ -68,7 +69,7 @@ interface SettingsViewProps {
     explanationLanguage: string;
     llmProvider: string | null;
     hasApiKey: boolean;
-    dailyGoals: { newCardsPerDay?: number; reviewMinutesPerDay?: number; watchMinutesPerDay?: number } | null;
+    dailyGoals: { newCardsPerDay?: number; maxReviewsPerDay?: number; reviewMinutesPerDay?: number; watchMinutesPerDay?: number } | null;
   };
 }
 
@@ -82,6 +83,7 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
   const [keyInput, setKeyInput] = useState("");
   const [editingKey, setEditingKey] = useState(false);
   const [newCardsPerDay, setNewCardsPerDay] = useState<number>(settings.dailyGoals?.newCardsPerDay ?? 20);
+  const [maxReviewsPerDay, setMaxReviewsPerDay] = useState<number>(settings.dailyGoals?.maxReviewsPerDay ?? 200);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -323,8 +325,18 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
             }}
           />
         </Row>
-        <Row title="Maximum reviews per day" desc="Cap on cards due in a single session." last>
-          <Stepper value={200} />
+        <Row title="Maximum reviews per day" desc="Cap on due cards surfaced per day." last>
+          <Stepper
+            value={maxReviewsPerDay}
+            min={1}
+            max={9999}
+            step={10}
+            disabled={saving}
+            onChange={(v) => {
+              setMaxReviewsPerDay(v);
+              void save({ dailyGoals: { maxReviewsPerDay: v } });
+            }}
+          />
         </Row>
       </Group>
 
@@ -333,13 +345,13 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
         icon={(<svg viewBox="0 0 24 24" fill="none"><path d="M12 4v10M8 10.5l4 4 4-4M5 19.5h14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>)}
         title="Data"
       >
-        <Row title="Export deck" desc="Download your mined cards as an Anki package.">
-          <Button variant="ghost" size="sm">
-            Export .apkg
+        <Row title="Export deck" desc="Download your mined cards as an Anki-importable file.">
+          <Button variant="ghost" size="sm" onClick={() => { window.location.href = "/api/export/deck"; }}>
+            Export deck
           </Button>
         </Row>
         <Row title="Sign out" desc="You can sign back in any time." last>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" onClick={() => void signOut({ callbackUrl: "/login" })}>
             Sign out
           </Button>
         </Row>

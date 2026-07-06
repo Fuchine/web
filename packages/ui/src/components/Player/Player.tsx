@@ -136,6 +136,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const [showFurigana, setShowFurigana] = useState(false);
   const [showRomaji, setShowRomaji] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<number | null>(null);
   const [activeRailTab, setActiveRailTab] = useState<"transcript" | "explain">("transcript");
   const [explanations, setExplanations] = useState<Map<string, Explanation>>(() => new Map());
   const [explainLoading, setExplainLoading] = useState(false);
@@ -422,7 +423,13 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   }, []);
 
   const onError = useCallback((code: number) => {
-    setLoadError(`Video failed to load (code ${code})`);
+    setErrorCode(code);
+    // 150/101 = the owner disabled embedded playback; not a transient failure.
+    setLoadError(
+      code === 150 || code === 101
+        ? "This video can't be played inside the app — its owner disabled embedded playback."
+        : `Video failed to load (code ${code})`,
+    );
   }, []);
 
   // Single dedup'd primitive: at most one in-flight request per line. A focal
@@ -693,18 +700,49 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     setMinedCard(null);
   }, []);
 
+  // The user's albums, offered as a destination for the mined line's video.
+  const [albums, setAlbums] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/albums")
+      .then((r) => (r.ok ? r.json() : { albums: [] }))
+      .then((d) => { if (live) setAlbums((d.albums ?? []).map((a: { id: string; name: string }) => ({ id: a.id, name: a.name }))); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
+
+  const handleMinedAddToAlbum = useCallback((albumId: string) => {
+    fetch(`/api/albums/${albumId}/videos`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ videoId: video.id }),
+    }).catch(() => {});
+  }, [video.id]);
+
   const nav = useMemo(
     () => buildAppNav({ activeKey: "home", onNavigate: (key) => onNavigate?.(key) }),
     [onNavigate],
   );
 
   if (loadError) {
+    const embedBlocked = errorCode === 150 || errorCode === 101;
+    const watchUrl = `https://www.youtube.com/watch?v=${video.sourceId}&t=${Math.floor(currentMs / 1000)}s`;
     return (
       <AppShell nav={nav} account={account}>
         <div className="p-error">
           <div className="p-error-mark" aria-hidden="true">淵</div>
           <p className="p-error-msg">{loadError}</p>
+          {embedBlocked && (
+            <p className="p-error-msg" style={{ opacity: 0.7, fontSize: "0.9em" }}>
+              Captions, the dictionary, explanations and mining still work here — only playback and clips don&apos;t.
+            </p>
+          )}
           <div className="p-error-actions">
+            {embedBlocked && (
+              <a className="p-error-btn" href={watchUrl} target="_blank" rel="noreferrer">
+                Watch on YouTube
+              </a>
+            )}
             <button type="button" className="p-error-btn" onClick={onBack}>Back to library</button>
           </div>
         </div>
@@ -783,6 +821,8 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
             onMinedUndo={handleMinedUndo}
             onMinedViewDeck={handleMinedViewDeck}
             onMinedClose={handleMinedClose}
+            minedAlbums={albums}
+            onMinedAddToAlbum={handleMinedAddToAlbum}
             controlBar={{
               isPlaying,
               currentMs,

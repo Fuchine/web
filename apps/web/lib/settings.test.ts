@@ -9,6 +9,14 @@ describe("parseSettingsInput — dailyGoals", () => {
     expect(r.value.dailyGoals).toEqual({ newCardsPerDay: 10, watchMinutesPerDay: 30 });
   });
 
+  it("accepts maxReviewsPerDay within its ceiling and rejects above it", () => {
+    const ok = parseSettingsInput({ dailyGoals: { maxReviewsPerDay: 200 } });
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(ok.value.dailyGoals).toEqual({ maxReviewsPerDay: 200 });
+    expect(parseSettingsInput({ dailyGoals: { maxReviewsPerDay: 10000 } }).ok).toBe(false);
+    expect(parseSettingsInput({ dailyGoals: { maxReviewsPerDay: 0 } }).ok).toBe(false);
+  });
+
   it("accepts null to clear the goals", () => {
     const r = parseSettingsInput({ dailyGoals: null });
     expect(r.ok).toBe(true);

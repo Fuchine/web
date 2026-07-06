@@ -1,32 +1,33 @@
-# backlog: Export .apkg (Anki) — botão morto em Settings
+# backlog: Export (Anki) — botão morto em Settings
 
-**Date:** 2026-07-04
+**Date:** 2026-07-04 · **Updated:** 2026-07-05
 **Feature:** Data / Export (Settings)
-**Status:** OPEN — backend inexistente
+**Status:** RESOLVED via TSV (2026-07-05); `.apkg` de verdade fica como upgrade
 
 ---
 
-## Problema
+## Resolução (2026-07-05)
 
-Em `/settings` → grupo "Data", o botão **"Export deck — Download your mined
-cards as an Anki package"** (`settings-view.tsx`) não tem `onClick` nem
-endpoint. Não existe nenhuma lib/rota de export no app.
+Escolhido o **caminho TSV** (o backlog autorizava começar simples e evoluir):
 
-## O que precisa
+- `lib/export.ts` — `buildDeckTsv` (puro, testado em `export.test.ts`) monta um
+  arquivo Anki-importável com header de diretivas (`#separator:tab`,
+  `#html:true`, `#columns:Expression\tMeaning\tNotes\tSource`). Campos são
+  achatados (tab→espaço, newline→`<br>`) pra não quebrar a grade. `getDeckCards`
+  faz o `sentence_cards` JOIN `subtitle_lines` JOIN `videos`.
+- Rota `GET /api/export/deck` (auth) — devolve o TSV como
+  `attachment; filename="fuchine-deck-<data>.txt"`. Deck vazio → só o header.
+- `settings-view.tsx` — botão "Export deck" agora baixa de `/api/export/deck`;
+  "Sign out" ao lado ligado a `signOut({ callbackUrl: "/login" })`.
 
-1. **Decidir o formato**: `.apkg` de verdade (SQLite zipado — lib tipo
-   `anki-apkg-export` ou genanki-js; checar licença/manutenção) vs começar com
-   um export simples (CSV/TSV compatível com import do Anki) e evoluir.
-2. Rota `GET /api/export/deck` (auth): monta o deck a partir de
-   `sentence_cards` JOIN `subtitle_lines` JOIN `videos` — frente = frase JP
-   (áudio não existe: D2 proíbe armazenar mídia; o clipe é link para o vídeo
-   com timestamp), verso = tradução + leitura + notas.
-3. Ligar o botão (download via blob) e estados de vazio (sem cards).
+**D2 respeitado**: só texto; o clipe vai como link
+`youtube.com/watch?v=...&t=<s>` (coluna Source), nunca mídia anexada.
 
-**Atenção D2**: nunca anexar áudio/vídeo ao deck — só texto e o link
-`youtube.com/watch?v=...&t=`.
+## Upgrade futuro (não bloqueia)
 
-## Referências
-
-- `settings-view.tsx` (grupo "Data"); "Sign out" ao lado também está sem
-  handler (fiação trivial via `signOut()` do next-auth — mesma passada).
+- **`.apkg` de verdade** (SQLite zipado — `anki-apkg-export`/genanki-js; checar
+  licença/manutenção) se o TSV se mostrar insuficiente (ex.: decks com modelo
+  de cartão próprio, tags, agendamento).
+- **Verso com leitura da frase**: hoje o verso é a tradução; a leitura por
+  token existe em `tokens` mas não há leitura agregada da linha (mesma limitação
+  do cloze do summary).

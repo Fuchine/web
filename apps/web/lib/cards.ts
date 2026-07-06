@@ -1,7 +1,7 @@
 // Mining + SRS review (F1, T1.6/T1.7). Auth-agnostic and testable.
 
-import { and, asc, eq, inArray, lte } from "drizzle-orm";
-import { type Database, sentenceCards, subtitleLines, videos, reviewLogs, wordEntries, type Token, type Definition } from "@fuchine/db";
+import { and, asc, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
+import { type Database, sentenceCards, subtitleLines, videos, reviewLogs, wordEntries, userSettings, type Token, type Definition } from "@fuchine/db";
 import { newCardState, reviewCard, previewIntervals, type CardState, type ReviewGrade } from "@fuchine/core";
 import { bumpDailyStats, bumpWordReviews } from "./progress";
 
@@ -63,26 +63,102 @@ export async function mineSentence(
   return { status: 200, body: { card: existing, created: false } };
 }
 
+/** Local midnight today, for counting per-day introductions. */
+function startOfToday(now = new Date()): Date {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/**
+ * Remaining daily allowances (null = unlimited / no goal set) for new-card
+ * introductions and due-card reviews, honoring `newCardsPerDay` and
+ * `maxReviewsPerDay`. A card's first review writes a review_logs row whose
+ * state is the state *before* the review: state=0 = a new introduction, state≠0
+ * = a review of an already-introduced card. Counting today's distinct cards on
+ * each side gives what's already been consumed.
+ */
+async function dailyAllowances(
+  db: Database,
+  userId: string,
+): Promise<{ newRemaining: number | null; reviewRemaining: number | null }> {
+  const [settings] = await db
+    .select({ dailyGoals: userSettings.dailyGoals })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .limit(1);
+  const newCap = settings?.dailyGoals?.newCardsPerDay ?? null;
+  const reviewCap = settings?.dailyGoals?.maxReviewsPerDay ?? null;
+  if (newCap == null && reviewCap == null) {
+    return { newRemaining: null, reviewRemaining: null };
+  }
+
+  const [row] = await db
+    .select({
+      newIntro: sql<number>`count(distinct case when ${reviewLogs.state} = 0 then ${reviewLogs.cardId} end)`,
+      reviews: sql<number>`count(distinct case when ${reviewLogs.state} <> 0 then ${reviewLogs.cardId} end)`,
+    })
+    .from(reviewLogs)
+    .where(and(eq(reviewLogs.userId, userId), gte(reviewLogs.reviewedAt, startOfToday())));
+
+  return {
+    newRemaining: newCap == null ? null : Math.max(0, newCap - Number(row?.newIntro ?? 0)),
+    reviewRemaining: reviewCap == null ? null : Math.max(0, reviewCap - Number(row?.reviews ?? 0)),
+  };
+}
+
+const QUEUE_COLUMNS = {
+  cardId: sentenceCards.id, videoId: sentenceCards.videoId, cardType: sentenceCards.cardType,
+  notes: sentenceCards.notes, due: sentenceCards.due,
+  stability: sentenceCards.stability, difficulty: sentenceCards.difficulty, lastReview: sentenceCards.lastReview,
+  state: sentenceCards.state, reps: sentenceCards.reps, lapses: sentenceCards.lapses,
+  elapsedDays: sentenceCards.elapsedDays, scheduledDays: sentenceCards.scheduledDays,
+  textOriginal: subtitleLines.textOriginal, textTranslation: subtitleLines.textTranslation,
+  tStartMs: subtitleLines.tStartMs, tEndMs: subtitleLines.tEndMs,
+  source: videos.source, sourceId: videos.sourceId,
+  tokens: subtitleLines.tokens,
+} as const;
+
 /** Cards due now for the user, with the clip + sentence and preview intervals. */
 export async function getReviewQueue(db: Database, userId: string, limit = 20) {
-  const rows = await db
-    .select({
-      cardId: sentenceCards.id, videoId: sentenceCards.videoId, cardType: sentenceCards.cardType,
-      notes: sentenceCards.notes, due: sentenceCards.due,
-      stability: sentenceCards.stability, difficulty: sentenceCards.difficulty, lastReview: sentenceCards.lastReview,
-      state: sentenceCards.state, reps: sentenceCards.reps, lapses: sentenceCards.lapses,
-      elapsedDays: sentenceCards.elapsedDays, scheduledDays: sentenceCards.scheduledDays,
-      textOriginal: subtitleLines.textOriginal, textTranslation: subtitleLines.textTranslation,
-      tStartMs: subtitleLines.tStartMs, tEndMs: subtitleLines.tEndMs,
-      source: videos.source, sourceId: videos.sourceId,
-      tokens: subtitleLines.tokens,
-    })
-    .from(sentenceCards)
-    .innerJoin(subtitleLines, eq(subtitleLines.id, sentenceCards.subtitleLineId))
-    .innerJoin(videos, eq(videos.id, sentenceCards.videoId))
-    .where(and(eq(sentenceCards.userId, userId), lte(sentenceCards.due, new Date())))
-    .orderBy(asc(sentenceCards.due))
-    .limit(limit);
+  const now = new Date();
+  const { newRemaining, reviewRemaining } = await dailyAllowances(db, userId);
+
+  // Due review cards (already introduced): capped by maxReviewsPerDay (null =
+  // unlimited), oldest-due first.
+  const reviewCap = reviewRemaining == null ? limit : Math.min(reviewRemaining, limit);
+  const reviewRows = reviewCap > 0
+    ? await db
+        .select(QUEUE_COLUMNS)
+        .from(sentenceCards)
+        .innerJoin(subtitleLines, eq(subtitleLines.id, sentenceCards.subtitleLineId))
+        .innerJoin(videos, eq(videos.id, sentenceCards.videoId))
+        .where(and(
+          eq(sentenceCards.userId, userId),
+          lte(sentenceCards.due, now),
+          ne(sentenceCards.state, 0),
+        ))
+        .orderBy(asc(sentenceCards.due))
+        .limit(reviewCap)
+    : [];
+
+  // Due new cards, capped by the remaining daily-new allowance (null = unlimited).
+  const newCap = newRemaining == null ? limit : Math.min(newRemaining, limit);
+  const newRows = newCap > 0
+    ? await db
+        .select(QUEUE_COLUMNS)
+        .from(sentenceCards)
+        .innerJoin(subtitleLines, eq(subtitleLines.id, sentenceCards.subtitleLineId))
+        .innerJoin(videos, eq(videos.id, sentenceCards.videoId))
+        .where(and(
+          eq(sentenceCards.userId, userId),
+          lte(sentenceCards.due, now),
+          eq(sentenceCards.state, 0),
+        ))
+        .orderBy(asc(sentenceCards.due))
+        .limit(newCap)
+    : [];
+
+  // Reviews first, then the day's allowed new cards; cap the session to `limit`.
+  const rows = [...reviewRows, ...newRows].slice(0, limit);
 
   const allTokenRows: Token[] = rows
     .map((r) => (r.tokens as Token[]) ?? [])

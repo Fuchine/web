@@ -14,12 +14,15 @@ import { inArray } from "drizzle-orm";
 import { analyzeLine } from "@fuchine/nlp";
 import type { ImportJob } from "./queue";
 import { estimateLevel } from "./level";
+import { checkEmbeddable } from "./embeddable";
+import { classifyCategory } from "./category";
 
 export type Caption = { idx: number; startMs: number; endMs: number; text: string };
 
-/** Injectable seam: caption source (fallback). */
+/** Injectable seam: caption source (fallback) + embeddability probe. */
 export type ImportDeps = {
   fetchCaptions?: (sourceId: string) => Promise<Caption[]>;
+  checkEmbeddable?: (sourceId: string) => Promise<boolean | null>;
 };
 
 /**
@@ -38,6 +41,7 @@ export async function importVideo(
   deps: ImportDeps = {},
 ): Promise<void> {
   const fetchCaptions = deps.fetchCaptions ?? defaultFetchCaptions;
+  const probeEmbeddable = deps.checkEmbeddable ?? checkEmbeddable;
 
   const [video] = await db
     .select()
@@ -92,7 +96,16 @@ export async function importVideo(
 
     const levelEstimate = await estimateVideoLevel(db, exampleRows.map((r) => r.wordEntryId));
 
-    await db.update(videos).set({ status: "done", levelEstimate }).where(eq(videos.id, video.id));
+    // Probe once (skip if already known) so the library can flag dead players.
+    const embeddable =
+      video.embeddable == null ? await probeEmbeddable(video.sourceId) : video.embeddable;
+    // Best-guess category (heuristic); keep any existing one.
+    const category = video.category ?? classifyCategory(video.title, video.channel);
+
+    await db
+      .update(videos)
+      .set({ status: "done", levelEstimate, embeddable, category })
+      .where(eq(videos.id, video.id));
   } catch (err) {
     await db.update(videos).set({ status: "failed" }).where(eq(videos.id, video.id));
     throw err;

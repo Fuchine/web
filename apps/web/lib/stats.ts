@@ -1,8 +1,10 @@
 // Stats read-side aggregation (T2.x). Auth-agnostic and testable; the route adds
-// auth. Aggregates directly from the always-populated source tables
-// (review_logs, sentence_cards, videos) rather than depending on the pre-aggregated
-// user_daily_stats / user_word_stats, which have no writer during normal use yet.
-// Only watch time reads user_daily_stats (its rightful source) and degrades to 0.
+// auth. Aggregates directly from the source tables: review_logs, sentence_cards
+// and videos for review/mining activity, and user_daily_stats (written by the
+// player's progress beacon since 2026-07-04) for watch time and immersion days.
+// A day counts as "active" for streaks/heatmap on any activity — a review, a
+// mined card, OR immersion (watch time / lines seen) — so a pure-immersion day
+// (watching without reviewing), the product's core behavior, keeps the streak.
 
 import { and, count, desc, eq, gte, sql } from "drizzle-orm";
 import {
@@ -144,7 +146,22 @@ export async function getStats(db: Database, userId: string): Promise<StatsData>
   const retTotal = Number(ret?.total ?? 0);
   const retentionPct = retTotal ? Math.round((Number(ret.ok) / retTotal) * 100) : 0;
 
-  // --- Activity days for streaks: any day with a review OR a mined card. ---
+  // --- Daily activity (watch time + immersion) from user_daily_stats, full
+  // history. A day with any watch time or lines seen is an immersion day. ---
+  const dailyRows = await db
+    .select({
+      day: userDailyStats.day,
+      ms: userDailyStats.msWatched,
+      lines: userDailyStats.linesSeen,
+    })
+    .from(userDailyStats)
+    .where(eq(userDailyStats.userId, userId));
+  const immersionDayKeys = dailyRows
+    .filter((r) => r.ms > 0 || r.lines > 0)
+    .map((r) => r.day); // stored as local YYYY-MM-DD keys
+
+  // --- Activity days for streaks: any day with a review, a mined card, OR
+  // immersion (watching without reviewing still keeps the streak). ---
   const reviewDayRows = await db
     .select({ reviewedAt: reviewLogs.reviewedAt })
     .from(reviewLogs)
@@ -156,6 +173,7 @@ export async function getStats(db: Database, userId: string): Promise<StatsData>
   const activeKeys = [
     ...reviewDayRows.map((r) => dayKey(r.reviewedAt)),
     ...cardDayRows.map((r) => dayKey(r.createdAt)),
+    ...immersionDayKeys,
   ];
   const { current: dayStreak, best: bestStreak } = computeStreaks(activeKeys);
 
@@ -170,6 +188,13 @@ export async function getStats(db: Database, userId: string): Promise<StatsData>
     const k = daysAgo(r.reviewedAt, today);
     if (k >= 0 && k < heatmapDays) perDay.set(k, (perDay.get(k) ?? 0) + 1);
   }
+  // Immersion days (watched without reviewing) show as active even with 0 reviews.
+  const immersionOffsets = new Set<number>();
+  for (const r of dailyRows) {
+    if (r.ms <= 0 && r.lines <= 0) continue;
+    const k = daysAgo(parseDayKey(r.day), today);
+    if (k >= 0 && k < heatmapDays) immersionOffsets.add(k);
+  }
   // Build columns oldest→newest; each column is a Mon→Sun week aligned to today's weekday.
   const heatmap: number[][] = [];
   const todayDow = (today.getDay() + 6) % 7; // 0 = Monday
@@ -178,7 +203,12 @@ export async function getStats(db: Database, userId: string): Promise<StatsData>
     for (let r = 0; r < 7; r++) {
       // Offset from today for cell (column c, row r), newest column on the right.
       const offset = (HEATMAP_WEEKS - 1 - c) * 7 + (todayDow - r);
-      col.push(offset < 0 ? 0 : heatLevel(perDay.get(offset) ?? 0));
+      if (offset < 0) {
+        col.push(0);
+      } else {
+        const lvl = heatLevel(perDay.get(offset) ?? 0);
+        col.push(Math.max(lvl, immersionOffsets.has(offset) ? 1 : 0));
+      }
     }
     heatmap.push(col);
   }
@@ -202,17 +232,15 @@ export async function getStats(db: Database, userId: string): Promise<StatsData>
     durationS: r.durationS,
   }));
 
-  // --- Watch time (last 7 days + total) from user_daily_stats. 0 until instrumented. ---
-  const watchRows = await db
-    .select({ day: userDailyStats.day, ms: userDailyStats.msWatched })
-    .from(userDailyStats)
-    .where(and(eq(userDailyStats.userId, userId), gte(userDailyStats.day, dayKey(since7))));
+  // --- Watch time (last 7 days) from the already-fetched daily rows. ---
   const msByDay = new Map<number, number>();
   let totalMs = 0;
-  for (const r of watchRows) {
-    totalMs += r.ms;
+  for (const r of dailyRows) {
     const k = daysAgo(parseDayKey(r.day), today);
-    if (k >= 0 && k < 7) msByDay.set(k, (msByDay.get(k) ?? 0) + r.ms);
+    if (k >= 0 && k < 7) {
+      totalMs += r.ms;
+      msByDay.set(k, (msByDay.get(k) ?? 0) + r.ms);
+    }
   }
   // Mon→Sun order for the current week's 7 columns.
   const dailyActivityMin: number[] = [];
