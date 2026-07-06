@@ -69,31 +69,40 @@ function startOfToday(now = new Date()): Date {
 }
 
 /**
- * How many new cards (state 0) the user may still introduce today, honoring the
- * `newCardsPerDay` daily goal. Returns null when no goal is set (unlimited).
- * A new card produces exactly one review_logs row with state=0 (the state
- * before its first review), so counting today's state=0 logs = introductions.
+ * Remaining daily allowances (null = unlimited / no goal set) for new-card
+ * introductions and due-card reviews, honoring `newCardsPerDay` and
+ * `maxReviewsPerDay`. A card's first review writes a review_logs row whose
+ * state is the state *before* the review: state=0 = a new introduction, state≠0
+ * = a review of an already-introduced card. Counting today's distinct cards on
+ * each side gives what's already been consumed.
  */
-async function newCardsRemainingToday(db: Database, userId: string): Promise<number | null> {
+async function dailyAllowances(
+  db: Database,
+  userId: string,
+): Promise<{ newRemaining: number | null; reviewRemaining: number | null }> {
   const [settings] = await db
     .select({ dailyGoals: userSettings.dailyGoals })
     .from(userSettings)
     .where(eq(userSettings.userId, userId))
     .limit(1);
-  const cap = settings?.dailyGoals?.newCardsPerDay;
-  if (cap == null) return null;
+  const newCap = settings?.dailyGoals?.newCardsPerDay ?? null;
+  const reviewCap = settings?.dailyGoals?.maxReviewsPerDay ?? null;
+  if (newCap == null && reviewCap == null) {
+    return { newRemaining: null, reviewRemaining: null };
+  }
 
-  const [introduced] = await db
-    .select({ n: sql<number>`count(distinct ${reviewLogs.cardId})` })
+  const [row] = await db
+    .select({
+      newIntro: sql<number>`count(distinct case when ${reviewLogs.state} = 0 then ${reviewLogs.cardId} end)`,
+      reviews: sql<number>`count(distinct case when ${reviewLogs.state} <> 0 then ${reviewLogs.cardId} end)`,
+    })
     .from(reviewLogs)
-    .where(
-      and(
-        eq(reviewLogs.userId, userId),
-        eq(reviewLogs.state, 0),
-        gte(reviewLogs.reviewedAt, startOfToday()),
-      ),
-    );
-  return Math.max(0, cap - Number(introduced?.n ?? 0));
+    .where(and(eq(reviewLogs.userId, userId), gte(reviewLogs.reviewedAt, startOfToday())));
+
+  return {
+    newRemaining: newCap == null ? null : Math.max(0, newCap - Number(row?.newIntro ?? 0)),
+    reviewRemaining: reviewCap == null ? null : Math.max(0, reviewCap - Number(row?.reviews ?? 0)),
+  };
 }
 
 const QUEUE_COLUMNS = {
@@ -111,24 +120,28 @@ const QUEUE_COLUMNS = {
 /** Cards due now for the user, with the clip + sentence and preview intervals. */
 export async function getReviewQueue(db: Database, userId: string, limit = 20) {
   const now = new Date();
-  const remaining = await newCardsRemainingToday(db, userId);
+  const { newRemaining, reviewRemaining } = await dailyAllowances(db, userId);
 
-  // Due review cards (already introduced): never throttled, oldest-due first.
-  const reviewRows = await db
-    .select(QUEUE_COLUMNS)
-    .from(sentenceCards)
-    .innerJoin(subtitleLines, eq(subtitleLines.id, sentenceCards.subtitleLineId))
-    .innerJoin(videos, eq(videos.id, sentenceCards.videoId))
-    .where(and(
-      eq(sentenceCards.userId, userId),
-      lte(sentenceCards.due, now),
-      ne(sentenceCards.state, 0),
-    ))
-    .orderBy(asc(sentenceCards.due))
-    .limit(limit);
+  // Due review cards (already introduced): capped by maxReviewsPerDay (null =
+  // unlimited), oldest-due first.
+  const reviewCap = reviewRemaining == null ? limit : Math.min(reviewRemaining, limit);
+  const reviewRows = reviewCap > 0
+    ? await db
+        .select(QUEUE_COLUMNS)
+        .from(sentenceCards)
+        .innerJoin(subtitleLines, eq(subtitleLines.id, sentenceCards.subtitleLineId))
+        .innerJoin(videos, eq(videos.id, sentenceCards.videoId))
+        .where(and(
+          eq(sentenceCards.userId, userId),
+          lte(sentenceCards.due, now),
+          ne(sentenceCards.state, 0),
+        ))
+        .orderBy(asc(sentenceCards.due))
+        .limit(reviewCap)
+    : [];
 
   // Due new cards, capped by the remaining daily-new allowance (null = unlimited).
-  const newCap = remaining == null ? limit : Math.min(remaining, limit);
+  const newCap = newRemaining == null ? limit : Math.min(newRemaining, limit);
   const newRows = newCap > 0
     ? await db
         .select(QUEUE_COLUMNS)

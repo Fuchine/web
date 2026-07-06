@@ -2,8 +2,8 @@
 
 **Date:** 2026-07-04 · **Updated:** 2026-07-05
 **Feature:** Metas diárias (Settings / Dashboard / Review)
-**Status:** PARTIAL — fila de review resolvida (2026-07-05); dashboard,
-onboarding e o campo `maxReviewsPerDay` ainda abertos
+**Status:** PARTIAL — fila de review + `maxReviewsPerDay` resolvidos
+(2026-07-05); dashboard e onboarding ainda abertos
 
 ---
 
@@ -43,13 +43,14 @@ day" em `/settings` persiste `newCardsPerDay`. Os contadores diários existem em
 - **Onboarding**: o inventário prevê metas configuráveis no onboarding; o
   fluxo atual não pergunta.
 
-### 2. Campo "Maximum reviews per day" (decisão de contrato)
+### 2. Campo "Maximum reviews per day" — ✅ FEITO 2026-07-05
 
-O segundo stepper de `/settings` ("Maximum reviews per day") segue estático:
-`DailyGoals` (packages/db/src/types.ts) só tem `newCardsPerDay`,
-`reviewMinutesPerDay`, `watchMinutesPerDay` — não há campo de cap de reviews.
-Adicionar `maxReviewsPerDay` é mudança no tipo do contrato (jsonb, sem
-migration, mas passa pela mesma disciplina de schema).
+`maxReviewsPerDay` adicionado a `DailyGoals` (`packages/db/src/types.ts`) —
+mudança só no tipo do contrato jsonb, **sem migration** (vive em
+`user_settings.daily_goals`, já sancionado). Validado em `lib/settings.ts`
+(teto 9999, testado em `settings.test.ts`), consumido em `getReviewQueue`
+(`dailyAllowances` conta reviews de hoje via `review_logs` com `state ≠ 0` e
+limita os cards due surfados), e o stepper de `/settings` agora persiste.
 
 ## Referências
 

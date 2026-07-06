@@ -13,6 +13,7 @@ export const ALLOWED_LANGUAGES = ["en", "ja", "pt", "es", "zh", "ko"] as const;
 // Per-day goal ceilings: anything above is a typo, not ambition.
 const GOAL_LIMITS: Record<keyof DailyGoals, number> = {
   newCardsPerDay: 500,
+  maxReviewsPerDay: 9999,
   reviewMinutesPerDay: 1440,
   watchMinutesPerDay: 1440,
 };

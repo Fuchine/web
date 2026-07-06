@@ -69,7 +69,7 @@ interface SettingsViewProps {
     explanationLanguage: string;
     llmProvider: string | null;
     hasApiKey: boolean;
-    dailyGoals: { newCardsPerDay?: number; reviewMinutesPerDay?: number; watchMinutesPerDay?: number } | null;
+    dailyGoals: { newCardsPerDay?: number; maxReviewsPerDay?: number; reviewMinutesPerDay?: number; watchMinutesPerDay?: number } | null;
   };
 }
 
@@ -83,6 +83,7 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
   const [keyInput, setKeyInput] = useState("");
   const [editingKey, setEditingKey] = useState(false);
   const [newCardsPerDay, setNewCardsPerDay] = useState<number>(settings.dailyGoals?.newCardsPerDay ?? 20);
+  const [maxReviewsPerDay, setMaxReviewsPerDay] = useState<number>(settings.dailyGoals?.maxReviewsPerDay ?? 200);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -324,8 +325,18 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
             }}
           />
         </Row>
-        <Row title="Maximum reviews per day" desc="Cap on cards due in a single session." last>
-          <Stepper value={200} />
+        <Row title="Maximum reviews per day" desc="Cap on due cards surfaced per day." last>
+          <Stepper
+            value={maxReviewsPerDay}
+            min={1}
+            max={9999}
+            step={10}
+            disabled={saving}
+            onChange={(v) => {
+              setMaxReviewsPerDay(v);
+              void save({ dailyGoals: { maxReviewsPerDay: v } });
+            }}
+          />
         </Row>
       </Group>
 
