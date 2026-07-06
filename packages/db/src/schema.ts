@@ -35,6 +35,9 @@ export const contentLevel = pgEnum("content_level", [
   "advanced",
 ]);
 export const userPlan = pgEnum("user_plan", ["free", "pro"]); // only meaningful in cloud mode
+// Manual learning-status override the user sets in the dictionary. Null column =
+// no override, fall back to the mastery-derived status.
+export const wordStatus = pgEnum("word_status", ["known", "learning", "new"]);
 
 /* ------------------------------------------------------------------ */
 /* Users & settings                                                    */
@@ -386,6 +389,8 @@ export const savedWords = pgTable(
     wordEntryId: uuid("word_entry_id")
       .notNull()
       .references(() => wordEntries.id, { onDelete: "cascade" }),
+    // Manual status override; null = derive from mastery (reviews).
+    status: wordStatus("status"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.wordEntryId] })],

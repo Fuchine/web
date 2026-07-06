@@ -31,6 +31,7 @@ export async function GET() {
       pos: wordEntries.pos,
       definitions: wordEntries.definitions,
       frequencyRank: wordEntries.frequencyRank,
+      override: savedWords.status,
       reviewsOk: userWordStats.reviewsOk,
       reviewsTotal: userWordStats.reviewsTotal,
     })
@@ -56,7 +57,7 @@ export async function GET() {
       r: r.reading,
       pos: r.pos,
       def: firstGloss(r.definitions as { glosses: string[] }[]),
-      status: computeStatus(m),
+      status: r.override ?? computeStatus(m),
       freq: freqTier(r.frequencyRank),
       m,
     };

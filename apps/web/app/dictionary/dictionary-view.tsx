@@ -493,11 +493,14 @@ export function DictionaryView() {
     return () => { if (toastTimer.current) clearTimeout(toastTimer.current); };
   }, [toast]);
 
-  // Fetch saved word IDs (used in both modes)
+  // Fetch saved word IDs + manual status overrides (used in both modes)
   useEffect(() => {
     fetch("/api/dictionary/saved")
-      .then((r) => (r.ok ? r.json() : { ids: [] }))
-      .then((d) => setSavedSet(new Set(d.ids ?? [])))
+      .then((r) => (r.ok ? r.json() : { ids: [], statuses: {} }))
+      .then((d) => {
+        setSavedSet(new Set(d.ids ?? []));
+        if (d.statuses) setStatusMap(d.statuses as Record<string, string>);
+      })
       .catch(() => {});
   }, []);
 
@@ -677,8 +680,14 @@ export function DictionaryView() {
   const selIdx = selItem ? (source as any[]).indexOf(selItem) + 1 : 0;
 
   const setStatus = (id: string, s: string) => {
-    setStatusMap((m) => ({ ...m, [id]: s }));
+    setStatusMap((m) => ({ ...m, [id]: s })); // optimistic
+    setSavedSet((prev) => (prev.has(id) ? prev : new Set(prev).add(id))); // setting a status saves it
     setToast(s === "known" ? "Marked as known" : s === "learning" ? "Added to Learning" : "Marked as new");
+    fetch(`/api/dictionary/${id}/saved`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: s }),
+    }).catch(() => {});
   };
 
   // Coverage segment colors (inline because of oklch values not mappable to Tailwind tokens)

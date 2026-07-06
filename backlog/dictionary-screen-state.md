@@ -12,8 +12,13 @@
 
 ## Problemas conhecidos
 
-### 1. Status override não é persistente
-O `statusMap` é `useState` local — muda a badge e o detail na hora, mas some ao recarregar a página. Não tem endpoint de PATCH nem coluna no schema (`saved_words` não tem `status`).
+### 1. Status override não é persistente — ✅ CORRIGIDO (2026-07-05)
+~~O `statusMap` era `useState` local e sumia no reload.~~ Adicionada a coluna
+`saved_words.status` (enum `word_status`, nullable = usa o status derivado de
+mastery), migration `0008`. Novo `PATCH /api/dictionary/[id]/saved` com
+`{status}` (`setWordStatus` faz upsert — marcar status salva a palavra).
+`GET /api/dictionary/saved` devolve `statuses` e a view hidrata o `statusMap`;
+`/collection` aplica o override (`r.override ?? computeStatus(m)`).
 
 ### 2. Grammar tab nunca retorna resultados — ✅ CORRIGIDO (antes de 2026-07-05)
 ~~O endpoint filtrava por nomes em inglês (`"Particle"`, `"Auxiliary"`…) que nunca batiam com as tags JMdict reais.~~ O código atual usa `grammarPosCondition` (`lib/dictionary-utils.ts`), que compara `string_to_array(pos, ',')` contra tags JMdict reais (`GRAMMAR_POS = aux, aux-adj, aux-v, conj, cop, prt, pref, suf, ctr`). Como `word_entries.pos` é gravado como CSV dessas tags (`seed/mapper.ts`: `pos.join(",")`), a query agora casa. O mesmo `grammarPosCondition` alimenta o `grammar=true` da browse. **Verificar em runtime com o banco seedado** (não coberto por teste com DB aqui).
