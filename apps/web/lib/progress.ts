@@ -5,6 +5,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   type Database,
+  type DbOrTx,
   type Token,
   subtitleLines,
   userDailyStats,
@@ -73,7 +74,7 @@ export function countWordOccurrences(tokenLists: Token[][]): Map<string, number>
 
 /** Increment today's row in user_daily_stats (one row per user per day). */
 export async function bumpDailyStats(
-  db: Database,
+  db: DbOrTx,
   userId: string,
   bump: { msWatched?: number; linesSeen?: number; cardsCreated?: number; reviewsDone?: number },
 ): Promise<void> {
@@ -119,7 +120,7 @@ export async function bumpWordViews(
 
 /** Count a review against every dictionary word in the reviewed sentence. */
 export async function bumpWordReviews(
-  db: Database,
+  db: DbOrTx,
   userId: string,
   wordEntryIds: string[],
   ok: boolean,

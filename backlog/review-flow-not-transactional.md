@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Review / SRS (F1, T1.7)
-**Status:** OPEN
+**Status:** DONE (2026-07-06)
 
 ---
 
@@ -28,6 +28,27 @@ de revisão.
 2. Cortar round trips: buscar os `tokens` da linha no mesmo select inicial do
    card (join com `subtitle_lines`), eliminando o select posterior.
 3. Mesmo tratamento em `mineSentence` (transação card + daily stats).
+
+## Resolução (2026-07-06)
+
+Em `apps/web/lib/cards.ts`:
+
+1. `reviewCardById`: o `update` do card + `insert` do `review_logs` +
+   `bumpDailyStats` + `bumpWordReviews` agora rodam dentro de um
+   `db.transaction(...)` — card reagendado nunca fica sem log (D6) nem sem os
+   contadores de stats.
+2. Round trip cortado: os `tokens` da linha vêm no **mesmo select inicial** do
+   card (`leftJoin subtitle_lines`), eliminando o select posterior.
+3. `mineSentence`: `insert` do card + `bumpDailyStats` também numa transação.
+
+Suporte de tipo: `@fuchine/db` passou a exportar `Transaction` e `DbOrTx`
+(derivados do handle do próprio Drizzle); `bumpDailyStats`/`bumpWordReviews`
+aceitam `DbOrTx`, então rodam tanto standalone quanto dentro da transação do
+chamador. Primeiro uso de transação no repo.
+
+Verificado: `pnpm typecheck` (8/8) + `pnpm test` verdes. Os caminhos de
+mineração/review de ponta a ponta (`scripts/e2e-*.ts`) exigem Postgres e não
+foram rodados aqui.
 
 ## Esforço / prioridade
 
