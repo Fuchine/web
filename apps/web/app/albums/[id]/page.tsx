@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getAlbumDetail, listAlbumsForView } from "@/lib/albums";
 import { getComprehensionByVideo } from "@/lib/study";
-import { getReviewQueue } from "@/lib/cards";
+import { countDueCards } from "@/lib/cards";
 import { AlbumDetailView, type AlbumDetailData } from "./album-detail-view";
 
 export default async function AlbumDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -15,10 +15,10 @@ export default async function AlbumDetailPage({ params }: { params: Promise<{ id
   const detail = await getAlbumDetail(db, userId, id);
   if (!detail) notFound();
 
-  const [comprehension, forView, queue] = await Promise.all([
-    getComprehensionByVideo(db, userId),
+  const [comprehension, forView, reviewDue] = await Promise.all([
+    getComprehensionByVideo(db, userId, detail.videos.map((v) => v.id)),
     listAlbumsForView(db, userId),
-    getReviewQueue(db, userId),
+    countDueCards(db, userId),
   ]);
   const stats = forView.find((a) => a.id === id);
 
@@ -43,7 +43,7 @@ export default async function AlbumDetailPage({ params }: { params: Promise<{ id
     <AlbumDetailView
       album={album}
       account={{ name: session.user.name ?? session.user.email ?? "You", sub: session.user.email ?? undefined }}
-      reviewDue={queue.length}
+      reviewDue={reviewDue}
     />
   );
 }

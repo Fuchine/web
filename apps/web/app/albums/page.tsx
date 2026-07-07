@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { listAlbumsForView } from "@/lib/albums";
 import { listVideos } from "@/lib/study";
-import { getReviewQueue } from "@/lib/cards";
+import { countDueCards } from "@/lib/cards";
 import { AlbumsView, type AlbumCardData, type PickerVideo } from "./albums-view";
 
 export default async function AlbumsPage() {
@@ -11,10 +11,10 @@ export default async function AlbumsPage() {
   if (!session?.user?.id) redirect("/login");
   const userId = session.user.id;
 
-  const [albums, videoRows, queue] = await Promise.all([
+  const [albums, videoRows, reviewDue] = await Promise.all([
     listAlbumsForView(db, userId),
     listVideos(db),
-    getReviewQueue(db, userId),
+    countDueCards(db, userId),
   ]);
 
   const libraryVideos: PickerVideo[] = videoRows.map((v) => ({
@@ -29,7 +29,7 @@ export default async function AlbumsPage() {
       albums={albums as AlbumCardData[]}
       libraryVideos={libraryVideos}
       account={{ name: session.user.name ?? session.user.email ?? "You", sub: session.user.email ?? undefined }}
-      reviewDue={queue.length}
+      reviewDue={reviewDue}
     />
   );
 }

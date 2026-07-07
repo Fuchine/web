@@ -111,7 +111,7 @@ async function main() {
 
   // --- 6. Round-trip: mined card shows up in the review queue ---
   console.log("6. Review queue round-trip");
-  const queue = await getReviewQueue(db, user.id);
+  const { cards: queue } = await getReviewQueue(db, user.id);
   check("two cards now due", queue.length === 2, queue.length);
   const listening = queue.find((q) => q.cardType === "listening");
   check("queue carries the sentence text", listening?.sentence.text === "猫が好き", listening?.sentence.text);
@@ -130,7 +130,7 @@ async function main() {
   const newDue = new Date(reviewed.body.due as string);
   check("due pushed into the future", newDue.getTime() > Date.now(), newDue.toISOString());
 
-  const afterQueue = await getReviewQueue(db, user.id);
+  const { cards: afterQueue } = await getReviewQueue(db, user.id);
   check("reviewed card left the due queue", afterQueue.find((q) => q.cardId === before.cardId) === undefined, afterQueue.map((q) => q.cardType));
 
   // --- 8. Invalid grade rejected ---
