@@ -34,6 +34,23 @@ export async function listVideos(db: Database) {
     .orderBy(desc(videos.createdAt));
 }
 
+/** Dashboard "Continue watching": the newest video only, without the line-count join. */
+export async function getLatestVideo(db: Database) {
+  const [row] = await db
+    .select({
+      id: videos.id,
+      title: videos.title,
+      channel: videos.channel,
+      source: videos.source,
+      sourceId: videos.sourceId,
+      durationS: videos.durationS,
+    })
+    .from(videos)
+    .orderBy(desc(videos.createdAt))
+    .limit(1);
+  return row ?? null;
+}
+
 // "Known" heuristic v1: the user answered a review containing the word
 // correctly at least once, or has seen it in this many subtitle lines.
 const KNOWN_MIN_VIEWS = 5;

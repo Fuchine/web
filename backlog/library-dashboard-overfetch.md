@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Biblioteca / Dashboard (F1)
-**Status:** OPEN
+**Status:** PARTIAL (partes 1 e 2 feitas em 2026-07-06; parte 3 aberta)
 
 ---
 
@@ -36,6 +36,19 @@ do catálogo, em toda navegação, para dados que cabem em 3 queries baratas.
 3. Extrair um `getLibraryKpis(db, userId)` enxuto (watch time de
    `user_daily_stats`, wordsKnown por `count` de state=2, streak — junto do fix
    de [stats-unbounded-review-scan.md]) em vez de `getStats` inteiro.
+
+## Estado
+
+- **Parte 1 (feita).** `countDueCards(db, userId)` em `lib/cards.ts` — `count(*)`
+  coberto por `sentence_cards_user_due_idx`, substitui `getReviewQueue().length`
+  no badge do dashboard (`app/page.tsx`) e da biblioteca (`app/library/page.tsx`).
+  **Nota de semântica:** o badge agora mostra o backlog real de cards vencidos,
+  não o comprimento da fila da sessão (que era capado em 20 e por metas diárias).
+- **Parte 2 (feita).** `getLatestVideo(db)` em `lib/study.ts` — `LIMIT 1` sem o
+  join de contagem; o dashboard não usa mais `listVideos` só para `rows[0]`.
+- **Parte 3 (aberta).** `getLibraryKpis` enxuto em vez de `getStats` inteiro na
+  biblioteca. Acoplada a [stats-unbounded-review-scan.md] (o scan sem limite de
+  `review_logs` que o `getStats` faz) — fazer as duas juntas.
 
 ## Esforço / prioridade
 

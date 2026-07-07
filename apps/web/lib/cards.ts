@@ -1,6 +1,6 @@
 // Mining + SRS review (F1, T1.6/T1.7). Auth-agnostic and testable.
 
-import { and, asc, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
+import { and, asc, count, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import { type Database, sentenceCards, subtitleLines, videos, reviewLogs, wordEntries, userSettings, type Token, type Definition } from "@fuchine/db";
 import { newCardState, reviewCard, previewIntervals, type CardState, type ReviewGrade } from "@fuchine/core";
 import { bumpDailyStats, bumpWordReviews } from "./progress";
@@ -116,6 +116,20 @@ const QUEUE_COLUMNS = {
   source: videos.source, sourceId: videos.sourceId,
   tokens: subtitleLines.tokens,
 } as const;
+
+/**
+ * Count of cards due now (new + review) for the user — for the sidebar
+ * "review due" badge. Covered by `sentence_cards_user_due_idx`; avoids building
+ * the full queue (joins + word_entries) just to read `.length`. Note this is the
+ * true due backlog, not the per-session/daily-capped queue length.
+ */
+export async function countDueCards(db: Database, userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(sentenceCards)
+    .where(and(eq(sentenceCards.userId, userId), lte(sentenceCards.due, new Date())));
+  return Number(row?.n ?? 0);
+}
 
 /** Cards due now for the user, with the clip + sentence and preview intervals. */
 export async function getReviewQueue(db: Database, userId: string, limit = 20) {
