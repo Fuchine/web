@@ -146,35 +146,27 @@ export async function getStats(db: Database, userId: string): Promise<StatsData>
   const retTotal = Number(ret?.total ?? 0);
   const retentionPct = retTotal ? Math.round((Number(ret.ok) / retTotal) * 100) : 0;
 
-  // --- Daily activity (watch time + immersion) from user_daily_stats, full
-  // history. A day with any watch time or lines seen is an immersion day. ---
+  // --- Daily activity from user_daily_stats — one row per active day (PK
+  // (user_id, day)), full history but O(active days), not O(review history).
+  // Every kind of activity (review, mining, watch time, lines seen) is bumped
+  // here by the writers, so this single query is the source of truth for both
+  // immersion and streaks — no unbounded scan of review_logs/sentence_cards. ---
   const dailyRows = await db
     .select({
       day: userDailyStats.day,
       ms: userDailyStats.msWatched,
       lines: userDailyStats.linesSeen,
+      cards: userDailyStats.cardsCreated,
+      reviews: userDailyStats.reviewsDone,
     })
     .from(userDailyStats)
     .where(eq(userDailyStats.userId, userId));
-  const immersionDayKeys = dailyRows
-    .filter((r) => r.ms > 0 || r.lines > 0)
-    .map((r) => r.day); // stored as local YYYY-MM-DD keys
 
-  // --- Activity days for streaks: any day with a review, a mined card, OR
-  // immersion (watching without reviewing still keeps the streak). ---
-  const reviewDayRows = await db
-    .select({ reviewedAt: reviewLogs.reviewedAt })
-    .from(reviewLogs)
-    .where(eq(reviewLogs.userId, userId));
-  const cardDayRows = await db
-    .select({ createdAt: sentenceCards.createdAt })
-    .from(sentenceCards)
-    .where(eq(sentenceCards.userId, userId));
-  const activeKeys = [
-    ...reviewDayRows.map((r) => dayKey(r.reviewedAt)),
-    ...cardDayRows.map((r) => dayKey(r.createdAt)),
-    ...immersionDayKeys,
-  ];
+  // Active days for streaks: any day with a review, a mined card, OR immersion
+  // (watching without reviewing still keeps the streak). All recorded per day.
+  const activeKeys = dailyRows
+    .filter((r) => r.ms > 0 || r.lines > 0 || r.cards > 0 || r.reviews > 0)
+    .map((r) => r.day); // stored as local YYYY-MM-DD keys
   const { current: dayStreak, best: bestStreak } = computeStreaks(activeKeys);
 
   // --- Review heatmap: reviews per calendar day over the last HEATMAP_WEEKS weeks. ---
@@ -188,10 +180,11 @@ export async function getStats(db: Database, userId: string): Promise<StatsData>
     const k = daysAgo(r.reviewedAt, today);
     if (k >= 0 && k < heatmapDays) perDay.set(k, (perDay.get(k) ?? 0) + 1);
   }
-  // Immersion days (watched without reviewing) show as active even with 0 reviews.
+  // Active-but-no-review days (immersion or pure mining) show at level 1, so the
+  // heatmap floor matches the streak's definition of an active day.
   const immersionOffsets = new Set<number>();
   for (const r of dailyRows) {
-    if (r.ms <= 0 && r.lines <= 0) continue;
+    if (r.ms <= 0 && r.lines <= 0 && r.cards <= 0 && r.reviews <= 0) continue;
     const k = daysAgo(parseDayKey(r.day), today);
     if (k >= 0 && k < heatmapDays) immersionOffsets.add(k);
   }

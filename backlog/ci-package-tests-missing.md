@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** DX / CI
-**Status:** OPEN
+**Status:** DONE (2026-07-06)
 
 ---
 
@@ -26,6 +26,15 @@ não.
 Trocar o step por `pnpm -r --if-present exec vitest run` (ou definir a task
 `test` no `turbo.json` com cache e rodar `pnpm turbo test`). Custo de CI:
 segundos.
+
+## Resolução (2026-07-06)
+
+Task `test` adicionada ao `turbo.json` (`"test": {}`) + script `test`
+(`turbo run test`) no `package.json` raiz; o step de CI virou `pnpm test`.
+Turbo roda o `test` só nos pacotes que definem o script (web, worker, llm, db,
+ui) e pula os sem (core, nlp, jobs). Verificado local: **5 pacotes, 180 testes,
+todos verdes, sem infra externa** — inclui o `openai-compatible.test.ts`
+(alinhamento 1:1 do CONTRATO §3.2), antes fora do CI.
 
 ## Esforço / prioridade
 

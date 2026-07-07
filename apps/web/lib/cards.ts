@@ -1,6 +1,6 @@
 // Mining + SRS review (F1, T1.6/T1.7). Auth-agnostic and testable.
 
-import { and, asc, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
+import { and, asc, count, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import { type Database, sentenceCards, subtitleLines, videos, reviewLogs, wordEntries, userSettings, type Token, type Definition } from "@fuchine/db";
 import { newCardState, reviewCard, previewIntervals, type CardState, type ReviewGrade } from "@fuchine/core";
 import { bumpDailyStats, bumpWordReviews } from "./progress";
@@ -35,18 +35,23 @@ export async function mineSentence(
   if (!line) return { status: 404, body: { error: "subtitle line not found" } };
 
   const init = newCardState();
-  const inserted = await db
-    .insert(sentenceCards)
-    .values({
-      userId, subtitleLineId: line.id, videoId: line.videoId, cardType, notes: body.notes ?? null,
-      stability: init.stability, difficulty: init.difficulty, due: init.due, state: init.state,
-      reps: init.reps, lapses: init.lapses, elapsedDays: init.elapsedDays, scheduledDays: init.scheduledDays,
-    })
-    .onConflictDoNothing()
-    .returning();
+  // Insert the card and bump the daily counter atomically: a card without its
+  // cards_created bump (or vice-versa) would skew streaks/stats.
+  const inserted = await db.transaction(async (tx) => {
+    const ins = await tx
+      .insert(sentenceCards)
+      .values({
+        userId, subtitleLineId: line.id, videoId: line.videoId, cardType, notes: body.notes ?? null,
+        stability: init.stability, difficulty: init.difficulty, due: init.due, state: init.state,
+        reps: init.reps, lapses: init.lapses, elapsedDays: init.elapsedDays, scheduledDays: init.scheduledDays,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (ins.length > 0) await bumpDailyStats(tx, userId, { cardsCreated: 1 });
+    return ins;
+  });
 
   if (inserted.length > 0) {
-    await bumpDailyStats(db, userId, { cardsCreated: 1 });
     return { status: 201, body: { card: inserted[0], created: true } };
   }
 
@@ -116,6 +121,20 @@ const QUEUE_COLUMNS = {
   source: videos.source, sourceId: videos.sourceId,
   tokens: subtitleLines.tokens,
 } as const;
+
+/**
+ * Count of cards due now (new + review) for the user — for the sidebar
+ * "review due" badge. Covered by `sentence_cards_user_due_idx`; avoids building
+ * the full queue (joins + word_entries) just to read `.length`. Note this is the
+ * true due backlog, not the per-session/daily-capped queue length.
+ */
+export async function countDueCards(db: Database, userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(sentenceCards)
+    .where(and(eq(sentenceCards.userId, userId), lte(sentenceCards.due, new Date())));
+  return Number(row?.n ?? 0);
+}
 
 /** Cards due now for the user, with the clip + sentence and preview intervals. */
 export async function getReviewQueue(db: Database, userId: string, limit = 20) {
@@ -204,42 +223,45 @@ export async function reviewCardById(
     return { status: 400, body: { error: "grade must be 1 (Again), 2 (Hard), 3 (Good), or 4 (Easy)" } };
   }
 
-  const [card] = await db
-    .select()
+  // Fetch the card and the reviewed line's tokens in one round trip (join),
+  // so the per-word stats don't need a second select after the update.
+  const [row] = await db
+    .select({ card: sentenceCards, tokens: subtitleLines.tokens })
     .from(sentenceCards)
+    .leftJoin(subtitleLines, eq(subtitleLines.id, sentenceCards.subtitleLineId))
     .where(and(eq(sentenceCards.id, cardId), eq(sentenceCards.userId, userId)))
     .limit(1);
-  if (!card) return { status: 404, body: { error: "card not found" } };
+  if (!row) return { status: 404, body: { error: "card not found" } };
+  const card = row.card;
 
   const now = new Date();
   const { card: next, log } = reviewCard(stateOf(card), grade as ReviewGrade, now);
-
-  await db
-    .update(sentenceCards)
-    .set({
-      stability: next.stability, difficulty: next.difficulty, due: next.due, lastReview: now,
-      state: next.state, reps: next.reps, lapses: next.lapses,
-      elapsedDays: next.elapsedDays, scheduledDays: next.scheduledDays,
-    })
-    .where(eq(sentenceCards.id, cardId));
-
-  await db.insert(reviewLogs).values({
-    cardId, userId, grade: log.grade, state: log.state, due: log.due,
-    stability: log.stability, difficulty: log.difficulty,
-    elapsedDays: log.elapsedDays, lastElapsedDays: log.lastElapsedDays, scheduledDays: log.scheduledDays,
-  });
-
-  // Feed the stats read-sides: daily streaks/heatmap + per-word review counts.
-  await bumpDailyStats(db, userId, { reviewsDone: 1 });
-  const [line] = await db
-    .select({ tokens: subtitleLines.tokens })
-    .from(subtitleLines)
-    .where(eq(subtitleLines.id, card.subtitleLineId))
-    .limit(1);
-  const wordIds = ((line?.tokens as Token[]) ?? [])
+  const wordIds = ((row.tokens as Token[]) ?? [])
     .map((t) => t.wordEntryId)
     .filter((id): id is string => !!id);
-  await bumpWordReviews(db, userId, wordIds, grade >= 3);
+
+  // Reschedule, log, and feed the stats read-sides atomically: the review log is
+  // the declared basis for re-optimizing FSRS params (D6), so a rescheduled card
+  // must never be left without its log (or the stats bumps).
+  await db.transaction(async (tx) => {
+    await tx
+      .update(sentenceCards)
+      .set({
+        stability: next.stability, difficulty: next.difficulty, due: next.due, lastReview: now,
+        state: next.state, reps: next.reps, lapses: next.lapses,
+        elapsedDays: next.elapsedDays, scheduledDays: next.scheduledDays,
+      })
+      .where(eq(sentenceCards.id, cardId));
+
+    await tx.insert(reviewLogs).values({
+      cardId, userId, grade: log.grade, state: log.state, due: log.due,
+      stability: log.stability, difficulty: log.difficulty,
+      elapsedDays: log.elapsedDays, lastElapsedDays: log.lastElapsedDays, scheduledDays: log.scheduledDays,
+    });
+
+    await bumpDailyStats(tx, userId, { reviewsDone: 1 });
+    await bumpWordReviews(tx, userId, wordIds, grade >= 3);
+  });
 
   return { status: 200, body: { cardId, due: next.due, state: next.state, reps: next.reps } };
 }

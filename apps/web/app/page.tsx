@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { listVideos } from "@/lib/study";
-import { getReviewQueue } from "@/lib/cards";
+import { getLatestVideo } from "@/lib/study";
+import { countDueCards } from "@/lib/cards";
 import { isOnboardingDone } from "@/lib/settings";
 import { DashboardView } from "./dashboard-view";
 
@@ -12,14 +12,12 @@ export default async function DashboardPage() {
 
   const userId = session.user.id;
 
-  const [done, rows, queue] = await Promise.all([
+  const [done, mostRecent, reviewDue] = await Promise.all([
     isOnboardingDone(db, userId),
-    listVideos(db),
-    getReviewQueue(db, userId),
+    getLatestVideo(db),
+    countDueCards(db, userId),
   ]);
   if (!done) redirect("/onboarding");
-
-  const mostRecent = rows[0] ?? null;
 
   return (
     <DashboardView
@@ -27,7 +25,7 @@ export default async function DashboardPage() {
         name: session.user.name ?? session.user.email ?? "You",
         sub: session.user.email ?? undefined,
       }}
-      reviewDue={queue.length}
+      reviewDue={reviewDue}
       continueVideo={
         mostRecent
           ? {

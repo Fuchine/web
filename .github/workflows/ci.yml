@@ -28,8 +28,8 @@ jobs:
       - name: Typecheck (all packages)
         run: pnpm typecheck
 
-      - name: Unit tests
-        run: pnpm --filter @fuchine/web exec vitest run
+      - name: Unit tests (all packages)
+        run: pnpm test
 
       - name: Build (web)
         run: pnpm build

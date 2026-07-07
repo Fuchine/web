@@ -13,6 +13,8 @@ export interface PlayerControlBarProps {
   playbackRate: PlaybackRate;
   loopLine: boolean;
   showTranslation: boolean;
+  /** Background MT pump breaker is open — surface it on the translation toggle. */
+  translationsUnavailable?: boolean;
   showRomaji: boolean;
   /** Disabled when no IFrame is ready. */
   disabled?: boolean;
@@ -89,6 +91,7 @@ export function PlayerControlBar({
   playbackRate,
   loopLine,
   showTranslation,
+  translationsUnavailable,
   showRomaji,
   disabled,
   onPlayPause,
@@ -184,7 +187,7 @@ export function PlayerControlBar({
           disabled={disabled}
           aria-label="Toggle translation"
           aria-pressed={showTranslation}
-          title="Translation"
+          title={translationsUnavailable ? "Translations are temporarily unavailable — Japanese only for now." : "Translation"}
         >
           {Icon.cc}
         </button>

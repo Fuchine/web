@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Stats (T2.x)
-**Status:** OPEN
+**Status:** DONE (2026-07-06)
 
 ---
 
@@ -59,3 +59,21 @@ A proposta fica mais simples do que a original: como `reviews_done` e
 queries unbounded podem ser removidas. Ressalva: dias de review anteriores aos
 writers (antes de 2026-07-04) não existem em `user_daily_stats`; um backfill
 único a partir de `review_logs` preserva os streaks históricos.
+
+## Resolução (2026-07-06)
+
+- `getStats` (`lib/stats.ts`): removidos os dois scans O(histórico)
+  (`review_logs` + `sentence_cards`). `dailyRows` agora traz também
+  `cards_created`/`reviews_done`, e os dias ativos do streak saem **só** de
+  `user_daily_stats` (`ms>0 || lines>0 || cards>0 || reviews>0`). O overlay de
+  imersão do heatmap passou a usar o mesmo critério (consistência streak↔heatmap;
+  dia só de mineração agora aparece com nível ≥1). Nenhuma query nova por request.
+- Backfill histórico: `apps/worker/src/scripts/backfill-daily-stats.ts`
+  (`pnpm --filter @fuchine/worker backfill:daily-stats`). Idempotente e
+  auto-reconciliador — recomputa `reviews_done`/`cards_created` por (usuário, dia
+  local) a partir das tabelas-fonte e faz upsert, **sem tocar** em
+  `ms_watched`/`lines_seen` (só-beacon). Bucketa por dia no fuso local do
+  processo (espelha o `dayKey` do web) — rodar no mesmo TZ do app.
+
+Verificado: `pnpm typecheck` (8/8) + `pnpm test` (120 web incl. `stats.test.ts`)
+verdes. O backfill em si depende de banco (não rodado aqui).

@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Player (F1) — tradução em background
-**Status:** OPEN (pendência conhecida desde 2026-07-04)
+**Status:** DONE (2026-07-06; pendência conhecida desde 2026-07-04)
 
 ---
 
@@ -34,6 +34,27 @@ No pump (client, `Player.tsx`):
 
 UI string quando o breaker abrir (tooltip no toggle de tradução):
 "Translations are temporarily unavailable — Japanese only for now."
+
+## Resolução (2026-07-06)
+
+Tudo em `packages/ui/src/components/Player/Player.tsx`:
+
+1. `fetchChunk` agora retorna `Promise<boolean> | null` — `true` sucesso,
+   `false` falha, `null` pulado (já feito / em voo).
+2. Pump com **backoff** (`PUMP_BACKOFFS_MS = [1000, 4000, 15000]`) entre falhas
+   consecutivas e **circuit breaker** (`PUMP_BREAKER_THRESHOLD = 3`): ao atingir
+   3 falhas seguidas, `translationsSuspended = true` e o pump para a sessão. O
+   `sleep` do backoff é cancelável no cleanup do efeito (não vaza timer).
+3. O efeito focal (chunk atual sob demanda) **re-arma** o breaker: um fetch focal
+   com sucesso zera `pumpFailuresRef` e fecha o breaker, e o pump (que agora
+   depende de `translationsSuspended`) reinicia do chunk atual.
+4. Tooltip no toggle de tradução (control bar + transcript) quando o breaker
+   abre: "Translations are temporarily unavailable — Japanese only for now."
+   (prop opcional `translationsUnavailable`).
+
+Verificado: `pnpm typecheck` (8/8) e `pnpm test` (5 pacotes) verdes. O caminho
+de falha em si não foi exercido em browser ao vivo (exigiria derrubar o provider
+MT sob instrumentação); a lógica de breaker/backoff/re-arme foi revisada.
 
 ## Esforço / prioridade
 
