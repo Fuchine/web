@@ -23,6 +23,8 @@ export interface PlayerTranscriptProps {
   currentLineIdx: number;
   showTranslation: boolean;
   showFurigana: boolean;
+  /** Background MT pump breaker is open — surface it on the translation toggle. */
+  translationsUnavailable?: boolean;
   onLineClick: (lineIdx: number) => void;
   onToggleTranslation: () => void;
   onToggleFurigana: () => void;
@@ -73,6 +75,7 @@ export function PlayerTranscript({
   currentLineIdx,
   showTranslation,
   showFurigana,
+  translationsUnavailable,
   onLineClick,
   onToggleTranslation,
   onToggleFurigana,
@@ -101,7 +104,7 @@ export function PlayerTranscript({
             onClick={onToggleTranslation}
             aria-label="Show translation"
             aria-pressed={showTranslation}
-            title="Translation"
+            title={translationsUnavailable ? "Translations are temporarily unavailable — Japanese only for now." : "Translation"}
           >
             <TextIcon />
           </button>

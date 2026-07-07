@@ -78,6 +78,10 @@ const CLICK_GRACE_MS = 600;
 const PREFETCH_AHEAD = 6;
 const PREFETCH_CONCURRENCY = 3;
 const PREFETCH_WAIT_MS = 30_000;
+// Background translation pump: wait between consecutive failures, then open the
+// circuit breaker so a downed MT provider isn't hammered chunk-by-chunk.
+const PUMP_BACKOFFS_MS = [1000, 4000, 15000];
+const PUMP_BREAKER_THRESHOLD = 3;
 
 function toFocal(
   line: PlayerSubtitleLine | undefined,
@@ -146,6 +150,10 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   );
   const doneChunksRef = useRef<Set<number>>(new Set(translatedChunks ?? []));
   const inFlightChunksRef = useRef<Set<number>>(new Set());
+  // Background-pump circuit breaker: consecutive failures, and whether the pump
+  // is suspended for the session (re-armed when a focal fetch succeeds again).
+  const pumpFailuresRef = useRef(0);
+  const [translationsSuspended, setTranslationsSuspended] = useState(false);
   const pendingExplainRef = useRef<Map<string, Promise<Explanation>>>(new Map());
   // Lines whose explanation failed. Not retried automatically (that would spin
   // the prefetch pump); a manual regenerate clears the mark. Resets on reload.
@@ -286,10 +294,11 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   }, [lines.length]);
 
   // One chunk fetch, shared by the focal effect and the background pump. The
-  // done/in-flight refs make the two dedupe against each other; failures are
-  // swallowed (degrade: keep JP only; a later trigger may retry the chunk).
+  // done/in-flight refs make the two dedupe against each other. Returns whether
+  // the fetch succeeded (true) or failed (false) so the pump can back off; null
+  // means "skipped" (already done or in flight). Failures degrade: keep JP only.
   const fetchChunk = useCallback(
-    (c: number): Promise<void> | null => {
+    (c: number): Promise<boolean> | null => {
       if (!onFetchChunk || doneChunksRef.current.has(c) || inFlightChunksRef.current.has(c)) return null;
       inFlightChunksRef.current.add(c);
       return onFetchChunk(c)
@@ -300,10 +309,9 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
             return next;
           });
           doneChunksRef.current.add(c);
+          return true;
         })
-        .catch(() => {
-          /* degrade: keep JP only */
-        })
+        .catch(() => false)
         .finally(() => {
           inFlightChunksRef.current.delete(c);
         });
@@ -321,32 +329,61 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     const base = chunkIndexForLine(cur.idx);
     for (const c of [base, base + 1]) {
       if (c < 0 || c > maxChunk) continue;
-      void fetchChunk(c);
+      // A focal fetch (user is on this chunk) succeeding means the provider is
+      // back — reset failures and re-close the breaker so the pump can resume.
+      fetchChunk(c)?.then((ok) => {
+        if (!ok) return;
+        pumpFailuresRef.current = 0;
+        setTranslationsSuspended((s) => (s ? false : s));
+      });
     }
   }, [currentLineIdx, lines, onFetchChunk, fetchChunk]);
 
   // Background pump: translate the whole video starting at the current chunk
   // (then wrapping to the start), one request in flight, so cold seeks never
-  // hit an untranslated chunk. Already-done chunks are free (marker cache);
-  // failed chunks are skipped — the focal effect retries them on demand.
+  // hit an untranslated chunk. Already-done chunks are free (marker cache).
+  // Consecutive failures back off (1s → 4s → 15s); after PUMP_BREAKER_THRESHOLD
+  // the breaker opens and the pump stops for the session — the focal effect
+  // keeps retrying the current chunk on demand and re-closes it on recovery.
   // A dep change or unmount cancels the loop; the refs make a restart cheap.
   useEffect(() => {
-    if (!onFetchChunk || lines.length === 0) return;
+    if (!onFetchChunk || lines.length === 0 || translationsSuspended) return;
     let cancelled = false;
+    let backoffTimer: number | null = null;
     const lastLine = lines[lines.length - 1] as PlayerSubtitleLine;
     const maxChunk = chunkIndexForLine(lastLine.idx);
     const cur = lines[Math.max(currentLineIdxRef.current, 0)] as PlayerSubtitleLine | undefined;
     const start = cur ? chunkIndexForLine(cur.idx) : 0;
+    const sleep = (ms: number) =>
+      new Promise<void>((resolve) => {
+        backoffTimer = window.setTimeout(() => {
+          backoffTimer = null;
+          resolve();
+        }, ms);
+      });
     void (async () => {
       for (const c of chunkPumpOrder(start, maxChunk)) {
         if (cancelled) return;
-        await fetchChunk(c);
+        const ok = await fetchChunk(c);
+        if (cancelled) return;
+        if (ok === false) {
+          const n = (pumpFailuresRef.current += 1);
+          if (n >= PUMP_BREAKER_THRESHOLD) {
+            setTranslationsSuspended(true);
+            return;
+          }
+          await sleep(PUMP_BACKOFFS_MS[Math.min(n - 1, PUMP_BACKOFFS_MS.length - 1)] ?? 1000);
+        } else if (ok === true) {
+          pumpFailuresRef.current = 0;
+        }
+        // ok === null: skipped (already done / focal in flight) — leave the count.
       }
     })();
     return () => {
       cancelled = true;
+      if (backoffTimer != null) window.clearTimeout(backoffTimer);
     };
-  }, [lines, onFetchChunk, fetchChunk]);
+  }, [lines, onFetchChunk, fetchChunk, translationsSuspended]);
 
   const seekToLine = useCallback(
     (idx: number) => {
@@ -835,6 +872,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
               onSeek,
               onToggleLoop: () => setLoopLine((v) => !v),
               onToggleTranslation: () => setShowTranslation((v) => !v),
+              translationsUnavailable: translationsSuspended,
               onToggleRomaji: () => setShowRomaji((v) => !v),
               onCycleRate,
               onVolume,
@@ -867,6 +905,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
                 currentLineIdx={currentLineIdx}
                 showTranslation={showTranslation}
                 showFurigana={showFurigana}
+                translationsUnavailable={translationsSuspended}
                 onLineClick={seekToLine}
                 onToggleTranslation={() => setShowTranslation((v) => !v)}
                 onToggleFurigana={() => setShowFurigana((v) => !v)}
