@@ -77,11 +77,19 @@ export async function importVideo(
 
     // --- Layer 0: tokenize + resolve dictionary entries (local, free). Also
     // record where each resolved word occurs, for the dictionary's "From your
-    // videos" — deduped per line; the unique index dedupes across re-runs. ---
+    // videos" — deduped per line; the unique index dedupes across re-runs.
+    //
+    // Analysis (tokenize + dictionary lookups) runs first, outside any write
+    // transaction: a per-video lookup cache means a common lemma (は, する, 私…)
+    // is resolved once for the whole video instead of once per line. Only then
+    // are the tokens flushed, batched in a single transaction rather than one
+    // autocommit UPDATE per line (backlog: import-pipeline-batching). ---
+    const cache = new Map<string, string | null>();
+    const analyzed: { id: string; tokens: Awaited<ReturnType<typeof analyzeLine>> }[] = [];
     const exampleRows: { wordEntryId: string; subtitleLineId: string; videoId: string }[] = [];
     for (const line of lines) {
-      const tokens = await analyzeLine(line.textOriginal, video.language, db);
-      await db.update(subtitleLines).set({ tokens }).where(eq(subtitleLines.id, line.id));
+      const tokens = await analyzeLine(line.textOriginal, video.language, db, cache);
+      analyzed.push({ id: line.id, tokens });
       const seen = new Set<string>();
       for (const t of tokens) {
         if (t.wordEntryId && !seen.has(t.wordEntryId)) {
@@ -90,9 +98,15 @@ export async function importVideo(
         }
       }
     }
-    if (exampleRows.length > 0) {
-      await db.insert(wordExamples).values(exampleRows).onConflictDoNothing();
-    }
+
+    await db.transaction(async (tx) => {
+      for (const a of analyzed) {
+        await tx.update(subtitleLines).set({ tokens: a.tokens }).where(eq(subtitleLines.id, a.id));
+      }
+      if (exampleRows.length > 0) {
+        await tx.insert(wordExamples).values(exampleRows).onConflictDoNothing();
+      }
+    });
 
     const levelEstimate = await estimateVideoLevel(db, exampleRows.map((r) => r.wordEntryId));
 
