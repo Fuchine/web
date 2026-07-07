@@ -35,3 +35,25 @@ lógicos:
 `@esbuild-kit/*` segue marcado como deprecated (dependência transitiva do
 drizzle-kit), mas o override força o esbuild interno para `>=0.25.0`, então não
 há aviso de segurança — só o warning de deprecação.
+
+## Verificação do banner (2026-07-06) — alertas abertos são stale
+
+Após o merge do #16, o push banner do GitHub seguiu acusando "8
+vulnerabilities (4 high, 4 moderate)". Investigado via
+`gh api repos/Fuchine/web/dependabot/alerts`:
+
+- São **4 advisories distintas contadas 2×** (uma vez no `pnpm-lock.yaml`,
+  outra no `package.json` do pacote): `vite ≤ 6.4.2` (2 advisories, dev-only,
+  específicas de Windows) e `nodemailer ≤ 9.0.0 / ≤ 8.0.7` (2 advisories,
+  produção — magic link).
+- **O repo está corrigido dos dois lados**: lockfile resolve `nodemailer@9.0.1`
+  e `vite@6.4.3`, e os ranges declarados são `^9.0.1`
+  (`apps/web/package.json:28`) e `^6.4.3` (`packages/ui/package.json:44`) —
+  fora das faixas vulneráveis.
+- Conclusão: o grafo de dependências do GitHub ainda não reprocessou o
+  lockfile do #16. **Se os alertas não fecharem sozinhos em ~1–2 dias**,
+  dispensá-los manualmente na UI com razão "A fix has already been started" /
+  "Vulnerable code is not actually used", citando esta verificação.
+
+Lição registrada: `pnpm audit` e o Dependabot usam bases de advisories
+diferentes — "audit limpo" não implica banner limpo; conferir os dois.
