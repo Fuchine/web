@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Review (F1, T1.7)
-**Status:** OPEN
+**Status:** DONE (2026-07-07)
 
 ---
 
@@ -27,6 +27,29 @@ payload de dezenas de KB para o de MB.
 Retornar `{ cards, wordEntries }` no topo (mapa único), ajustando os dois
 consumidores (rota + `review-view.tsx`) para indexar `wordEntries[id]`.
 Aproveitar para selecionar só os campos de definição que a UI usa.
+
+## Resolução (2026-07-07)
+
+`getReviewQueue` agora retorna `{ cards, wordEntries }` (mapa único no topo) em
+vez de anexar `wordEntriesMap` em cada card. A montagem virou o helper puro e
+testado `buildReviewQueuePayload(rows, entries)` em `lib/cards.ts`.
+
+Consumidores ajustados sem tocar no contrato público do `@fuchine/ui`
+(`ReviewSession`/`ReviewItem` seguem com `wordEntriesMap` por item):
+
+- `GET /api/review/queue` responde `{ cards, wordEntries }`.
+- `app/review/page.tsx` desestrutura e passa os dois; badge usa `cards.length`.
+- `app/review/review-view.tsx` (client) **re-anexa a referência compartilhada**
+  (`{ ...c, wordEntriesMap: wordEntries }`) ao montar o `ReviewItem[]` — todos os
+  cards apontam para o mesmo objeto, zero bytes duplicados no fio e nas props RSC.
+- **Bônus:** `app/albums`, `app/albums/[id]` e `app/phrases` chamavam
+  `getReviewQueue(...).length` só para o badge — trocados por `countDueCards`
+  (mesma correção de overfetch do [library-dashboard-overfetch.md], que só tinha
+  pego dashboard/biblioteca). `scripts/e2e-mine-sentence.ts` usa `.cards`.
+
+Testes novos (`lib/cards.test.ts`, 4): mapa único (sem `wordEntriesMap` por card),
+mapeamento de clip/sentence/tokens/intervals, defaults de reading/pos nulos,
+tokens nulos. `pnpm test` (137 web) + `pnpm typecheck` (8/8) verdes.
 
 ## Esforço / prioridade
 

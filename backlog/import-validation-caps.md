@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Import (API, T0.7)
-**Status:** OPEN
+**Status:** DONE (2026-07-07)
 
 ---
 
@@ -33,6 +33,32 @@ extensão (que roda na máquina do usuário — é input de usuário):
 2. Dedup atômico: `INSERT ... ON CONFLICT (source, source_id) DO NOTHING
    RETURNING`; sem linha de volta → re-select e responder como cache hit (o
    mesmo shape do caminho `existing` atual).
+
+## Resolução (2026-07-07)
+
+Em `apps/web/lib/import.ts`, extraído `validateImportRequest(req)` puro e
+testável, usado pelo `createImport`:
+
+1. **Caps.** `captions.length ≤ CAPTIONS_MAX (10_000)` → 400 com motivo. `text`
+   truncado a `TEXT_MAX (500)` por linha (degrada em vez de rejeitar o vídeo
+   inteiro por uma legenda ruim). `title` truncado a 300. `durationS` fora de
+   `[0, 43_200]` → `null` (tolerante, como hoje).
+2. **Timestamps.** `endMs < startMs` agora faz **swap** (`min`/`max`) em vez de
+   passar um span negativo; clamp `≥ 0` mantido.
+3. **Dedup atômico.** O `insert(videos)` ganhou
+   `onConflictDoNothing({ target: [videos.source, videos.sourceId] })`. Quando a
+   corrida de dois POSTs simultâneos do mesmo `sourceId` não devolve linha, faz
+   re-select e responde como **cache hit** (mesmo shape do caminho `existing`),
+   em vez do 500 não tratado. Só cai no 500 genérico se nem o re-select achar.
+
+O check de captions vazias segue **depois** do lookup de cache (re-POST de um
+vídeo já existente continua servindo o cache, não 422).
+
+Testes novos (`lib/import.test.ts`, 9): url/YouTube inválidos, cap de captions
+(no limite e acima), truncagem de texto, swap de timestamps, trim/descarte de
+vazias, defaults de idx/language, clamp de durationS. O dedup atômico depende de
+Postgres (coberto pelo E2E de import, não rodado aqui). `pnpm test` (133 web) +
+`pnpm typecheck` (8/8) verdes.
 
 ## Esforço / prioridade
 

@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Biblioteca (F1) — indicador de compreensão
-**Status:** OPEN
+**Status:** DONE (2026-07-07)
 
 ---
 
@@ -35,6 +35,27 @@ Em ordem de retorno por esforço:
 3. Se ainda pesar: cachear o resultado por usuário com TTL curto
    (`unstable_cache`/revalidate ~60s) — compreensão não muda de segundo em
    segundo.
+
+## Resolução (2026-07-07)
+
+Itens 1 e 2 feitos:
+
+1. **Índice** `word_examples (video_id, word_entry_id)`
+   (`word_examples_video_word_idx`) em `schema.ts` + migration
+   `drizzle/0012_quick_smasher.sql`. Serve o `GROUP BY video_id` +
+   `count(distinct word_entry_id)` e acelera o cascade delete por vídeo.
+   **Rodar `pnpm db:migrate` no deploy.**
+2. **Escopo por vídeos exibidos.** `getComprehensionByVideo(db, userId, videoIds?)`
+   filtra `WHERE video_id IN (...)` quando os ids são passados (array vazio ⇒
+   mapa vazio, sem query). `app/library/page.tsx` agora busca `listVideos`
+   primeiro e passa os ids (as outras 5 queries seguem em paralelo — nenhuma
+   depende da comprehension); `app/albums/[id]` escopa aos vídeos do álbum. O
+   E2E (`e2e-comprehension.ts`) usa a forma sem escopo — segue válido (param
+   opcional).
+
+Item 3 (cache com TTL) não foi necessário: índice + escopo já tiram o custo
+O(catálogo) do request. `pnpm typecheck` (8/8) verde; o ganho de plano da query
+depende de banco (não medido aqui).
 
 ## Esforço / prioridade
 

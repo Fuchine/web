@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Biblioteca / Dashboard (F1)
-**Status:** PARTIAL (partes 1 e 2 feitas em 2026-07-06; parte 3 aberta)
+**Status:** DONE (2026-07-06; partes 1 e 2 primeiro, parte 3 em 2026-07-07)
 
 ---
 
@@ -46,9 +46,18 @@ do catálogo, em toda navegação, para dados que cabem em 3 queries baratas.
   não o comprimento da fila da sessão (que era capado em 20 e por metas diárias).
 - **Parte 2 (feita).** `getLatestVideo(db)` em `lib/study.ts` — `LIMIT 1` sem o
   join de contagem; o dashboard não usa mais `listVideos` só para `rows[0]`.
-- **Parte 3 (aberta).** `getLibraryKpis` enxuto em vez de `getStats` inteiro na
-  biblioteca. Acoplada a [stats-unbounded-review-scan.md] (o scan sem limite de
-  `review_logs` que o `getStats` faz) — fazer as duas juntas.
+- **Parte 3 (feita, 2026-07-07).** `getLibraryKpis(db, userId)` em `lib/stats.ts`
+  substitui `getStats` na biblioteca (`app/library/page.tsx`). Só **2 queries**
+  (count de cards `state=2` + 1 linha por dia ativo de `user_daily_stats`) contra
+  as ~6 do `getStats` (retention, scan do heatmap em `review_logs`, join de top
+  sources, knownDelta) — nenhuma delas usada pelo StatBar. Os 3 números
+  (`watchTimeHours`, `wordsKnown`, `dayStreak`) são derivados exatamente como no
+  `getStats` (mesma definição de dia ativo, reusa `computeStreaks`), então o que
+  aparece na tela não muda. A conta de horas virou o helper puro `watchHoursLast7`
+  (testado; `getStats` também passou a reusá-lo). Depende de
+  [stats-unbounded-review-scan.md] (já feito): sem os scans O(histórico), a fonte
+  de dias ativos é `user_daily_stats`. `pnpm test` (124 web, +4) e `pnpm typecheck`
+  (8/8) verdes.
 
 ## Esforço / prioridade
 
