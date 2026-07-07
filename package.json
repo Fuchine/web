@@ -12,6 +12,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "lint": "turbo run lint",
     "db:generate": "pnpm --filter @fuchine/db generate",
     "db:migrate": "pnpm --filter @fuchine/db migrate",
