@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "backfill:explain": "tsx src/scripts/backfill-explain.ts",
-    "backfill:level": "tsx src/scripts/backfill-level.ts"
+    "backfill:level": "tsx src/scripts/backfill-level.ts",
+    "backfill:daily-stats": "tsx src/scripts/backfill-daily-stats.ts"
   },
   "dependencies": {
     "@fuchine/db": "workspace:*",
