@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { translateChunk } from "@/lib/translate";
+import { enforceRateLimit, retryAfterHeader } from "@/lib/rate-limit";
 
 // POST /api/videos/:id/translate — translate one 30-line chunk (cache-first).
 export async function POST(
@@ -19,6 +20,12 @@ export async function POST(
   if (typeof body.chunkIdx !== "number" || !Number.isInteger(body.chunkIdx) || body.chunkIdx < 0) {
     return NextResponse.json({ error: "chunkIdx (number >= 0) required" }, { status: 400 });
   }
-  const result = await translateChunk(db, id, body.chunkIdx);
-  return NextResponse.json(result.body, { status: result.status });
+  const userId = session.user.id;
+  const result = await translateChunk(db, id, body.chunkIdx, {
+    checkRateLimit: () => enforceRateLimit("translateMiss", userId),
+  });
+  return NextResponse.json(result.body, {
+    status: result.status,
+    headers: retryAfterHeader(result),
+  });
 }
