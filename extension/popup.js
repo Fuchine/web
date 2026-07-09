@@ -51,6 +51,15 @@ async function doImport() {
       return;
     }
 
+    // Request the instance host permission FIRST, before the (potentially slow)
+    // caption capture. chrome.permissions.request needs a live user gesture, and
+    // the click's transient activation can lapse across the capture awaits.
+    const base = await getBase();
+    if (!(await ensureHostPermission(base))) {
+      setStatus(`Permission to reach ${base} was denied — grant it to import there.`);
+      return;
+    }
+
     setStatus("Reading captions…");
     const [{ result } = {}] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -73,11 +82,6 @@ async function doImport() {
       return;
     }
 
-    const base = await getBase();
-    if (!(await ensureHostPermission(base))) {
-      setStatus(`Captured ${result.captions.length} lines, but permission to reach ${base} was denied. Grant it to import there.`);
-      return;
-    }
     setStatus(`Captured ${result.captions.length} lines (${result.source}). Sending to ${base}…`);
     let res;
     try {

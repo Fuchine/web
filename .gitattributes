@@ -1,0 +1,5 @@
+# Files bind-mounted into Linux containers must stay LF, so a Windows checkout
+# (core.autocrlf=true) can't ship CRLF that breaks the container's /bin/sh or
+# Caddy's config parser.
+*.sh       text eol=lf
+Caddyfile  text eol=lf

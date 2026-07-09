@@ -5,10 +5,11 @@
 //   OLD_ENCRYPTION_KEY=<old base64>  FUCHINE_ENCRYPTION_KEY=<new base64> \
 //     pnpm --filter @fuchine/worker rotate:key
 //
-// Idempotent per row within a run: each user's api_key_enc is decrypted with the
-// old key and re-encrypted with the new one inside a single transaction. If a row
-// fails to decrypt with the old key (already rotated, or corrupt), it's reported
-// and skipped rather than aborting the whole run.
+// Each user's api_key_enc is decrypted with the old key and re-encrypted with the
+// new one in a single atomic UPDATE per row (not one wrapping transaction). Safe
+// to resume: an interrupted run leaves a mix of old/new ciphertext, and a re-run
+// skips already-rotated rows (they no longer decrypt with the old key). A row that
+// fails to decrypt with the old key is reported and skipped, not fatal.
 
 import { eq, isNotNull } from "drizzle-orm";
 import { createDb, userSettings } from "@fuchine/db";

@@ -27,11 +27,16 @@ export async function register() {
   }
 
   if (missing.length > 0) {
-    throw new Error(
+    // Exit, don't just throw: Next logs a thrown error from register() but keeps
+    // the process alive serving 500s, so `restart: unless-stopped` never restarts
+    // it. A non-zero exit makes the misconfig a loud crash the operator/orchestrator
+    // can actually see and act on.
+    console.error(
       "Fuchine cannot start: missing production configuration.\n" +
         missing.map((m) => `  - ${m}`).join("\n") +
         "\nSee .env.example for every variable.",
     );
+    process.exit(1);
   }
 
   // Soft warning: `echo` is the dev default that leaves AI silently off. In

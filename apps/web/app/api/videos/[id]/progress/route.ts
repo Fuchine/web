@@ -14,9 +14,9 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // Throttle to ~1 beacon/10s per user so a scripted loop can't inflate watch
-  // time or "seen" words. Over-frequency is silently discarded (200, not 429) so
-  // a legit player (flushes every ~15s) never sees an error.
+  // Throttle bursts per user (3/15s) so a scripted loop can't inflate watch time
+  // or "seen" words, while still admitting the legit flush + on-unload beacon.
+  // Over-frequency is silently discarded (200, not 429) so the player never errors.
   const rl = await enforceRateLimit("progressBeacon", session.user.id);
   if (!rl.ok) {
     return NextResponse.json({ recorded: false, throttled: true }, { status: 200 });

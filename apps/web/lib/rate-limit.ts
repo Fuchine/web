@@ -18,8 +18,10 @@ export const RATE_LIMITS = {
   magicLink: { limit: 5, windowSeconds: 3_600 }, // per target email / IP (pre-auth)
   // Stats writers: caps fabricated watch time / clicks (backlog:
   // stats-writers-daily-caps). Denied requests return 200 + discard (not 429) so
-  // the player never breaks. The legit player flushes every ~15s.
-  progressBeacon: { limit: 1, windowSeconds: 10 }, // per user
+  // the player never breaks. The player flushes every ~15s and also sends a final
+  // beacon on unload — so allow a small burst (3/15s) to avoid dropping that
+  // legit tail, while still bounding a scripted loop to ~12/min.
+  progressBeacon: { limit: 3, windowSeconds: 15 }, // per user
   wordClick: { limit: 1, windowSeconds: 60 }, // per (user, word)
 } as const;
 
