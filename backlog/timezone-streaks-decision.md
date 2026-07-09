@@ -2,7 +2,11 @@
 
 **Date:** 2026-07-06
 **Feature:** Stats / Produção
-**Status:** OPEN — decisão pequena + código pequeno
+**Status:** RESOLVED (2026-07-09) — decision: **pin instance timezone** (option
+1). `TZ: ${TZ:-America/Sao_Paulo}` on the web and worker compose services (kept
+identical so their day buckets match); `.env.example` documents it ("defines
+'today' for streaks — set your local zone"). Verified `docker compose config`
+resolves it. Per-user timezone (option 2) stays deferred to real multi-zone use.
 
 ---
 

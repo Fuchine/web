@@ -106,6 +106,62 @@ export function heatLevel(reviews: number): number {
   return 4;
 }
 
+/** Total watch hours over the last 7 local days, from daily-stats rows (rounded to 0.1h). */
+export function watchHoursLast7(
+  dailyRows: { day: string; ms: number }[],
+  today: Date = new Date(),
+): number {
+  let totalMs = 0;
+  for (const r of dailyRows) {
+    const k = daysAgo(parseDayKey(r.day), today);
+    if (k >= 0 && k < 7) totalMs += r.ms;
+  }
+  return Math.round((totalMs / 3_600_000) * 10) / 10;
+}
+
+export interface LibraryKpis {
+  watchTimeHours: number;
+  wordsKnown: number;
+  dayStreak: number;
+}
+
+/**
+ * Lean KPIs for the library StatBar — only the 3 numbers it renders. Two cheap
+ * queries (state=2 count + one row per active day from user_daily_stats) instead
+ * of the ~6 in getStats (retention, heatmap review scan, top-sources join…),
+ * which the library was paying for on every load. See backlog:
+ * library-dashboard-overfetch (part 3).
+ */
+export async function getLibraryKpis(db: Database, userId: string): Promise<LibraryKpis> {
+  const [known] = await db
+    .select({ n: count() })
+    .from(sentenceCards)
+    .where(and(eq(sentenceCards.userId, userId), eq(sentenceCards.state, 2)));
+
+  const dailyRows = await db
+    .select({
+      day: userDailyStats.day,
+      ms: userDailyStats.msWatched,
+      lines: userDailyStats.linesSeen,
+      cards: userDailyStats.cardsCreated,
+      reviews: userDailyStats.reviewsDone,
+    })
+    .from(userDailyStats)
+    .where(eq(userDailyStats.userId, userId));
+
+  // Same active-day definition as getStats: any review, mined card, or immersion.
+  const activeKeys = dailyRows
+    .filter((r) => r.ms > 0 || r.lines > 0 || r.cards > 0 || r.reviews > 0)
+    .map((r) => r.day);
+  const { current: dayStreak } = computeStreaks(activeKeys);
+
+  return {
+    watchTimeHours: watchHoursLast7(dailyRows),
+    wordsKnown: Number(known?.n ?? 0),
+    dayStreak,
+  };
+}
+
 export async function getStats(db: Database, userId: string): Promise<StatsData> {
   const now = Date.now();
   const since30 = new Date(now - 30 * DAY_MS);
@@ -227,13 +283,9 @@ export async function getStats(db: Database, userId: string): Promise<StatsData>
 
   // --- Watch time (last 7 days) from the already-fetched daily rows. ---
   const msByDay = new Map<number, number>();
-  let totalMs = 0;
   for (const r of dailyRows) {
     const k = daysAgo(parseDayKey(r.day), today);
-    if (k >= 0 && k < 7) {
-      totalMs += r.ms;
-      msByDay.set(k, (msByDay.get(k) ?? 0) + r.ms);
-    }
+    if (k >= 0 && k < 7) msByDay.set(k, (msByDay.get(k) ?? 0) + r.ms);
   }
   // Mon→Sun order for the current week's 7 columns.
   const dailyActivityMin: number[] = [];
@@ -246,7 +298,7 @@ export async function getStats(db: Database, userId: string): Promise<StatsData>
     kpis: {
       wordsKnown: vocab.known,
       wordsKnownDelta: Number(knownDelta?.n ?? 0),
-      watchTimeHours: Math.round((totalMs / 3_600_000) * 10) / 10,
+      watchTimeHours: watchHoursLast7(dailyRows, today),
       dayStreak,
       bestStreak,
       retentionPct,

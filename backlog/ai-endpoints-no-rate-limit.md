@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Segurança / Custos de IA (API)
-**Status:** OPEN
+**Status:** PARTIAL (5 superfícies autenticadas feitas em 2026-07-07; magic link adiado)
 
 ---
 
@@ -83,3 +83,51 @@ Tabela de referência (limites generosos — um estudante real nunca encosta):
 Os writers de stats (beacon/click) ficam de fora deste item — o dano lá é ao
 próprio usuário e o tratamento é clamp diário, não limiter:
 [stats-writers-daily-caps.md].
+
+---
+
+## Resolução parcial (2026-07-07)
+
+Limiter reaproveitável em `apps/web/lib/rate-limit.ts`: **contador de janela
+fixa** em Redis (`INCR` + `EXPIRE` no primeiro hit), reusando a infra do BullMQ.
+Núcleo puro `checkRateLimit(store, action, id)` sobre um `RateStore` injetável —
+testado sem Redis (`lib/rate-limit.test.ts`, 4: sob/limite/acima, `remaining`,
+buckets independentes, **fail-open**). O caminho de request **falha aberto**
+(store erra/trava → libera; um blip do Redis nunca derruba o endpoint) e tem
+timeout de 250ms por checagem. Conexão dedicada `createRequestRedis` em
+`@fuchine/jobs` (fail-fast: `enableOfflineQueue:false`, `maxRetriesPerRequest:1`,
+`connectTimeout:500`) — a do BullMQ (`maxRetriesPerRequest:null`) enfileiraria
+comandos e travaria o request. Limites = a tabela de referência acima
+(`RATE_LIMITS`). Denied → `429` + header `Retry-After`.
+
+**Superfícies ligadas (5):**
+
+1. **Explain `force`** (`explainForce` 20/dia) e **explain miss**
+   (`explainMiss` 120/h) — em `lib/explain.ts`, no seam pós-cache: hit nunca
+   conta; `force` (que sobrescreve o cache compartilhado) tem o orçamento mais
+   apertado.
+2. **Translate miss** (`translateMiss` 500/dia) — `translateChunk` ganhou dep
+   opcional `checkRateLimit`, chamada só no miss (chunk cacheado = grátis).
+3. **Import novo** (`importNew` 30/dia) — `createImport` ganhou
+   `opts.checkRateLimit`, chamada depois dos checks de cache/vazio (só import
+   realmente novo conta).
+4. **Busca de dicionário** (`dictionarySearch` 60/min) — só o path `q`
+   (o scan); lookup por `id` (popup) fica livre.
+
+As rotas passam `session.user.id` como chave.
+
+**Adiado — magic link (item 5, único pré-auth).** Precisa de chave por
+IP **e** por e-mail alvo; o `sendVerificationRequest` do Auth.js não recebe o
+IP e o provider de produção usa o envio padrão (sobrescrever exigiria
+reimplementar o mailer). O caminho correto é **middleware** em
+`POST /api/auth/signin/email` (IP + e-mail do body) — mas middleware roda no
+edge, onde o ioredis não conecta; exige runtime nodejs no middleware ou um
+mailer custom. Fica para uma sessão dedicada. A constante `magicLink` (5/h) já
+está em `RATE_LIMITS`.
+
+**Também destravado:** os itens 2–3 de [stats-writers-daily-caps.md] (frequência
+de beacon, dedup de clicks) agora têm o limiter de que dependiam — ainda não
+ligados.
+
+Verificado: `pnpm typecheck` (8/8) + `pnpm test` (141 web) verdes. O caminho
+Redis em si depende de infra (não exercido aqui; protegido por fail-open).

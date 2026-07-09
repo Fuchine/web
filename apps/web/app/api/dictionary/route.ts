@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { lookupById, searchDictionary, searchByGloss, detectMode } from "@/lib/dictionary";
+import { enforceRateLimit, tooManyRequests, retryAfterHeader } from "@/lib/rate-limit";
 
 // GET /api/dictionary?id=UUID  (resolved token popup)
 //                  ?q=text&lang=ja  (search / unresolved token)
@@ -22,6 +23,16 @@ export async function GET(req: Request) {
     return NextResponse.json({ entry });
   }
   if (q) {
+    // Only the free-text search does a scan (id lookups above are indexed point
+    // reads, left unlimited so the token popup stays snappy).
+    const rl = await enforceRateLimit("dictionarySearch", session.user.id);
+    if (!rl.ok) {
+      const denied = tooManyRequests(rl, "Too many searches — slow down a moment.");
+      return NextResponse.json(denied.body, {
+        status: denied.status,
+        headers: retryAfterHeader(denied),
+      });
+    }
     const modeParam = url.searchParams.get("mode");
     const mode = modeParam === "ja" || modeParam === "en" ? modeParam : detectMode(q);
     const entries = mode === "en" ? await searchByGloss(db, q, lang) : await searchDictionary(db, q, lang);

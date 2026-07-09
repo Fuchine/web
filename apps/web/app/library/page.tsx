@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { listVideos, getComprehensionByVideo } from "@/lib/study";
 import { countDueCards } from "@/lib/cards";
-import { getStats } from "@/lib/stats";
+import { getLibraryKpis } from "@/lib/stats";
 import { getVideoFlags } from "@/lib/video-flags";
 import { getAlbumMemberships } from "@/lib/albums";
 import { LibraryView, type LibraryVideo } from "../library-view";
@@ -15,11 +15,14 @@ export default async function LibraryPage() {
   if (!session?.user?.id) redirect("/login");
 
   const userId = session.user.id;
-  const [rows, reviewDue, comprehension, stats, flags, albums] = await Promise.all([
-    listVideos(db),
+  // Fetch the library first so comprehension can be scoped to the videos we
+  // actually render (word_examples is catalog-sized — see backlog
+  // library-comprehension-full-scan); the rest don't depend on it.
+  const rows = await listVideos(db);
+  const [reviewDue, comprehension, kpis, flags, albums] = await Promise.all([
     countDueCards(db, userId),
-    getComprehensionByVideo(db, userId),
-    getStats(db, userId),
+    getComprehensionByVideo(db, userId, rows.map((v) => v.id)),
+    getLibraryKpis(db, userId),
     getVideoFlags(db, userId),
     getAlbumMemberships(db, userId),
   ]);
@@ -44,10 +47,10 @@ export default async function LibraryPage() {
       account={{ name: session.user.name ?? session.user.email ?? "You", sub: session.user.email ?? undefined }}
       reviewDue={reviewDue}
       stats={{
-        watchTimeHours: stats.kpis.watchTimeHours,
+        watchTimeHours: kpis.watchTimeHours,
         videoCount: videos.length,
-        wordsLearned: stats.kpis.wordsKnown,
-        dayStreak: stats.kpis.dayStreak,
+        wordsLearned: kpis.wordsKnown,
+        dayStreak: kpis.dayStreak,
       }}
       activeKey="library"
       initialSaved={flags.saved}

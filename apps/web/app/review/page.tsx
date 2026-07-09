@@ -13,15 +13,15 @@ export default async function ReviewPage() {
   const userName = session!.user!.name ?? session!.user!.email ?? "You";
   const userEmail = session!.user!.email ?? "";
 
-  const queue = await getReviewQueue(db, userId);
+  const { cards, wordEntries } = await getReviewQueue(db, userId);
 
   return (
     <AppLayout
       account={{ name: userName, sub: userEmail }}
-      reviewDue={queue.length}
+      reviewDue={cards.length}
       activeKey="review"
     >
-      <ReviewView initialQueue={queue} />
+      <ReviewView initialCards={cards} wordEntries={wordEntries} />
     </AppLayout>
   );
 }

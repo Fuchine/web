@@ -2,7 +2,11 @@
 
 **Date:** 2026-07-06
 **Feature:** Segurança / BYOK
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — `v2:` version prefix on ciphertext (decrypt
+handles legacy v1); rotation script `pnpm --filter @fuchine/worker rotate:key`
+(re-encrypts all BYOK keys old→new); `.env.example` documents key permanence +
+backup. Tests in `packages/llm/src/crypto.test.ts` (round-trip, v1 compat,
+tamper/wrong-key rejection).
 
 ---
 

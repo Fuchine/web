@@ -1,0 +1,1 @@
+CREATE INDEX "word_examples_video_word_idx" ON "word_examples" USING btree ("video_id","word_entry_id");

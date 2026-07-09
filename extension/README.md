@@ -17,8 +17,10 @@ This is an MV3 skeleton with **no build step** — load it directly. When it gro
    then **Import to Fuchine**.
 
 Set a different instance URL in the popup's "Fuchine URL" field (defaults to
-`http://localhost:3000`). For a non-localhost instance, add its origin to
-`host_permissions` in `manifest.json`.
+`http://localhost:3000`). For a non-localhost instance the extension asks for
+permission to reach that origin the first time you import — no manual
+`manifest.json` edit. Granting it also enables the in-app "import" bridge on
+that instance.
 
 ## How it works
 

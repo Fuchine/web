@@ -11,9 +11,17 @@ import {
 } from "@fuchine/db";
 import { db } from "./lib/db";
 
-// Email magic link is optional: only enabled when SMTP is configured. Google
-// works on its own, so self-host without an SMTP server still has sign-in.
-const providers: NextAuthConfig["providers"] = [Google];
+// Providers are enabled only when configured, so a self-host instance never
+// shows a sign-in button that errors on click:
+//   - Google: only when AUTH_GOOGLE_ID + AUTH_GOOGLE_SECRET are set (otherwise
+//     Auth.js registers an OIDC provider with no credentials → "Configuration"
+//     error page). Auth.js reads those env vars itself.
+//   - Email magic link: only when SMTP is configured (EMAIL_SERVER).
+// Production boot fails fast if neither is configured (see instrumentation.ts).
+const providers: NextAuthConfig["providers"] = [];
+if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
+  providers.push(Google);
+}
 if (process.env.EMAIL_SERVER) {
   providers.push(
     Nodemailer({

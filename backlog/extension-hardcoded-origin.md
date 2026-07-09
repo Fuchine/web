@@ -2,7 +2,16 @@
 
 **Date:** 2026-07-06
 **Feature:** Extensão (ingestão primária, F0)
-**Status:** OPEN
+**Status:** RESOLVED in code (2026-07-09), pending a browser test. Manifest no
+longer fixes the published instance: `optional_host_permissions: ["https://*/*"]`
++ localhost stays static for dev. `popup.js` requests the host permission for the
+saved base URL on the import click (a user gesture) and, on grant, asks the
+background to register `bridge.js` for that origin via
+`chrome.scripting.registerContentScripts` (re-registered on startup). No manual
+manifest edit anymore; README updated. **Not loaded in a real browser here**
+(can't from this env) — verify the permission prompt + import against a live
+https instance. Known limit: http non-localhost instances aren't covered by the
+`https://*/*` optional grant (deploy story ships TLS, so https is the path).
 
 ---
 

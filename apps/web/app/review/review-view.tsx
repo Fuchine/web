@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, ReviewSession, type ReviewSessionProps, type ReviewItem } from "@fuchine/ui";
+import type { ReviewQueueCard, WordEntryData } from "@/lib/cards";
 
 function youtubeThumbnail(sourceId: string) {
   return `https://img.youtube.com/vi/${sourceId}/mqdefault.jpg`;
@@ -20,10 +21,21 @@ const PlayIcon = () => (
   </svg>
 );
 
-export function ReviewView({ initialQueue }: { initialQueue: ReviewItem[] }) {
+export function ReviewView({
+  initialCards,
+  wordEntries,
+}: {
+  initialCards: ReviewQueueCard[];
+  wordEntries: Record<string, WordEntryData>;
+}) {
   const router = useRouter();
   const [mode, setMode] = useState<"list" | "session">("list");
-  const [queue] = useState(initialQueue as ReviewItem[]);
+  // The queue arrives with the dictionary map hoisted out (one copy, not one per
+  // card). Reattach the shared reference so ReviewSession's per-item contract is
+  // unchanged — every card points at the same object, no bytes duplicated.
+  const [queue] = useState<ReviewItem[]>(() =>
+    initialCards.map((c) => ({ ...c, wordEntriesMap: wordEntries }) as ReviewItem),
+  );
   const sessionStart = useRef<string | null>(null);
   const calm = queue.length === 0;
 
@@ -39,7 +51,7 @@ export function ReviewView({ initialQueue }: { initialQueue: ReviewItem[] }) {
   };
 
   if (mode === "session") {
-    return <ReviewSession queue={initialQueue as ReviewSessionProps["queue"]} onComplete={finishSession} />;
+    return <ReviewSession queue={queue as ReviewSessionProps["queue"]} onComplete={finishSession} />;
   }
 
   return (

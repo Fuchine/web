@@ -10,7 +10,8 @@
     "test": "vitest run",
     "backfill:explain": "tsx src/scripts/backfill-explain.ts",
     "backfill:level": "tsx src/scripts/backfill-level.ts",
-    "backfill:daily-stats": "tsx src/scripts/backfill-daily-stats.ts"
+    "backfill:daily-stats": "tsx src/scripts/backfill-daily-stats.ts",
+    "rotate:key": "tsx src/scripts/rotate-encryption-key.ts"
   },
   "dependencies": {
     "@fuchine/db": "workspace:*",

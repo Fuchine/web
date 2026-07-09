@@ -226,6 +226,10 @@ export const wordExamples = pgTable(
   (t) => [
     index("word_examples_word_idx").on(t.wordEntryId), // "see this word in videos"
     uniqueIndex("word_examples_uq").on(t.wordEntryId, t.subtitleLineId), // dedupe
+    // Comprehension per video: serves GROUP BY video_id + count(distinct
+    // word_entry_id) without scanning the whole (catalog-sized) table, and
+    // speeds the per-video cascade delete.
+    index("word_examples_video_word_idx").on(t.videoId, t.wordEntryId),
   ],
 );
 

@@ -9,6 +9,6 @@ export async function GET() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const cards = await getReviewQueue(db, session.user.id);
-  return NextResponse.json({ cards });
+  const { cards, wordEntries } = await getReviewQueue(db, session.user.id);
+  return NextResponse.json({ cards, wordEntries });
 }

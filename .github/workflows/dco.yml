@@ -1,0 +1,38 @@
+name: DCO
+
+# Enforce the Developer Certificate of Origin: every commit in a PR must carry a
+# `Signed-off-by:` line (git commit -s). Kept dependency-free — a plain git +
+# grep check, no third-party action in the supply chain — since the project is
+# security-sensitive (BYOK).
+
+on:
+  pull_request:
+
+jobs:
+  dco:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Signed-off-by on every commit
+        run: |
+          base='${{ github.event.pull_request.base.sha }}'
+          head='${{ github.event.pull_request.head.sha }}'
+          fail=0
+          for c in $(git rev-list "$base".."$head"); do
+            if ! git show -s --format=%B "$c" | grep -qiE '^Signed-off-by: .+ <.+@.+>'; then
+              subject=$(git show -s --format=%s "$c")
+              echo "::error::Commit $c (\"$subject\") is missing a Signed-off-by line."
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo ""
+            echo "Every commit must be signed off (DCO). Re-run with:"
+            echo "  git rebase --signoff $base"
+            echo "and force-push the branch. See CONTRIBUTING.md."
+            exit 1
+          fi
+          echo "All commits are signed off."
