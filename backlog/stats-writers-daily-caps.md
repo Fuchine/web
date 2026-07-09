@@ -2,7 +2,12 @@
 
 **Date:** 2026-07-06
 **Feature:** Progresso / Stats (writers)
-**Status:** PARTIAL (item 1 feito em 2026-07-07; itens 2–3 aguardam o limiter)
+**Status:** RESOLVED (2026-07-09) — item 1 (24h clamp) done 2026-07-07; items
+2–3 wired now. `RATE_LIMITS` gains `progressBeacon` (1/10s per user) and
+`wordClick` (1/60s per user+word); the progress and dictionary-click routes
+enforce them and, on deny, return **200 + `{throttled:true}`** (discard, never
+429) so the player never breaks. Limiter fails open (a Redis blip can't drop
+legit beacons).
 
 ---
 

@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest an idea or improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: The user need or friction behind the request — not just the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What you'd like to see happen.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about, and why they fall short.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Fit with the project
+      description: Fuchine has locked decisions (see docs/ARQUITETURA.md).
+      options:
+        - label: I've checked this doesn't conflict with a locked decision (D1–D8, AGPL, BYOK, no stored video/audio, English-only UI).

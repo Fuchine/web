@@ -50,18 +50,68 @@ partial or via an add-on/integration.
 
 > paste a URL → watch with smart subtitles → mine sentences → review in the SRS → back to the video
 
-## Quick start (self-host)
+## Quick start (development)
 
 ```bash
 cp .env.example .env          # fill in secrets + your AI provider (BYOK)
-docker compose up -d          # Postgres + Redis
+docker compose up -d postgres redis   # just the infra
 pnpm install
 pnpm db:migrate               # apply the schema
 pnpm --filter @fuchine/db seed:jmdict   # load the JMdict dictionary (~298k entries)
-pnpm dev                      # web + worker
+pnpm dev                      # web + worker with hot reload
 ```
 
 Requires Node 22+ and pnpm 10+.
+
+## Production (self-host)
+
+The full stack runs from compose — Caddy (automatic HTTPS) in front of the web
+and worker containers, over Postgres + Redis. No Node toolchain needed on the
+host, just Docker.
+
+```bash
+cp .env.example .env
+# Edit .env — at minimum:
+#   AUTH_SECRET, FUCHINE_ENCRYPTION_KEY   (openssl rand -base64 32 each)
+#   a sign-in method: AUTH_GOOGLE_ID/SECRET or EMAIL_SERVER
+#   SITE_ADDRESS=your.domain.com          (Caddy gets a Let's Encrypt cert)
+#   change the Postgres password in docker-compose.yml for a real deploy
+
+docker compose up -d --build            # migrate → web + worker → caddy
+docker compose run --rm migrate pnpm --filter @fuchine/db seed:jmdict   # one-time
+```
+
+The `migrate` service applies pending migrations automatically before web/worker
+boot. `web` publishes no host port — Caddy is the only ingress. Health:
+`https://your.domain.com/api/health` reports Postgres, Redis, and worker
+liveness.
+
+> **The web app fails fast** on a broken production config (missing
+> `DATABASE_URL`/`AUTH_SECRET`/`FUCHINE_ENCRYPTION_KEY`, or no sign-in method),
+> so a misconfigured instance won't boot "healthy" and break later.
+
+### Backups & restore
+
+User progress (`sentence_cards`, `review_logs`, `user_*_stats` — the FSRS
+history) is the only data that can't be re-derived. **`docker compose down -v`
+deletes the `postgres_data` volume — there is no undo.**
+
+Enable nightly `pg_dump` (custom format, keeps the last 7):
+
+```bash
+docker compose --profile backup up -d db-backup   # dumps to the pg_backups volume
+```
+
+Restore into a fresh database, then reconcile the schema:
+
+```bash
+pg_restore -d "$DATABASE_URL" --clean --if-exists /backups/fuchine-<ts>.dump
+docker compose run --rm migrate pnpm --filter @fuchine/db migrate
+```
+
+Back up `FUCHINE_ENCRYPTION_KEY` **with** the database: without it, saved BYOK
+keys can't be decrypted. Redis is intentionally not backed up — the queue is
+re-populable by re-import.
 
 **AI is BYOK.** Layer-1 translation runs from the `LLM_*` env vars (see
 `.env.example` for MiniMax / OpenAI-compatible / DeepL options); per-user layer-2

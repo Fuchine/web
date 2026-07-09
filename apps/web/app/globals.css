@@ -13,6 +13,36 @@
 /* Review session styles */
 @import "@fuchine/ui/review.css";
 
+/* Route-level error / not-found boundaries (reuse the player's 淵 error look) */
+.err-page {
+  min-height: 100dvh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px; padding: 40px; text-align: center;
+  background: var(--bg); color: var(--text);
+}
+.err-mark {
+  width: 56px; height: 56px; border-radius: 12px;
+  background: var(--accent); color: var(--on-accent);
+  display: grid; place-items: center;
+  font-family: 'Noto Serif JP', serif; font-size: 28px; line-height: 1;
+}
+.err-title { font-size: 20px; font-weight: 600; margin: 0; }
+.err-msg { font-size: 15px; color: var(--text-muted, var(--text)); margin: 0; max-width: 360px; }
+.err-actions { display: flex; gap: 8px; margin-top: 4px; }
+.err-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 38px; padding: 0 16px;
+  border: 1px solid var(--border-strong); background: var(--surface);
+  border-radius: 9px;
+  font: inherit; font-size: 13px; font-weight: 550; color: var(--text);
+  text-decoration: none; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.err-btn:hover { border-color: var(--text-faint, var(--text)); }
+.err-btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.err-btn-primary:hover { opacity: 0.92; border-color: transparent; }
+
 /* Home screen animations */
 @keyframes pop-in {
   from { opacity: 0; transform: translateY(-4px); }

@@ -2,7 +2,11 @@
 
 **Date:** 2026-07-06
 **Feature:** Produção / Dados
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — `db-backup` compose service (profile
+`backup`) runs `scripts/pg-backup.sh` (daily `pg_dump -Fc`, keeps 7); README
+documents the restore procedure, the `down -v` danger, and backing up
+`FUCHINE_ENCRYPTION_KEY` with the DB. Redis intentionally excluded. Weekly
+retention tier left as an optional cron enhancement.
 
 ---
 

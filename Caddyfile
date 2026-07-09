@@ -1,0 +1,13 @@
+# Reverse proxy + automatic TLS for the self-host deploy. Caddy terminates HTTPS
+# (Let's Encrypt when SITE_ADDRESS is a real domain; a local CA for `localhost`)
+# and sets X-Forwarded-* so Auth.js `trustHost` sees the correct external host.
+# The `web` service publishes no host port — Caddy is the only way in.
+#
+# Set SITE_ADDRESS in .env:
+#   - production: SITE_ADDRESS=fuchine.example.com   (auto HTTPS)
+#   - local test: SITE_ADDRESS=localhost             (local CA) or :80 (no TLS)
+
+{$SITE_ADDRESS:localhost} {
+	encode gzip
+	reverse_proxy web:3000
+}

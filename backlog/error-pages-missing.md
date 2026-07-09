@@ -2,7 +2,9 @@
 
 **Date:** 2026-07-06
 **Feature:** Web (T1.9 — estados de erro)
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — `error.tsx`, `not-found.tsx`,
+`global-error.tsx` added in `apps/web/app/`, reusing the 淵 error look
+(`.err-*` in `globals.css`); generic messages, detail to server log only.
 
 ---
 

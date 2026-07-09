@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { recordProgress } from "@/lib/progress";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 // POST /api/videos/:id/progress — watch-time + seen-lines beacon from the player.
 export async function POST(
@@ -12,6 +13,15 @@ export async function POST(
   if (!session?.user?.id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+
+  // Throttle to ~1 beacon/10s per user so a scripted loop can't inflate watch
+  // time or "seen" words. Over-frequency is silently discarded (200, not 429) so
+  // a legit player (flushes every ~15s) never sees an error.
+  const rl = await enforceRateLimit("progressBeacon", session.user.id);
+  if (!rl.ok) {
+    return NextResponse.json({ recorded: false, throttled: true }, { status: 200 });
+  }
+
   const { id } = await params;
   const body = (await req.json().catch(() => null)) ?? {};
   const result = await recordProgress(db, session.user.id, id, body);

@@ -2,7 +2,11 @@
 
 **Date:** 2026-07-06
 **Feature:** Lançamento OSS (T1.10)
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — `SECURITY.md`, `CONTRIBUTING.md`, DCO check
+(`.github/workflows/dco.yml`, dependency-free), issue templates
+(bug/feature + security contact link) and PR template added. **Remaining:
+branch protection on `main`** — a GitHub repo setting, not a file; must be
+enabled in the repo UI (require CI + DCO checks, block force-push).
 
 ---
 
