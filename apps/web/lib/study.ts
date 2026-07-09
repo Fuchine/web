@@ -1,6 +1,6 @@
 // Study read-side queries (F1). Auth-agnostic and testable; routes add auth.
 
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   type Database,
   videos,
@@ -61,11 +61,18 @@ const COMPREHENSION_MIN_WORDS = 10;
  * Distinct-word comprehension % per video for a user, from word_examples
  * (written at import) joined with user_word_stats (written by the player and
  * review beacons). Videos with too few words are omitted (UI shows nothing).
+ *
+ * Pass `videoIds` (the ones actually being rendered) to scope the aggregate to
+ * those videos — `word_examples` is catalog-sized (shared cache, D3), so the
+ * unscoped GROUP BY grows with every video anyone imports. Both the scoped and
+ * unscoped paths ride `word_examples_video_word_idx`. Empty array ⇒ empty map.
  */
 export async function getComprehensionByVideo(
   db: Database,
   userId: string,
+  videoIds?: string[],
 ): Promise<Map<string, number>> {
+  if (videoIds && videoIds.length === 0) return new Map();
   const rows = await db
     .select({
       videoId: wordExamples.videoId,
@@ -80,6 +87,7 @@ export async function getComprehensionByVideo(
         eq(userWordStats.userId, userId),
       ),
     )
+    .where(videoIds ? inArray(wordExamples.videoId, videoIds) : undefined)
     .groupBy(wordExamples.videoId);
 
   const map = new Map<string, number>();

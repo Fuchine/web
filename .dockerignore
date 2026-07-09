@@ -1,0 +1,20 @@
+# Keep the build context small and reproducible: never ship host artifacts or
+# secrets into the image. Dependencies are installed fresh inside the build.
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+.git
+.github
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+**/coverage
+**/.vitest
+extension
+tools/spike
+docs
+backlog
+*.md
+!README.md

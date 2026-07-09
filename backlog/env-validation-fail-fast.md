@@ -2,7 +2,10 @@
 
 **Date:** 2026-07-06
 **Feature:** Produção / Configuração
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — `apps/web/instrumentation.ts` fails fast in
+production if `DATABASE_URL`/`AUTH_SECRET`/`FUCHINE_ENCRYPTION_KEY` are missing
+or no sign-in method (Google or `EMAIL_SERVER`) is configured; loud warn when
+`LLM_PROVIDER` is `echo`. Dev unchanged.
 
 ---
 

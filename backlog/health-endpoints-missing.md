@@ -2,7 +2,12 @@
 
 **Date:** 2026-07-06
 **Feature:** Produção / Observabilidade
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — `GET /api/health` (SELECT 1 + Redis PING +
+`workerAlive`, 200/503); worker renews `worker:heartbeat` (TTL 30s, shared
+consts in `@fuchine/jobs`); Redis `--appendonly yes` declared in compose §3.
+Container healthchecks wired in [deploy-story-missing.md] and verified live
+(`workerAlive:true` read cross-container). Live run fixed the Redis probe to
+`connect()` before `ping()` (it reused the fail-open request-path client).
 
 ---
 

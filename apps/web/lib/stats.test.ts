@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeStreaks, heatLevel } from "./stats";
+import { computeStreaks, heatLevel, watchHoursLast7 } from "./stats";
 
 describe("computeStreaks", () => {
   const key = (daysAgo: number) => {
@@ -37,6 +37,42 @@ describe("computeStreaks", () => {
 
   it("dedupes repeated days", () => {
     expect(computeStreaks([key(0), key(0), key(1)])).toEqual({ current: 2, best: 2 });
+  });
+});
+
+describe("watchHoursLast7", () => {
+  const today = new Date(2026, 6, 7); // 2026-07-07 local
+  const key = (daysAgo: number) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - daysAgo);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const H = 3_600_000;
+
+  it("is zero with no rows", () => {
+    expect(watchHoursLast7([], today)).toBe(0);
+  });
+
+  it("sums the last 7 days and rounds to one decimal", () => {
+    const rows = [
+      { day: key(0), ms: 1.5 * H },
+      { day: key(3), ms: 0.5 * H },
+      { day: key(6), ms: 1 * H },
+    ];
+    expect(watchHoursLast7(rows, today)).toBe(3);
+  });
+
+  it("excludes days older than 7 and future days", () => {
+    const rows = [
+      { day: key(7), ms: 10 * H }, // just outside the window
+      { day: key(0), ms: 2 * H },
+      { day: key(-1), ms: 5 * H }, // future, ignored
+    ];
+    expect(watchHoursLast7(rows, today)).toBe(2);
+  });
+
+  it("rounds to a single decimal place", () => {
+    expect(watchHoursLast7([{ day: key(0), ms: 0.25 * H }], today)).toBe(0.3);
   });
 });
 

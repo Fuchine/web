@@ -2,7 +2,9 @@
 
 **Date:** 2026-07-06
 **Feature:** Produção / DB
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — `createDb(url, { max?, idleTimeout? })`
+(default max 10, idle 20s); web reads `DB_POOL_MAX` (default 10), worker defaults
+to 5. `.env.example` documents the budget. PgBouncer stays out of scope.
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Import (worker, camada 0)
-**Status:** OPEN
+**Status:** PARTIAL (itens 1 e 3 feitos em 2026-07-07; item 2 adiado)
 
 ---
 
@@ -41,6 +41,34 @@ Sem tocar nas interfaces `Tokenizer`/`DictionaryProvider` (D4):
 3. **UPDATE em lote:** gravar os tokens com um único statement
    (`UPDATE ... FROM unnest(...)`) ou ao menos dentro de uma transação com
    chunks de ~100.
+
+## Resolução parcial (2026-07-07)
+
+**Item 1 (feito) — cache por vídeo.** `resolveWordEntries(tokens, dictionary,
+cache?)` aceita um `Map` compartilhado (default: cache fresco por chamada,
+preserva o comportamento standalone); `analyzeLine(..., cache?)` repassa. O
+`pipeline.ts` cria **um** cache por import e passa a todas as linhas — um lemma
+comum (は, する, 私…) é resolvido 1× no vídeo inteiro em vez de 1×/ocorrência.
+Isso mata o N+1 do item 1 (o gargalo descrito). Testado em
+`apps/worker/src/resolve-cache.test.ts` (+3): lookup único de lemma repetido
+entre linhas, resolução do `wordEntryId`, e default por-chamada preservado.
+
+**Item 3 (feito) — write em lote.** A análise (tokenização + lookups) roda toda
+**antes** do write, fora de transação; depois os tokens de todas as linhas +
+o insert de `word_examples` são gravados num único `db.transaction` (em vez de um
+UPDATE autocommit por linha). Atomicidade + uma conexão.
+
+**Item 2 (adiado) — query única `WHERE lemma = ANY(...)`.** Exigiria um método de
+lookup em lote no `DictionaryProvider`, e o item pede explicitamente **não tocar
+nas interfaces `Tokenizer`/`DictionaryProvider` (D4)**. Com o cache do item 1, os
+lookups já caem de "por ocorrência" para "por lemma único"; o batch em 1–2
+queries é o próximo passo quando/se valer estender a interface (método opcional).
+O `UPDATE ... FROM unnest(...)` de statement único também fica aqui — precisa de
+verificação com Postgres ao vivo (binding de `jsonb[]`), que não temos neste
+ambiente; a transação do item 3 é o "ao menos" que a própria proposta previa.
+
+`pnpm typecheck` (8/8) + `pnpm test` (17 worker) verdes. O import de ponta a ponta
+depende de banco (E2E, não rodado aqui).
 
 ## Esforço / prioridade
 

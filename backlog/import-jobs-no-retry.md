@@ -2,7 +2,13 @@
 
 **Date:** 2026-07-06
 **Feature:** Import (fila / worker)
-**Status:** OPEN
+**Status:** PARTIAL (2026-07-09) — items 1–2 done. `getImportQueue`/
+`getExplainQueue` now set `defaultJobOptions` (attempts 3, exponential backoff
+5s, removeOnComplete; removeOnFail:false). Worker startup reconciler
+(`reconcileStuckImports` in `apps/worker/src/index.ts`) re-enqueues videos left
+in `processing` with no job in the queue (idempotent). **Item 3 still open** —
+`status_reason` column on `videos` for a human-readable failure reason (ERD
+decision), which also unblocks the library error state (T1.9).
 
 ---
 

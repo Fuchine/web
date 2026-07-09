@@ -2,7 +2,12 @@
 
 **Date:** 2026-07-06
 **Feature:** Produção / Deploy
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — item 2: `headers()` in `next.config.ts`
+ships CSP (frame/img/object/base-uri), HSTS, `nosniff`, `Referrer-Policy`
+(verified live on `/`). Item 1: `caddy` service + `Caddyfile` terminate TLS
+(auto Let's Encrypt via `SITE_ADDRESS`), set `X-Forwarded-*` for `trustHost`,
+and the `web` service publishes no host port (proxy-bypass closed). Landed with
+[deploy-story-missing.md].
 
 ---
 

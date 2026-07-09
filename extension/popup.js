@@ -16,6 +16,31 @@ async function getBase() {
   return (base || DEFAULT_BASE).replace(/\/+$/, "");
 }
 
+/** `https://host/*` match pattern for an instance base URL, or null if unparseable. */
+function originPattern(base) {
+  try { return new URL(base).origin + "/*"; } catch { return null; }
+}
+
+/**
+ * Ensure the extension holds the host permission for `base` so the credentialed
+ * POST (and the in-app bridge) can reach a published instance. localhost is in
+ * the static manifest, so dev never prompts; other origins are requested here,
+ * from the import click (a user gesture — required by chrome.permissions.request).
+ * On grant, ask the background to register the bridge content script for it.
+ */
+async function ensureHostPermission(base) {
+  const pattern = originPattern(base);
+  if (!pattern) return true; // let the fetch surface a clearer error
+  if (await chrome.permissions.contains({ origins: [pattern] })) return true;
+  const granted = await chrome.permissions.request({ origins: [pattern] });
+  if (granted) {
+    chrome.runtime
+      .sendMessage({ type: "REGISTER_BRIDGE", origin: new URL(base).origin })
+      .catch(() => {});
+  }
+  return granted;
+}
+
 async function doImport() {
   const btn = $("import");
   btn.disabled = true;
@@ -23,6 +48,15 @@ async function doImport() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !/youtube\.com\/watch/.test(tab.url || "")) {
       setStatus("Open a YouTube video first.");
+      return;
+    }
+
+    // Request the instance host permission FIRST, before the (potentially slow)
+    // caption capture. chrome.permissions.request needs a live user gesture, and
+    // the click's transient activation can lapse across the capture awaits.
+    const base = await getBase();
+    if (!(await ensureHostPermission(base))) {
+      setStatus(`Permission to reach ${base} was denied — grant it to import there.`);
       return;
     }
 
@@ -48,7 +82,6 @@ async function doImport() {
       return;
     }
 
-    const base = await getBase();
     setStatus(`Captured ${result.captions.length} lines (${result.source}). Sending to ${base}…`);
     let res;
     try {
@@ -83,8 +116,16 @@ async function doImport() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   $("base").value = await getBase();
-  $("base").addEventListener("change", (e) => {
-    chrome.storage.local.set({ base: e.target.value.trim() });
+  $("base").addEventListener("change", async (e) => {
+    const base = e.target.value.trim();
+    chrome.storage.local.set({ base });
+    // If we already hold the permission for this instance, (re)register the
+    // in-app bridge so the "import from the app" button works there too. The
+    // permission itself is requested on the first import (needs a click gesture).
+    const pattern = originPattern(base);
+    if (pattern && (await chrome.permissions.contains({ origins: [pattern] }).catch(() => false))) {
+      chrome.runtime.sendMessage({ type: "REGISTER_BRIDGE", origin: new URL(base).origin }).catch(() => {});
+    }
   });
   $("import").addEventListener("click", doImport);
 });

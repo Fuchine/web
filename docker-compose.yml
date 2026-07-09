@@ -1,5 +1,11 @@
-# Self-host onboarding: `docker compose up` brings up the infra.
-# Postgres + Redis now; web/worker images land in F1 (need Dockerfiles).
+# Self-host: `docker compose up -d --build` brings up the whole app —
+# Caddy (TLS) → web + worker → Postgres + Redis. See the Production section of
+# the README. Copy .env.example to .env first (AUTH_SECRET, FUCHINE_ENCRYPTION_KEY,
+# a sign-in method, SITE_ADDRESS). Nightly backups: add `--profile backup`.
+
+# Fixed project name so images/containers are fuchine-* regardless of the folder
+# name (otherwise Compose derives it from the directory).
+name: fuchine
 
 services:
   postgres:
@@ -22,6 +28,10 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    # AOF on: the import/explain queues survive a crash instead of losing the
+    # last snapshot window. Imports are re-triggerable, but durable-by-default
+    # is the safer declared choice (backlog: health-endpoints-missing §3).
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
     volumes:
@@ -32,6 +42,107 @@ services:
       timeout: 5s
       retries: 5
 
+  # One-shot: apply pending migrations before web/worker start. Reuses the web
+  # image's build stage (full workspace + drizzle-kit). web/worker wait for it.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: build
+    command: ["pnpm", "--filter", "@fuchine/db", "migrate"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://fuchine:fuchine@postgres:5432/fuchine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    env_file: .env
+    environment:
+      # Point at the compose service names, overriding the localhost values a
+      # host-side .env carries.
+      DATABASE_URL: postgres://fuchine:fuchine@postgres:5432/fuchine
+      REDIS_URL: redis://redis:6379
+      # Timezone that defines "today" for streaks/goals/heatmap (backlog:
+      # timezone-streaks-decision). Pin it so a UTC container doesn't flip the
+      # day mid-evening. Keep web and worker identical.
+      TZ: ${TZ:-America/Sao_Paulo}
+    # No host port: Caddy is the only ingress (closes the trustHost proxy bypass).
+    expose:
+      - "3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    # 127.0.0.1, not localhost: the server binds IPv4 0.0.0.0 and busybox wget
+    # resolves localhost to IPv6 ::1 first (connection refused).
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://fuchine:fuchine@postgres:5432/fuchine
+      REDIS_URL: redis://redis:6379
+      # Must match web: the backfill scripts bucket days in this zone too.
+      TZ: ${TZ:-America/Sao_Paulo}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+  # Nightly pg_dump. Opt-in: `docker compose --profile backup up -d`.
+  db-backup:
+    image: postgres:16-alpine
+    profiles: ["backup"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://fuchine:fuchine@postgres:5432/fuchine
+    entrypoint: ["sh", "/pg-backup.sh"]
+    volumes:
+      - ./scripts/pg-backup.sh:/pg-backup.sh:ro
+      - pg_backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:
+  caddy_data:
+  caddy_config:
+  pg_backups:

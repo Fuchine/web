@@ -192,12 +192,56 @@ export async function getReviewQueue(db: Database, userId: string, limit = 20) {
           .where(inArray(wordEntries.id, uniqueIds as string[]))
       : [];
 
-  const wordEntriesMap: Record<string, { reading: string; lemma: string; definitions: Definition[]; pos: string }> = {};
+  return buildReviewQueuePayload(rows, entries);
+}
+
+export type WordEntryData = { reading: string; lemma: string; definitions: Definition[]; pos: string };
+
+/** The joined sentence_cards ⋈ subtitle_lines ⋈ videos row (QUEUE_COLUMNS). */
+export type ReviewQueueRow = {
+  cardId: string; videoId: string; cardType: string; notes: string | null; due: Date;
+  stability: number; difficulty: number; lastReview: Date | null; state: number;
+  reps: number; lapses: number; elapsedDays: number; scheduledDays: number;
+  textOriginal: string; textTranslation: string | null; tStartMs: number; tEndMs: number;
+  source: string; sourceId: string; tokens: Token[] | null;
+};
+
+export type WordEntryRow = {
+  id: string; reading: string | null; lemma: string; definitions: Definition[]; pos: string | null;
+};
+
+export type ReviewQueueCard = Omit<
+  ReviewQueueRow,
+  "stability" | "difficulty" | "lastReview" | "reps" | "lapses" | "elapsedDays"
+    | "scheduledDays" | "textOriginal" | "textTranslation" | "tStartMs" | "tEndMs" | "source" | "sourceId"
+> & {
+  clip: { source: string; sourceId: string; startMs: number; endMs: number };
+  sentence: { text: string; translation: string | null };
+  intervals: ReturnType<typeof previewIntervals>;
+  tokens: Token[];
+};
+
+export type ReviewQueuePayload = {
+  cards: ReviewQueueCard[];
+  wordEntries: Record<string, WordEntryData>;
+};
+
+/**
+ * Shape the joined rows + fetched dictionary entries into the queue payload.
+ * The word-entry map is returned ONCE at the top level instead of being copied
+ * onto every card — with a 20-card queue of large JMdict definitions that was
+ * ~95% duplicate bytes over the wire and in the RSC props. Pure and testable.
+ */
+export function buildReviewQueuePayload(
+  rows: ReviewQueueRow[],
+  entries: WordEntryRow[],
+): ReviewQueuePayload {
+  const wordEntries: Record<string, WordEntryData> = {};
   for (const e of entries) {
-    wordEntriesMap[e.id] = { reading: e.reading ?? "", lemma: e.lemma, definitions: e.definitions, pos: e.pos ?? "" };
+    wordEntries[e.id] = { reading: e.reading ?? "", lemma: e.lemma, definitions: e.definitions, pos: e.pos ?? "" };
   }
 
-  return rows.map((r) => ({
+  const cards = rows.map((r): ReviewQueueCard => ({
     cardId: r.cardId,
     videoId: r.videoId,
     cardType: r.cardType,
@@ -207,9 +251,10 @@ export async function getReviewQueue(db: Database, userId: string, limit = 20) {
     clip: { source: r.source, sourceId: r.sourceId, startMs: r.tStartMs, endMs: r.tEndMs },
     sentence: { text: r.textOriginal, translation: r.textTranslation },
     intervals: previewIntervals(stateOf(r)),
-    tokens: (r.tokens as Token[]) ?? [],
-    wordEntriesMap,
+    tokens: r.tokens ?? [],
   }));
+
+  return { cards, wordEntries };
 }
 
 /** Apply a grade: reschedule via FSRS, persist the new state and a review log. */

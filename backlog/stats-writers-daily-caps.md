@@ -2,7 +2,12 @@
 
 **Date:** 2026-07-06
 **Feature:** Progresso / Stats (writers)
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — item 1 (24h clamp) done 2026-07-07; items
+2–3 wired now. `RATE_LIMITS` gains `progressBeacon` (1/10s per user) and
+`wordClick` (1/60s per user+word); the progress and dictionary-click routes
+enforce them and, on deny, return **200 + `{throttled:true}`** (discard, never
+429) so the player never breaks. Limiter fails open (a Redis blip can't drop
+legit beacons).
 
 ---
 
@@ -39,6 +44,23 @@ falsos), mas vaza do auto-dano em dois pontos:
    excesso responde 200 e descarta, sem quebrar o player).
 3. **Clicks:** contar no máximo 1 incremento por (user, word) por minuto —
    cliques repetidos no mesmo popup não são sinal de estudo.
+
+## Resolução parcial (2026-07-07)
+
+**Item 1 (feito).** `bumpDailyStats` (`lib/progress.ts`) satura o `ms_watched`
+acumulado do dia em 24h no upsert:
+`LEAST(ms_watched + excluded.ms_watched, 86_400_000)` (constante
+`MS_WATCHED_DAILY_MAX`). Sanidade absoluta independente de rate limit — nenhum
+loop de beacons infla o watch time além de um dia real. Mudança SQL (sem seam de
+teste unitário puro; coberta por typecheck, comportamento validado com DB).
+
+**Itens 2–3 (destravados, ainda não ligados).** Frequência de beacon (1/10s) e
+dedup de clicks (1/(user,word)/min) dependiam do bucket Redis de
+[ai-endpoints-no-rate-limit.md] — **o limiter já existe** (`lib/rate-limit.ts`,
+`enforceRateLimit`). Falta só ligá-los nos writers, com uma diferença de
+tratamento: beacon/click negados respondem **200 e descartam** (não 429) para
+não quebrar o player. Adicionar as ações `progressBeacon` (1/10s) e `wordClick`
+(1/60s por (user,word)) em `RATE_LIMITS`.
 
 ## Esforço / prioridade
 

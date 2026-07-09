@@ -2,7 +2,15 @@
 
 **Date:** 2026-07-06
 **Feature:** Qualidade / testes
-**Status:** OPEN
+**Status:** PARTIAL (reassessed 2026-07-09). The **pure** sub-parts now have
+tests: `import.test.ts` covers `validateImportRequest` (URL/caps/truncation),
+`cards.test.ts` covers `buildReviewQueuePayload`. Still **untested** — the
+db-orchestrating critical paths the item is really about: `reviewCardById`
+(grade→FSRS→log write, D6) and `explainLine` (cache-hit-skips-provider,
+BYOK→house fallback, `force`, ProviderError→502). Those need a fake-db harness
+or a small seam refactor (the repo's tests target pure functions and don't mock
+Drizzle) — a deliberate effort, not a drive-by. Item 4 (E2E mine→queue→review→log)
+also still open.
 
 ---
 

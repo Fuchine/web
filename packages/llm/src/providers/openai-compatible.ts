@@ -26,6 +26,8 @@ export type OpenAICompatibleConfig = {
 };
 
 const TRANSLATE_CHUNK = 40;
+const FALLBACK_CONCURRENCY = 3;
+const FALLBACK_ABORT_AFTER = 4;
 const PART_TAGS: readonly string[] = [
   "noun", "verb", "adjective", "adverb", "particle", "grammar", "expression",
 ];
@@ -75,8 +77,10 @@ export class OpenAICompatibleProvider implements LlmProvider {
       const parsed = await this.tryTranslateChunk(chunk, from, to);
       if (parsed && parsed.length === chunk.length) return parsed;
     }
-    // Persistent misalignment: fall back to line-by-line (aligned by construction).
-    return Promise.all(chunk.map((line) => this.translateOne(line, from, to)));
+    // Persistent misalignment: fall back to line-by-line (aligned by
+    // construction), but bounded — a provider that just failed twice must not be
+    // hit with TRANSLATE_CHUNK parallel calls (429 cascade + wasted cost).
+    return boundedTranslateFallback(chunk, (line) => this.translateOne(line, from, to));
   }
 
   private async tryTranslateChunk(
@@ -117,6 +121,51 @@ export class OpenAICompatibleProvider implements LlmProvider {
 }
 
 /* ---------------------------- helpers ---------------------------- */
+
+/**
+ * Translate lines one-by-one with bounded concurrency, preserving order and
+ * returning a same-length array (CONTRATO §3.2). This is the misalignment
+ * fallback, so it runs against an already-shaky provider: cap in-flight calls
+ * and, if the first calls all fail with nothing translated yet, abort the rest
+ * instead of firing every remaining call at a failing API. Untranslated slots
+ * stay null (upstream treats an all-null chunk as a translation failure).
+ */
+export async function boundedTranslateFallback(
+  lines: string[],
+  translateOne: (line: string) => Promise<string | null>,
+  opts?: { concurrency?: number; abortAfter?: number },
+): Promise<(string | null)[]> {
+  const concurrency = Math.max(1, opts?.concurrency ?? FALLBACK_CONCURRENCY);
+  const abortAfter = opts?.abortAfter ?? FALLBACK_ABORT_AFTER;
+  const out: (string | null)[] = new Array(lines.length).fill(null);
+  let next = 0;
+  let failures = 0;
+  let successes = 0;
+  let aborted = false;
+
+  const worker = async () => {
+    for (;;) {
+      if (aborted) return;
+      const i = next++;
+      if (i >= lines.length) return;
+      const r = await translateOne(lines[i]!);
+      out[i] = r;
+      if (r === null) {
+        failures++;
+        if (failures >= abortAfter && successes === 0) aborted = true;
+      } else {
+        successes++;
+      }
+    }
+  };
+
+  const slots = Array.from(
+    { length: Math.min(concurrency, Math.max(1, lines.length)) },
+    worker,
+  );
+  await Promise.all(slots);
+  return out;
+}
 
 function defaultChat(config: Required<Omit<OpenAICompatibleConfig, "chat">>): ChatFn {
   return async (messages, opts) => {

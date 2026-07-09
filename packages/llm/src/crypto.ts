@@ -7,6 +7,13 @@ const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12; // GCM standard nonce size
 const TAG_LENGTH = 16;
 
+// Version tag on the ciphertext so a future format/algorithm change is
+// distinguishable from today's. Cheap to add now, impossible to retrofit once
+// unlabelled ciphertext exists in the wild. Payload layout is unchanged from v1
+// (iv | tag | ct); the prefix only labels it. Ciphertext written before this
+// (no prefix) is treated as v1 on decrypt.
+const VERSION_PREFIX = "v2:";
+
 function loadKey(keyBase64: string): Buffer {
   const key = Buffer.from(keyBase64, "base64");
   if (key.length !== 32) {
@@ -27,13 +34,16 @@ export function encryptApiKey(plaintext: string, keyBase64: string): string {
     cipher.final(),
   ]);
   const tag = cipher.getAuthTag();
-  return Buffer.concat([iv, tag, ciphertext]).toString("base64");
+  return VERSION_PREFIX + Buffer.concat([iv, tag, ciphertext]).toString("base64");
 }
 
-/** Decrypt a value produced by {@link encryptApiKey}. */
+/** Decrypt a value produced by {@link encryptApiKey} (v2 prefix or legacy v1). */
 export function decryptApiKey(payloadBase64: string, keyBase64: string): string {
   const key = loadKey(keyBase64);
-  const payload = Buffer.from(payloadBase64, "base64");
+  const b64 = payloadBase64.startsWith(VERSION_PREFIX)
+    ? payloadBase64.slice(VERSION_PREFIX.length)
+    : payloadBase64; // legacy v1: bare base64, no prefix
+  const payload = Buffer.from(b64, "base64");
   const iv = payload.subarray(0, IV_LENGTH);
   const tag = payload.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
   const ciphertext = payload.subarray(IV_LENGTH + TAG_LENGTH);

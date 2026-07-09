@@ -16,7 +16,7 @@ import { lineRangeForChunk } from "@fuchine/core";
 export type ChunkLine = { id: string; textTranslation: string | null };
 export type Result = {
   status: number;
-  body: { lines?: ChunkLine[]; cached?: boolean; error?: string };
+  body: { lines?: ChunkLine[]; cached?: boolean; error?: string; retryAfterSeconds?: number };
 };
 
 
@@ -49,7 +49,11 @@ export async function translateChunk(
   db: Database,
   videoId: string,
   chunkIdx: number,
-  deps: { provider?: LlmProvider } = {},
+  deps: {
+    provider?: LlmProvider;
+    /** Called only on a cache miss (about to spend tokens); return a non-ok verdict to deny. */
+    checkRateLimit?: () => Promise<{ ok: boolean; retryAfterSeconds: number }>;
+  } = {},
 ): Promise<Result> {
   const [video] = await db
     .select({ id: videos.id, language: videos.language })
@@ -95,6 +99,20 @@ export async function translateChunk(
         cached: true,
       },
     };
+  }
+
+  // Miss → about to spend tokens. Rate-limit here so cached chunks stay free.
+  if (deps.checkRateLimit) {
+    const rl = await deps.checkRateLimit();
+    if (!rl.ok) {
+      return {
+        status: 429,
+        body: {
+          error: "Too many translations today — try again later.",
+          retryAfterSeconds: rl.retryAfterSeconds,
+        },
+      };
+    }
   }
 
   // Miss → translate.

@@ -104,13 +104,17 @@ export function Login({
               {isSignup ? "Create account" : "Sign in"}
             </Button>
 
-            <div className="my-[26px] flex items-center gap-[14px] text-[12px] text-faint before:h-px before:flex-1 before:bg-border before:content-[''] after:h-px after:flex-1 after:bg-border after:content-['']">
-              or
-            </div>
+            {onGoogle && (
+              <>
+                <div className="my-[26px] flex items-center gap-[14px] text-[12px] text-faint before:h-px before:flex-1 before:bg-border before:content-[''] after:h-px after:flex-1 after:bg-border after:content-['']">
+                  or
+                </div>
 
-            <Button type="button" variant="ghost" fullWidth icon={<GoogleIcon />} onClick={onGoogle}>
-              Continue with Google
-            </Button>
+                <Button type="button" variant="ghost" fullWidth icon={<GoogleIcon />} onClick={onGoogle}>
+                  Continue with Google
+                </Button>
+              </>
+            )}
 
             <p className="mt-7 text-center text-[13.5px] text-muted">
               {isSignup ? "Already have an account? " : "No account? "}

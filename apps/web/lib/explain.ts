@@ -14,6 +14,7 @@ import {
   type SubtitleLineCtx,
 } from "@fuchine/llm";
 import { houseProvider } from "./house-provider";
+import { enforceRateLimit, tooManyRequests } from "./rate-limit";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
@@ -42,9 +43,17 @@ export async function explainLine(
     explanationLanguage,
     promptVersion: PROMPT_VERSION,
   };
-  if (!opts.force) {
+  // Rate limit only the paths that spend tokens on the house key. A cache hit
+  // costs nothing and is never limited; force overwrites the shared cache (cache
+  // poisoning risk) so it has its own tighter budget.
+  if (opts.force) {
+    const rl = await enforceRateLimit("explainForce", userId);
+    if (!rl.ok) return tooManyRequests(rl, "Too many regenerations today — try again later.");
+  } else {
     const cached = await getCachedExplanation(db, key);
     if (cached) return { status: 200, body: { explanation: cached, cached: true } };
+    const rl = await enforceRateLimit("explainMiss", userId);
+    if (!rl.ok) return tooManyRequests(rl, "Too many explanation requests right now — try again shortly.");
   }
 
   // Miss → need a provider. BYOK wins when configured; otherwise fall back to the house key.

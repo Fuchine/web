@@ -20,6 +20,11 @@ export type Result = { status: number; body: Record<string, unknown> };
 // 500 lines in one beacon means a bug or abuse, not studying.
 const MS_WATCHED_MAX = 600_000;
 const LINE_IDS_MAX = 500;
+// Absolute daily sanity cap: a day can't hold more than 24h of watch time, so the
+// accumulated total saturates here regardless of how many beacons arrive. Guards
+// the streak/heatmap/watch-time numbers even without a per-user beacon rate limit
+// (see backlog: stats-writers-daily-caps / ai-endpoints-no-rate-limit).
+const MS_WATCHED_DAILY_MAX = 86_400_000;
 
 export type ProgressInput = { msWatched: number; lineIds: string[] };
 
@@ -91,7 +96,7 @@ export async function bumpDailyStats(
     .onConflictDoUpdate({
       target: [userDailyStats.userId, userDailyStats.day],
       set: {
-        msWatched: sql`${userDailyStats.msWatched} + excluded.ms_watched`,
+        msWatched: sql`LEAST(${userDailyStats.msWatched} + excluded.ms_watched, ${MS_WATCHED_DAILY_MAX})`,
         linesSeen: sql`${userDailyStats.linesSeen} + excluded.lines_seen`,
         cardsCreated: sql`${userDailyStats.cardsCreated} + excluded.cards_created`,
         reviewsDone: sql`${userDailyStats.reviewsDone} + excluded.reviews_done`,

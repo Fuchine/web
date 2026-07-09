@@ -2,7 +2,18 @@
 
 **Date:** 2026-07-06
 **Feature:** Produção / Deploy (T1.10)
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — **build-verified end-to-end.** Multi-stage
+`apps/web/Dockerfile` (Next `output: standalone`) + `apps/worker/Dockerfile`
+(tsx + kuromoji dict); compose gains `migrate` (one-shot, gates web/worker),
+`web`, `worker`, `caddy` (TLS ingress, web publishes no port), and a `db-backup`
+profile; README has a Production section. `docker compose up -d --build` brought
+the full stack up: migrate applied migrations and exited 0, web went healthy,
+`/api/health` returned `{ok,db,redis,workerAlive}` all true through the Caddy
+TLS ingress. Two bugs surfaced only by the live run and fixed: (1) the health
+Redis probe reused the fail-open `createRequestRedis` (lazyConnect +
+enableOfflineQueue:false) so `ping()` was rejected before connect — now calls
+`connect()` first; (2) the compose healthcheck used `localhost` which busybox
+wget resolves to IPv6 `::1` (server binds IPv4) — now `127.0.0.1`.
 
 ---
 
