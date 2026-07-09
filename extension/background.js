@@ -95,6 +95,40 @@ async function doImport(videoId, base) {
   }
 }
 
+// The bridge content script (app ↔ background relay) is in the static manifest
+// only for localhost. For a published instance we register it at runtime, once
+// the user has granted the host permission from the popup. Re-registered on
+// startup so it survives service-worker restarts.
+const BRIDGE_SCRIPT_ID = "bridge-dynamic";
+
+async function registerBridge(origin) {
+  if (!origin || /^https?:\/\/localhost:3000$/.test(origin)) return; // static covers dev
+  const match = origin.replace(/\/+$/, "") + "/*";
+  try {
+    if (!(await chrome.permissions.contains({ origins: [match] }))) return;
+    await chrome.scripting.unregisterContentScripts({ ids: [BRIDGE_SCRIPT_ID] }).catch(() => {});
+    await chrome.scripting.registerContentScripts([
+      { id: BRIDGE_SCRIPT_ID, matches: [match], js: ["bridge.js"], runAt: "document_start" },
+    ]);
+  } catch (e) {
+    // Best-effort: the popup POST path still works without the in-app bridge.
+  }
+}
+
+async function reregisterBridgeFromStorage() {
+  const { base } = await chrome.storage.local.get("base");
+  if (!base) return;
+  try { await registerBridge(new URL(base).origin); } catch (e) {}
+}
+chrome.runtime.onStartup.addListener(reregisterBridgeFromStorage);
+chrome.runtime.onInstalled.addListener(reregisterBridgeFromStorage);
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg && msg.type === "REGISTER_BRIDGE" && typeof msg.origin === "string") {
+    registerBridge(msg.origin);
+  }
+});
+
 const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
