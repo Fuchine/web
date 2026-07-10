@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signOut } from "next-auth/react";
 import { Button } from "@fuchine/ui";
 
@@ -86,6 +86,7 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
   const [maxReviewsPerDay, setMaxReviewsPerDay] = useState<number>(settings.dailyGoals?.maxReviewsPerDay ?? 200);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   async function save(patch: Record<string, unknown>) {
     setSaving(true);
@@ -350,12 +351,23 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
             Export deck
           </Button>
         </Row>
-        <Row title="Sign out" desc="You can sign back in any time." last>
+        <Row title="Sign out" desc="You can sign back in any time.">
           <Button variant="ghost" size="sm" onClick={() => void signOut({ callbackUrl: "/login" })}>
             Sign out
           </Button>
         </Row>
+        <Row
+          title="Delete account"
+          desc="Permanently delete your cards, review history and stats."
+          last
+        >
+          <Button variant="ghost" size="sm" className="text-error hover:text-error" onClick={() => setDeleteOpen(true)}>
+            Delete account
+          </Button>
+        </Row>
       </Group>
+
+      {deleteOpen && <DeleteAccountModal email={user.email} onClose={() => setDeleteOpen(false)} />}
 
       <p className="mt-10 text-center text-[12.5px] text-faint">
         Fuchine · v0.4 · <button className="text-link hover:text-[var(--link-hover)]">What&apos;s new</button>
@@ -401,6 +413,87 @@ function Stepper({ value, min = 1, max = 999, step = 1, disabled, onChange }: {
       <span className="w-12 text-center text-[14px] tabular-nums text-fg">{value}</span>
       <button className="grid h-8 w-8 place-items-center text-faint hover:text-fg disabled:opacity-50" aria-label="increase"
         disabled={disabled || !onChange || value >= max} onClick={() => bump(1)}>+</button>
+    </div>
+  );
+}
+
+function DeleteAccountModal({ email, onClose }: { email: string; onClose: () => void }) {
+  const [confirm, setConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const matches = confirm.trim().toLowerCase() === email.trim().toLowerCase() && email.trim().length > 0;
+
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [onClose]);
+
+  async function confirmDelete() {
+    if (!matches || deleting) return;
+    setDeleting(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/account", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setErr(data.error ?? "Could not delete your account.");
+        setDeleting(false);
+        return;
+      }
+      // Session row is already gone; clear the stale cookie and leave.
+      await signOut({ callbackUrl: "/login?deleted=1" });
+    } catch {
+      setErr("Could not reach the server.");
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] grid animate-[scrim-in_0.2s_var(--ease)] place-items-center bg-[rgba(17,22,34,0.30)] p-9 backdrop-blur-[3px]"
+      onMouseDown={onClose}
+    >
+      <div
+        className="w-full max-w-[448px] animate-[modal-in_0.34s_var(--ease)] overflow-hidden rounded-[var(--radius-xl)] border border-border bg-surface p-6 shadow-[var(--shadow-lg)]"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <h2 className="m-0 mb-2 text-[16px] font-[600] text-fg">Delete account</h2>
+        <p className="m-0 mb-2 text-[13px] leading-[1.55] text-muted">
+          This permanently deletes your cards, review history and stats. Videos stay in the shared
+          library. This can&apos;t be undone.
+        </p>
+        <p className="m-0 mb-4 text-[13px] text-muted">
+          <a href="/api/export/deck" className="text-link hover:text-[var(--link-hover)]">Export your deck first</a>.
+        </p>
+        <label className="mb-1.5 block text-[13px] font-[550] text-fg">
+          Type <span className="font-[600]">{email}</span> to confirm
+        </label>
+        <input
+          type="email"
+          autoFocus
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") void confirmDelete(); }}
+          aria-label="Type your email to confirm"
+          className="mb-4 w-full rounded-[8px] border border-border-strong bg-field px-3 py-2 text-[14px] text-fg outline-none focus:border-accent focus:shadow-[0_0_0_3.5px_var(--accent-ring)]"
+        />
+        {err && <p className="m-0 mb-3 text-[13px] text-error">{err}</p>}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <button
+            disabled={!matches || deleting}
+            onClick={() => void confirmDelete()}
+            className="rounded-[8px] bg-error px-4 py-2 text-[13.5px] font-[550] text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+          >
+            {deleting ? "Deleting…" : "Delete account"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
