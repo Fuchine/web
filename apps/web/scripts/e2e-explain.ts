@@ -70,6 +70,23 @@ class CountingProvider implements LlmProvider {
   }
 }
 
+/** Like CountingProvider but slow, so a concurrent second caller is still
+ *  inside the single-flight window (blocked on the advisory lock) when the
+ *  first generates — deterministically exercising the lock path. */
+class SlowCountingProvider implements LlmProvider {
+  readonly name = "slow-counting";
+  calls = 0;
+  constructor(private readonly delayMs = 300) {}
+  async translateBatch(lines: string[]): Promise<(string | null)[]> {
+    return lines.map(() => null);
+  }
+  async explainLine(): Promise<Explanation> {
+    this.calls++;
+    await new Promise((r) => setTimeout(r, this.delayMs));
+    return { breakdown: [], plainTerms: `slow #${this.calls}` };
+  }
+}
+
 async function main() {
   console.log("\n=== E2E: explanation cache ===\n");
 
@@ -118,6 +135,22 @@ async function main() {
 
   const rows = await db.select().from(aiExplanations).where(eq(aiExplanations.subtitleLineId, line.id));
   check("exactly 2 cache rows (en + pt), not 4", rows.length === 2, rows.length);
+
+  // ---------- C. single-flight: concurrent misses generate once ----------
+  console.log("C. single-flight (concurrent misses → one provider call)");
+  const [line3] = await db
+    .insert(subtitleLines)
+    .values({ videoId: video.id, idx: 2, tStartMs: 2000, tEndMs: 3000, textOriginal: "鳥も好き", tokens: [] })
+    .returning();
+  const sp = new SlowCountingProvider();
+  const [r1, r2] = await Promise.all([
+    explainLineCached(db, sp, line3.id, ctx, { explanationLanguage: "en" }),
+    explainLineCached(db, sp, line3.id, ctx, { explanationLanguage: "en" }),
+  ]);
+  check("two concurrent misses call the provider exactly once", sp.calls === 1, sp.calls);
+  check("both callers get the same content", r1.plainTerms === r2.plainTerms && r1.plainTerms === "slow #1", [r1.plainTerms, r2.plainTerms]);
+  const line3Rows = await db.select().from(aiExplanations).where(eq(aiExplanations.subtitleLineId, line3.id));
+  check("exactly one cache row for the line", line3Rows.length === 1, line3Rows.length);
 
   // ---------- B. web lib explainLine ----------
   console.log("B. explainLine (lib: cache-first + degrade)");

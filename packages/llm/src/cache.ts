@@ -2,8 +2,8 @@
 // (subtitle_line_id, kind, explanation_language, prompt_version).
 // The model is NOT part of the key — explanations are reused across providers.
 
-import { and, eq } from "drizzle-orm";
-import { aiExplanations, type Database, type Explanation } from "@fuchine/db";
+import { and, eq, sql } from "drizzle-orm";
+import { aiExplanations, type Database, type DbOrTx, type Explanation } from "@fuchine/db";
 import {
   PROMPT_VERSION,
   type ExplanationKind,
@@ -21,7 +21,7 @@ export type CacheKey = {
 
 /** Read a cached explanation, or null on miss. */
 export async function getCachedExplanation(
-  db: Database,
+  db: DbOrTx,
   key: CacheKey,
 ): Promise<Explanation | null> {
   const rows = await db
@@ -41,7 +41,7 @@ export async function getCachedExplanation(
 
 /** Persist an explanation. `model` is informational only (not in the key). */
 export async function saveExplanation(
-  db: Database,
+  db: DbOrTx,
   key: CacheKey,
   content: Explanation,
   model: string | null,
@@ -71,6 +71,12 @@ export async function saveExplanation(
  * Cache-first explanation: serve from `ai_explanations` if present, otherwise
  * call the provider and store the result. The whole point of layer 2.
  * On provider failure, retries up to 3 times with exponential backoff.
+ *
+ * Single-flight: a cache miss is serialized on a per-key advisory lock so two
+ * concurrent misses for the same line (the normal post-import case — the worker
+ * pre-warm and the player prefetch walk the same region) don't both call the
+ * provider and both pay for the same explanation. The second caller blocks,
+ * wakes to a warm cache, and returns the hit — one provider call per key.
  */
 export async function explainLineCached(
   db: Database,
@@ -86,16 +92,37 @@ export async function explainLineCached(
     promptVersion: PROMPT_VERSION,
   };
 
+  // Fast path: a lock-free read serves the overwhelming common case (warm cache)
+  // without a transaction. force skips it — it must regenerate.
   if (!opts.force) {
     const cached = await getCachedExplanation(db, key);
     if (cached) return cached;
   }
 
-  const fresh = await callWithRetry(() =>
-    provider.explainLine(ctx, { explanationLanguage: opts.explanationLanguage }),
-  );
-  await saveExplanation(db, key, fresh, opts.model ?? null);
-  return fresh;
+  // Miss (or force): take the per-key lock, then re-check the cache under it —
+  // a concurrent miss that generated while we waited is now a hit.
+  return db.transaction(async (tx) => {
+    await acquireKeyLock(tx, key);
+    if (!opts.force) {
+      const cached = await getCachedExplanation(tx, key);
+      if (cached) return cached;
+    }
+    const fresh = await callWithRetry(() =>
+      provider.explainLine(ctx, { explanationLanguage: opts.explanationLanguage }),
+    );
+    await saveExplanation(tx, key, fresh, opts.model ?? null);
+    return fresh;
+  });
+}
+
+/**
+ * Transaction-scoped advisory lock keyed on the cache key. Auto-released at
+ * commit/rollback, so it spans exactly the generate-and-save window. hashtext
+ * folds the composite key into the int4 that pg_advisory_xact_lock takes.
+ */
+async function acquireKeyLock(tx: DbOrTx, key: CacheKey): Promise<void> {
+  const lockKey = `explain:${key.subtitleLineId}:${key.kind}:${key.explanationLanguage}:${key.promptVersion}`;
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
 }
 
 async function callWithRetry<T>(fn: () => Promise<T>): Promise<T> {
