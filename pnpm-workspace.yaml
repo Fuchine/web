@@ -8,3 +8,12 @@ onlyBuiltDependencies:
   - esbuild
   - sharp
   - msgpackr-extract
+
+# Security pins (moved from package.json "pnpm.overrides", which pnpm 10
+# ignores). Lockfile already resolves these versions; the override locks them
+# in for any future re-resolution.
+overrides:
+  "nodemailer@<9.0.1": "^9.0.1"
+  "esbuild@<0.25.0": ">=0.25.0"
+  "postcss@<8.5.10": ">=8.5.10"
+  "uuid@<11.1.1": ">=11.1.1"
