@@ -179,7 +179,7 @@ async function main() {
   console.log("8. Stale pending is swept");
   await db.insert(subtitleTranslationChunks).values({
     videoId: video.id, chunkIdx: 4, status: "pending",
-    createdAt: new Date(Date.now() - 3 * 60_000), // 3 min old — past the 2-min window
+    createdAt: new Date(Date.now() - 6 * 60_000), // 6 min old — past the stale-claim window
   });
   const swept = new CountingProvider();
   const revived = await translateChunk(db, video.id, 4, { provider: swept });

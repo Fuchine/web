@@ -107,12 +107,32 @@ export async function explainLineCached(
       const cached = await getCachedExplanation(tx, key);
       if (cached) return cached;
     }
-    const fresh = await callWithRetry(() =>
-      provider.explainLine(ctx, { explanationLanguage: opts.explanationLanguage }),
+    // The lock (and this pooled connection) is held for the whole generation, so
+    // cap it: a hung/slow provider must not pin a connection — and block every
+    // same-key caller — indefinitely. On timeout the tx rolls back, releasing
+    // the lock + connection; the next caller re-acquires and retries.
+    const fresh = await withTimeout(
+      callWithRetry(() =>
+        provider.explainLine(ctx, { explanationLanguage: opts.explanationLanguage }),
+      ),
+      GENERATION_TIMEOUT_MS,
     );
     await saveExplanation(tx, key, fresh, opts.model ?? null);
     return fresh;
   });
+}
+
+// Upper bound on a single line's generation while it holds the advisory lock +
+// connection. Generous — one line's explanation is a small generation; this only
+// trips on a pathological hang (a dead socket with no RST).
+const GENERATION_TIMEOUT_MS = 120_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("explanation generation timed out")), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 /**

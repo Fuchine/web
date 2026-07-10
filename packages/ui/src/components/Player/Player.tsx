@@ -460,8 +460,11 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const onFullscreen = useCallback(() => {
     const el = stageRef.current;
     if (!el) return;
-    if (document.fullscreenElement) void document.exitFullscreen?.();
-    else void el.requestFullscreen?.();
+    // Both return a promise that rejects when the request is denied (element
+    // detached, no user activation); swallow it so it degrades silently rather
+    // than surfacing as an unhandled rejection.
+    if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => {});
+    else void el.requestFullscreen?.().catch(() => {});
   }, []);
 
   const onReady = useCallback((h: PlayerVideoHandle) => {

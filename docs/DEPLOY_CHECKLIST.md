@@ -61,7 +61,12 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
 ## 5. Sequência de deploy (ordem importa)
 
 1. `docker compose up -d postgres redis` (e o proxy)
-2. `pnpm db:migrate`
+2. `pnpm db:migrate` — a migration `0013` roda `CREATE EXTENSION IF NOT EXISTS
+   pg_trgm` (índice de busca do dicionário). Exige um papel com privilégio de
+   criar extensões — no Postgres do compose o dono do banco basta; num Postgres
+   gerenciado com papel travado, pré-crie a extensão como superusuário
+   (`CREATE EXTENSION IF NOT EXISTS pg_trgm;`) **antes** deste passo, senão a
+   migration aborta. `pg_trgm` está na allowlist do RDS/Cloud SQL/Supabase.
 3. `pnpm --filter @fuchine/db seed:jmdict [frequency.tsv]` — ~298k entries;
    rodar **antes** de abrir tráfego (o dicionário vazio parece bug —
    histórico: assim nasceu o falso "#9" do backlog)

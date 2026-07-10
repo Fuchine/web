@@ -23,6 +23,15 @@ export type Result = {
 // already translating (returned as retryAfterSeconds on a 202).
 const PENDING_RETRY_SECONDS = 2;
 
+// How old a 'pending' claim must be before the sweep treats it as orphaned (a
+// process that crashed mid-translate). Sized comfortably above the worst-case
+// time to translate one 30-line chunk (incl. fallback line-by-line) so a
+// legitimately slow-but-live translation is never swept out from under itself
+// and re-claimed — that would double-pay the MT call. The cost of the larger
+// window is only a slower recovery for a genuinely crashed claim (the chunk
+// stays JP-only, retryable, until then — no money at stake).
+const STALE_CLAIM_SECONDS = 300;
+
 /** Release a 'pending' claim on this chunk so it can be retried (on failure). */
 async function releaseClaim(db: Database, videoId: string, chunkIdx: number): Promise<void> {
   await db
@@ -110,7 +119,7 @@ export async function translateChunk(
         eq(subtitleTranslationChunks.videoId, videoId),
         eq(subtitleTranslationChunks.chunkIdx, chunkIdx),
         eq(subtitleTranslationChunks.status, "pending"),
-        lt(subtitleTranslationChunks.createdAt, sql`now() - interval '2 minutes'`),
+        lt(subtitleTranslationChunks.createdAt, sql`now() - make_interval(secs => ${STALE_CLAIM_SECONDS})`),
       ),
     );
 
@@ -189,26 +198,34 @@ export async function translateChunk(
   // Persist in one round trip: a single batched UPDATE (unnest the id/text pairs
   // as a VALUES join) plus flipping the claim to 'done', in one transaction — the
   // chunk is either fully translated and marked, or neither.
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`
-      UPDATE ${subtitleLines} AS s
-      SET text_translation = v.tr
-      FROM (VALUES ${sql.join(
-        lines.map((l, i) => sql`(${l.id}::uuid, ${translations[i] ?? null}::text)`),
-        sql`, `,
-      )}) AS v(id, tr)
-      WHERE s.id = v.id
-    `);
-    await tx
-      .update(subtitleTranslationChunks)
-      .set({ status: "done" })
-      .where(
-        and(
-          eq(subtitleTranslationChunks.videoId, videoId),
-          eq(subtitleTranslationChunks.chunkIdx, chunkIdx),
-        ),
-      );
-  });
+  try {
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`
+        UPDATE ${subtitleLines} AS s
+        SET text_translation = v.tr
+        FROM (VALUES ${sql.join(
+          lines.map((l, i) => sql`(${l.id}::uuid, ${translations[i] ?? null}::text)`),
+          sql`, `,
+        )}) AS v(id, tr)
+        WHERE s.id = v.id
+      `);
+      await tx
+        .update(subtitleTranslationChunks)
+        .set({ status: "done" })
+        .where(
+          and(
+            eq(subtitleTranslationChunks.videoId, videoId),
+            eq(subtitleTranslationChunks.chunkIdx, chunkIdx),
+          ),
+        );
+    });
+  } catch (err) {
+    // The claim was committed before we translated; a persist failure must
+    // release it — like the provider/failure paths above — so the chunk isn't
+    // wedged 'pending' (every request 202) until the stale sweep.
+    await releaseClaim(db, videoId, chunkIdx);
+    throw err;
+  }
 
   return {
     status: 200,
