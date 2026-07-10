@@ -13,10 +13,10 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: fuchine
-      POSTGRES_PASSWORD: fuchine
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: fuchine
-    ports:
-      - "5432:5432"
+    # No ports: only reachable on the compose internal network. To inspect
+    # from the host in dev, run `docker compose exec postgres psql -U fuchine`.
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -28,16 +28,20 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    # AOF on: the import/explain queues survive a crash instead of losing the
-    # last snapshot window. Imports are re-triggerable, but durable-by-default
-    # is the safer declared choice (backlog: health-endpoints-missing §3).
-    command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "6379:6379"
+    # AOF on + requirepass: queues survive a crash and require a password.
+    # Imports are re-triggerable, but durable-by-default is the safer declared
+    # choice (backlog: health-endpoints-missing §3).
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes"
+      - "--requirepass"
+      - "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"
+    # No ports: only reachable on the compose internal network.
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -52,7 +56,7 @@ services:
     command: ["pnpm", "--filter", "@fuchine/db", "migrate"]
     env_file: .env
     environment:
-      DATABASE_URL: postgres://fuchine:fuchine@postgres:5432/fuchine
+      DATABASE_URL: postgres://fuchine:${POSTGRES_PASSWORD}@postgres:5432/fuchine
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,8 +70,8 @@ services:
     environment:
       # Point at the compose service names, overriding the localhost values a
       # host-side .env carries.
-      DATABASE_URL: postgres://fuchine:fuchine@postgres:5432/fuchine
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgres://fuchine:${POSTGRES_PASSWORD}@postgres:5432/fuchine
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       # Timezone that defines "today" for streaks/goals/heatmap (backlog:
       # timezone-streaks-decision). Pin it so a UTC container doesn't flip the
       # day mid-evening. Keep web and worker identical.
@@ -98,8 +102,8 @@ services:
       dockerfile: apps/worker/Dockerfile
     env_file: .env
     environment:
-      DATABASE_URL: postgres://fuchine:fuchine@postgres:5432/fuchine
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgres://fuchine:${POSTGRES_PASSWORD}@postgres:5432/fuchine
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       # Must match web: the backfill scripts bucket days in this zone too.
       TZ: ${TZ:-America/Sao_Paulo}
     depends_on:
@@ -131,7 +135,7 @@ services:
     profiles: ["backup"]
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://fuchine:fuchine@postgres:5432/fuchine
+      DATABASE_URL: postgres://fuchine:${POSTGRES_PASSWORD}@postgres:5432/fuchine
     entrypoint: ["sh", "/pg-backup.sh"]
     volumes:
       - ./scripts/pg-backup.sh:/pg-backup.sh:ro
