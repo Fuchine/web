@@ -5,7 +5,7 @@ import { cn } from "../../lib/cn";
 import { pickPrefetchTarget } from "../../lib/prefetch";
 import { AppShell } from "../AppShell/AppShell";
 import { buildAppNav } from "../AppShell/nav";
-import { pickCurrentLine, formatTimecode as fmt, lineHasAudio, chunkIndexForLine, chunkPumpOrder } from "@fuchine/core";
+import { pickCurrentLine, formatTimecode as fmt, lineHasAudio, chunkIndexForLine, chunkPumpOrder, freqTier } from "@fuchine/core";
 import { PlayerTopBar } from "./PlayerTopBar";
 import { PlayerStage, type PlayerVideoHandle, type DictPopupState } from "./PlayerStage";
 import { PlayerTranscript, type TranscriptLine, type TranscriptToken } from "./PlayerTranscript";
@@ -840,7 +840,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     word: dictEntry.lemma,
     reading: dictEntry.reading,
     pos: dictEntry.pos,
-    frequencyRank: dictEntry.frequencyRank ? Math.min(5, Math.max(1, Math.ceil(dictEntry.frequencyRank / 6000))) : 0,
+    frequencyRank: freqTier(dictEntry.frequencyRank),
     definitions: dictEntry.definitions,
     lemma: dictEntry.reading ? { word: dictEntry.lemma, reading: dictEntry.reading } : null,
   } : null;

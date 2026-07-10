@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Produto / Biblioteca
-**Status:** OPEN — decisão de produto (código depois é pequeno)
+**Status:** CLOSED (2026-07-10) — decisão confirmada: catálogo global é o fosso do produto. Registrada no ARQUITETURA (D3).
 
 ---
 

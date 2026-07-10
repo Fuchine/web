@@ -8,3 +8,4 @@ export * from "./cache";
 export * from "./providers";
 export * from "./resolve";
 export * from "./prewarm";
+export * from "./usage";

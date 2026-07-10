@@ -4,6 +4,7 @@
 
 import type { Explanation, ExplanationPart, PartTag, LlmProvider, SubtitleLineCtx } from "../contract";
 import { ProviderError, RateLimitError } from "../errors";
+import { logLlmUsage, type UsageContext } from "../usage";
 import {
   buildExplainMessages,
   buildTranslateMessages,
@@ -23,6 +24,7 @@ export type OpenAICompatibleConfig = {
   model: string;
   jsonMode?: boolean; // default true (json_object response mode)
   chat?: ChatFn; // override the HTTP call (tests)
+  usageProvider?: string; // for usage logging (provider name)
 };
 
 const TRANSLATE_CHUNK = 40;
@@ -167,7 +169,9 @@ export async function boundedTranslateFallback(
   return out;
 }
 
-function defaultChat(config: Required<Omit<OpenAICompatibleConfig, "chat">>): ChatFn {
+function defaultChat(config: Required<Omit<OpenAICompatibleConfig, "chat" | "usageProvider">> & {
+  usageProvider?: string;
+}): ChatFn {
   return async (messages, opts) => {
     const body: Record<string, unknown> = {
       model: config.model,
@@ -178,6 +182,7 @@ function defaultChat(config: Required<Omit<OpenAICompatibleConfig, "chat">>): Ch
       body.response_format = { type: "json_object" };
     }
 
+    const t0 = Date.now();
     let res: Response;
     try {
       res = await fetch(`${config.baseUrl}/chat/completions`, {
@@ -187,25 +192,53 @@ function defaultChat(config: Required<Omit<OpenAICompatibleConfig, "chat">>): Ch
           Authorization: `Bearer ${config.apiKey}`,
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(30_000), // real network abort, not a Promise.race hack
+        signal: AbortSignal.timeout(30_000),
       });
     } catch (err) {
+      logLlmUsage(
+        { fn: "translateBatch", provider: config.usageProvider ?? "unknown", model: config.model },
+        { ms: Date.now() - t0, ok: false },
+      );
       throw new ProviderError(`Network error: ${(err as Error).message}`);
     }
 
-    if (res.status === 429) throw new RateLimitError("Provider rate limited");
+    if (res.status === 429) {
+      logLlmUsage(
+        { fn: "translateBatch", provider: config.usageProvider ?? "unknown", model: config.model },
+        { ms: Date.now() - t0, ok: false },
+      );
+      throw new RateLimitError("Provider rate limited");
+    }
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
+      logLlmUsage(
+        { fn: "translateBatch", provider: config.usageProvider ?? "unknown", model: config.model },
+        { ms: Date.now() - t0, ok: false },
+      );
       throw new ProviderError(`Provider error ${res.status}: ${detail}`);
     }
 
     const data = (await res.json()) as {
       choices?: { message?: { content?: unknown } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
     const content = data.choices?.[0]?.message?.content;
     if (typeof content !== "string") {
+      logLlmUsage(
+        { fn: "translateBatch", provider: config.usageProvider ?? "unknown", model: config.model },
+        { ms: Date.now() - t0, ok: false },
+      );
       throw new ProviderError("Provider returned no content");
     }
+    logLlmUsage(
+      { fn: "translateBatch", provider: config.usageProvider ?? "unknown", model: config.model },
+      {
+        inTokens: data.usage?.prompt_tokens,
+        outTokens: data.usage?.completion_tokens,
+        ms: Date.now() - t0,
+        ok: true,
+      },
+    );
     return content;
   };
 }

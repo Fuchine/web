@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Custos de IA / Observabilidade
-**Status:** OPEN
+**Status:** CLOSED (2026-07-10) — log estruturado implementado em `packages/llm/src/usage.ts` e wired em `OpenAICompatibleProvider` (tokens in/out via `usage` da resposta) e `DeepLProvider` (chars enviados). Loga fn/provider/model/inTokens/outTokens/chars/ms/ok, sem chave ou conteúdo (CONTRATO §6.3). Sem mudança de schema.
 
 ---
 

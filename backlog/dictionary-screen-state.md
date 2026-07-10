@@ -35,13 +35,15 @@ Os chips de POS filter da browse têm 6 categorias (Verb, Adjective, Adverb, Nou
 ### 6. Sem métrica de cobertura real
 A coverage bar mostra distribuição dos itens atuais + percentual sobre totalCount, mas não há métrica de "cobertura funcional" (ex.: % de palavras mais frequentes cobertas, % de POS cobertos, etc.).
 
-### 7. (2026-07-06, auditoria) Escala de frequência divergente entre popup e dicionário
-O popup do player calcula o tier com `ceil(frequencyRank / 6000)` clampado 1–5
+### 7. (2026-07-06, auditoria) Escala de frequência divergente entre popup e dicionário — ✅ CORRIGIDO (2026-07-10)
+~~O popup do player calcula o tier com `ceil(frequencyRank / 6000)` clampado 1–5
 (`packages/ui/src/components/Player/Player.tsx:738`), enquanto a tela do
 dicionário usa `freqTier` com cortes 1500/5000/15000/30000
 (`apps/web/lib/dictionary.ts:26-33`). A mesma palavra mostra quantidades
 diferentes de dots nos dois lugares (ex.: rank 4000 → 4 dots no dicionário,
-1 no popup). Fix: exportar `freqTier` de um único lugar e usar nos dois (S).
+1 no popup).~~ `freqTier` agora vive em `@fuchine/core/freq.ts` e é importado
+tanto pelo Player quanto pelo dicionário. Os cortes 1500/5000/15000/30000
+são a única fonte de verdade, mesma palavra = mesmos dots em todo lugar.
 
 ### 8. (2026-07-06, auditoria) Busca EN é full scan
 A busca por significado varre a tabela inteira com jsonb + ILIKE — detalhado em

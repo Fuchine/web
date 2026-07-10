@@ -21,16 +21,10 @@ export async function searchDictionary(db: Database, q: string, language = "ja")
 
 /**
  * Map a JMdict frequency rank (lower = more frequent; null = unranked) to a
- * 0–5 tier for the UI dots. Pure.
+ * 0–5 tier for the UI dots. Re-exported from @fuchine/core so the player
+ * popup and the dictionary screen share the same implementation.
  */
-export function freqTier(rank: number | null): number {
-  if (rank == null) return 0;
-  if (rank <= 1500) return 5;
-  if (rank <= 5000) return 4;
-  if (rank <= 15000) return 3;
-  if (rank <= 30000) return 2;
-  return 1;
-}
+export { freqTier } from "@fuchine/core";
 
 export type WordExample = {
   videoId: string;

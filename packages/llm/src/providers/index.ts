@@ -62,6 +62,7 @@ export function createProvider(config: ProviderConfig): LlmProvider {
         model: config.model ?? d.model,
         apiKey: requireKey(config),
         jsonMode: config.jsonMode,
+        usageProvider: config.provider,
       });
     }
 
@@ -76,6 +77,7 @@ export function createProvider(config: ProviderConfig): LlmProvider {
         model: config.model,
         apiKey: requireKey(config),
         jsonMode: config.jsonMode,
+        usageProvider: "openai-compatible",
       });
     }
 
