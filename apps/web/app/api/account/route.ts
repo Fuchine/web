@@ -12,11 +12,12 @@ export async function DELETE(req: Request) {
   if (!session?.user?.id || !session.user.email) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const body = (await req.json().catch(() => ({}))) as { confirm?: string };
+  const body = (await req.json().catch(() => ({}))) as { confirm?: unknown };
+  const confirm = typeof body.confirm === "string" ? body.confirm : "";
   const result = await deleteAccount(
     db,
     session.user.id,
-    body.confirm ?? "",
+    confirm,
     session.user.email,
   );
   return NextResponse.json(result.body, { status: result.status });

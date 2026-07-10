@@ -62,6 +62,8 @@ async function main() {
   check("wrong confirmation returns 400", bad.status === 400, bad);
   check("user still exists after a bad confirmation",
     (await db.select().from(users).where(eq(users.id, user.id))).length === 1);
+  check("child rows untouched after a bad confirmation",
+    (await db.select().from(sentenceCards).where(eq(sentenceCards.userId, user.id))).length === 1);
 
   // --- correct confirmation: cascade wipes user data ---
   const ok = await deleteAccount(db, user.id, ` ${email.toUpperCase()} `, email);
