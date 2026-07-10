@@ -2,18 +2,20 @@
 
 **Date:** 2026-07-06
 **Feature:** Qualidade / testes
-**Status:** PARTIAL (reassessed 2026-07-09, advanced same day). The **pure**
-sub-parts have tests: `import.test.ts` (`validateImportRequest`),
-`cards.test.ts` (`buildReviewQueuePayload`). The **db-orchestrating** paths are
-covered by E2E against a live Postgres (the repo's convention for DB logic, not
-Drizzle mocks): `reviewCardById` — grade→FSRS→**log write (D6)** — is now
-asserted end-to-end in `e2e-mine-sentence.ts` (log written with coherent
-grade/scheduling fields, append-only history across two reviews, and a rejected
-grade writes no log), which also closes **item 4** (mine→queue→review→log).
-`explainLine` cache-hit-skips-provider + degrade→502 are in `e2e-explain.ts`.
-**Remaining sliver:** an explicit assertion of `explainLine`'s BYOK→house
-fallback + `force` at the lib level (the cache-level `force` is already covered
-in `e2e-explain` §A).
+**Status:** RESOLVED (2026-07-09). Pure sub-parts: `import.test.ts`
+(`validateImportRequest`), `cards.test.ts` (`buildReviewQueuePayload`). The
+**db-orchestrating** critical paths are covered by E2E against a live Postgres
+(the repo's convention for DB logic, not Drizzle mocks):
+
+- `reviewCardById` — grade→FSRS→**log write (D6)** — asserted in
+  `e2e-mine-sentence.ts`: log written with coherent grade/scheduling fields,
+  append-only history across two reviews, rejected grade writes no log. Closes
+  **item 4** (mine→queue→review→log).
+- `explainLine` — a `provider` test seam (mirrors `translateChunk`'s
+  `deps.provider`) lets `e2e-explain.ts` §D drive the money path with a
+  call-counting fake: miss generates, **cache hit does NOT call the provider**,
+  `force` regenerates + overwrites (single cache row). BYOK→house fallback +
+  ProviderError→502 are exercised in §B (no key → house echo → 502).
 
 ---
 

@@ -174,6 +174,32 @@ async function main() {
   const missing = await explainLine(db, user.id, "00000000-0000-0000-0000-000000000000", { encryptionKey: "" });
   check("unknown line => 404", missing.status === 404, missing);
 
+  // ---------- D. explainLine: cache-first + force (injected provider) ----------
+  // The lib resolves BYOK-or-house internally; the provider seam lets us drive
+  // the money-spending path with a call-counting fake (no env key needed) and
+  // assert the layer-2 economics: a hit never calls the provider; force does.
+  console.log("D. explainLine cache-first + force (money path)");
+  const [line4] = await db
+    .insert(subtitleLines)
+    .values({ videoId: video.id, idx: 3, tStartMs: 3000, tEndMs: 4000, textOriginal: "魚も好き", tokens: [] })
+    .returning();
+  const libProv = new CountingProvider();
+
+  const genMiss = await explainLine(db, user.id, line4.id, { provider: libProv });
+  check("miss generates (200, cached:false)", genMiss.status === 200 && genMiss.body.cached === false, genMiss);
+  check("miss called the provider once", libProv.calls === 1, libProv.calls);
+
+  const genHit = await explainLine(db, user.id, line4.id, { provider: libProv });
+  check("cache hit (200, cached:true)", genHit.status === 200 && genHit.body.cached === true, genHit);
+  check("cache hit does NOT call the provider again", libProv.calls === 1, libProv.calls);
+
+  const forcedLib = await explainLine(db, user.id, line4.id, { provider: libProv, force: true });
+  check("force regenerates (200, cached:false)", forcedLib.status === 200 && forcedLib.body.cached === false, forcedLib);
+  check("force calls the provider again", libProv.calls === 2, libProv.calls);
+  check("force overwrote with fresh content", (forcedLib.body.explanation as { plainTerms?: string })?.plainTerms === "generated #2", forcedLib.body.explanation);
+  const line4Rows = await db.select().from(aiExplanations).where(eq(aiExplanations.subtitleLineId, line4.id));
+  check("still a single cache row after force (overwrite, not append)", line4Rows.length === 1, line4Rows.length);
+
   // ---------- Cleanup ----------
   await db.delete(users).where(eq(users.id, user.id)); // cascades settings
   await db.delete(videos).where(eq(videos.id, video.id)); // cascades lines + explanations
