@@ -21,16 +21,29 @@ export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "o
 
   const onFetchChunk = useCallback(
     async (chunkIdx: number) => {
-      const res = await fetch(`/api/videos/${videoId}/translate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chunkIdx }),
-      });
-      if (!res.ok) throw new Error(`translate failed: ${res.status}`);
-      const data = (await res.json()) as {
-        lines?: { id: string; textTranslation: string | null }[];
-      };
-      return data.lines ?? [];
+      // 202 = another request is already translating this chunk (server-side
+      // claim). Retry a few times so we land on the freshly-cached result rather
+      // than falsely marking the chunk done with no translations. If it's still
+      // pending after the budget, throw so the chunk stays retryable.
+      const MAX_PENDING_RETRIES = 5;
+      for (let attempt = 0; ; attempt++) {
+        const res = await fetch(`/api/videos/${videoId}/translate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chunkIdx }),
+        });
+        if (res.status === 202) {
+          if (attempt >= MAX_PENDING_RETRIES) throw new Error("translate still pending");
+          const retryAfter = Number(res.headers.get("Retry-After")) || 2;
+          await new Promise((r) => setTimeout(r, retryAfter * 1000));
+          continue;
+        }
+        if (!res.ok) throw new Error(`translate failed: ${res.status}`);
+        const data = (await res.json()) as {
+          lines?: { id: string; textTranslation: string | null }[];
+        };
+        return data.lines ?? [];
+      }
     },
     [videoId],
   );

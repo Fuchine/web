@@ -109,12 +109,15 @@ export function tooManyRequests(verdict: RateVerdict, message: string) {
   };
 }
 
-/** Retry-After header for a `tooManyRequests` result (undefined for non-429s). */
+/**
+ * Retry-After header for a throttled (429) or in-progress (202 pending) result.
+ * Undefined otherwise.
+ */
 export function retryAfterHeader(result: {
   status: number;
   body: Record<string, unknown>;
 }): Record<string, string> | undefined {
-  if (result.status !== 429) return undefined;
+  if (result.status !== 429 && result.status !== 202) return undefined;
   const s = result.body.retryAfterSeconds;
   return { "Retry-After": String(typeof s === "number" ? s : 0) };
 }

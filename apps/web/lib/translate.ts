@@ -2,7 +2,7 @@
 // Unlike the old import path, this runs from the web app using the house LLM
 // key and records a chunk marker so already-done chunks cost zero tokens.
 
-import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, lt, lte, sql } from "drizzle-orm";
 import {
   type Database,
   videos,
@@ -16,8 +16,25 @@ import { lineRangeForChunk } from "@fuchine/core";
 export type ChunkLine = { id: string; textTranslation: string | null };
 export type Result = {
   status: number;
-  body: { lines?: ChunkLine[]; cached?: boolean; error?: string; retryAfterSeconds?: number };
+  body: { lines?: ChunkLine[]; cached?: boolean; pending?: boolean; error?: string; retryAfterSeconds?: number };
 };
+
+// How long the client should wait before re-fetching a chunk another request is
+// already translating (returned as retryAfterSeconds on a 202).
+const PENDING_RETRY_SECONDS = 2;
+
+/** Release a 'pending' claim on this chunk so it can be retried (on failure). */
+async function releaseClaim(db: Database, videoId: string, chunkIdx: number): Promise<void> {
+  await db
+    .delete(subtitleTranslationChunks)
+    .where(
+      and(
+        eq(subtitleTranslationChunks.videoId, videoId),
+        eq(subtitleTranslationChunks.chunkIdx, chunkIdx),
+        eq(subtitleTranslationChunks.status, "pending"),
+      ),
+    );
+}
 
 
 /**
@@ -41,9 +58,12 @@ export function isTranslationFailure(
 }
 
 /**
- * Translate (or serve cached) one chunk. Cache hit = chunk marker exists →
- * return stored translations, zero tokens. Miss → translateBatch, persist,
- * mark. Provider failure → 502, no marker (so it can retry later).
+ * Translate (or serve cached) one chunk. Cache hit = a 'done' chunk marker →
+ * return stored translations, zero tokens. Miss → claim the chunk with a
+ * 'pending' marker (so two concurrent requests never both pay for the same
+ * chunk), translateBatch, then batch-persist + flip to 'done' in one tx. A
+ * request that loses the claim gets 202 (retry onto the cache). Provider
+ * failure releases the claim and returns 502 (retryable).
  */
 export async function translateChunk(
   db: Database,
@@ -80,9 +100,24 @@ export async function translateChunk(
     .orderBy(asc(subtitleLines.idx));
   if (lines.length === 0) return { status: 200, body: { lines: [], cached: true } };
 
-  // Cache hit: marker present → serve stored translations.
+  // A translate that crashed mid-flight could leave a 'pending' claim wedging
+  // this chunk forever. Clear a pending claim only if it's older than the sweep
+  // window; a fresh one (someone actively translating) is left alone.
+  await db
+    .delete(subtitleTranslationChunks)
+    .where(
+      and(
+        eq(subtitleTranslationChunks.videoId, videoId),
+        eq(subtitleTranslationChunks.chunkIdx, chunkIdx),
+        eq(subtitleTranslationChunks.status, "pending"),
+        lt(subtitleTranslationChunks.createdAt, sql`now() - interval '2 minutes'`),
+      ),
+    );
+
+  // Marker present: 'done' → serve stored translations (zero tokens); 'pending'
+  // → another request is translating right now, tell the client to retry soon.
   const [marker] = await db
-    .select({ chunkIdx: subtitleTranslationChunks.chunkIdx })
+    .select({ status: subtitleTranslationChunks.status })
     .from(subtitleTranslationChunks)
     .where(
       and(
@@ -91,7 +126,7 @@ export async function translateChunk(
       ),
     )
     .limit(1);
-  if (marker) {
+  if (marker?.status === "done") {
     return {
       status: 200,
       body: {
@@ -99,6 +134,9 @@ export async function translateChunk(
         cached: true,
       },
     };
+  }
+  if (marker?.status === "pending") {
+    return { status: 202, body: { pending: true, retryAfterSeconds: PENDING_RETRY_SECONDS } };
   }
 
   // Miss → about to spend tokens. Rate-limit here so cached chunks stay free.
@@ -115,28 +153,62 @@ export async function translateChunk(
     }
   }
 
-  // Miss → translate.
+  // Claim the chunk: insert a 'pending' marker as a lock. Concurrent requests
+  // for the same chunk race on the (video, chunk) primary key — exactly one
+  // INSERT returns a row and pays for the translation; the losers get 202 and
+  // retry onto the cache instead of duplicating the (paid) MT call.
+  const claim = await db
+    .insert(subtitleTranslationChunks)
+    .values({ videoId, chunkIdx, status: "pending" })
+    .onConflictDoNothing()
+    .returning({ chunkIdx: subtitleTranslationChunks.chunkIdx });
+  if (claim.length === 0) {
+    // Lost the race between the marker read and the claim — hand the client a
+    // retry; its next fetch reads fresh lines + the winner's 'done' marker.
+    return { status: 202, body: { pending: true, retryAfterSeconds: PENDING_RETRY_SECONDS } };
+  }
+
+  // We hold the claim → translate. Any failure releases the claim so the chunk
+  // stays retryable (never a wedged 'pending').
   const provider = deps.provider ?? houseMtProvider();
-  const translations = await provider.translateBatch(
-    lines.map((l) => l.textOriginal),
-    { from: video.language, to: "en" },
-  );
+  let translations: (string | null)[];
+  try {
+    translations = await provider.translateBatch(
+      lines.map((l) => l.textOriginal),
+      { from: video.language, to: "en" },
+    );
+  } catch (err) {
+    await releaseClaim(db, videoId, chunkIdx);
+    throw err;
+  }
   if (isTranslationFailure(lines, translations)) {
+    await releaseClaim(db, videoId, chunkIdx);
     return { status: 502, body: { error: "could not translate this section right now" } };
   }
 
-  await Promise.all(
-    lines.map((l, i) =>
-      db
-        .update(subtitleLines)
-        .set({ textTranslation: translations[i] ?? null })
-        .where(eq(subtitleLines.id, l.id)),
-    ),
-  );
-  await db
-    .insert(subtitleTranslationChunks)
-    .values({ videoId, chunkIdx, status: "done" })
-    .onConflictDoNothing();
+  // Persist in one round trip: a single batched UPDATE (unnest the id/text pairs
+  // as a VALUES join) plus flipping the claim to 'done', in one transaction — the
+  // chunk is either fully translated and marked, or neither.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`
+      UPDATE ${subtitleLines} AS s
+      SET text_translation = v.tr
+      FROM (VALUES ${sql.join(
+        lines.map((l, i) => sql`(${l.id}::uuid, ${translations[i] ?? null}::text)`),
+        sql`, `,
+      )}) AS v(id, tr)
+      WHERE s.id = v.id
+    `);
+    await tx
+      .update(subtitleTranslationChunks)
+      .set({ status: "done" })
+      .where(
+        and(
+          eq(subtitleTranslationChunks.videoId, videoId),
+          eq(subtitleTranslationChunks.chunkIdx, chunkIdx),
+        ),
+      );
+  });
 
   return {
     status: 200,
