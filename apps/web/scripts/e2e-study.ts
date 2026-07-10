@@ -60,7 +60,7 @@ async function main() {
 
   // --- 1. Library listing ---
   console.log("1. listVideos");
-  const list = await listVideos(db);
+  const { items: list } = await listVideos(db, { limit: 10000 });
   const a = list.find((v) => v.id === vA.id);
   const b = list.find((v) => v.id === vB.id);
   check("both videos present", !!a && !!b);

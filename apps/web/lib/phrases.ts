@@ -1,6 +1,6 @@
 // Phrases read-side query (mined sentence cards). Auth-agnostic; routes add auth.
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt, or } from "drizzle-orm";
 import { type Database, sentenceCards, subtitleLines, videos } from "@fuchine/db";
 
 export type PhraseRow = {
@@ -17,8 +17,28 @@ export type PhraseRow = {
   source: string;
 };
 
-/** All mined phrases for a user, newest first. */
-export async function listPhrases(db: Database, userId: string): Promise<PhraseRow[]> {
+/** Mined phrases for a user, newest first (paginated). */
+export async function listPhrases(
+  db: Database,
+  userId: string,
+  opts: { limit?: number; cursor?: string } = {},
+): Promise<{ items: PhraseRow[]; nextCursor: string | null }> {
+  const limit = opts.limit ?? 50;
+  const pageConditions = [eq(sentenceCards.userId, userId)];
+  if (opts.cursor) {
+    const parts = opts.cursor.split(":");
+    const ts = parseInt(parts[1] ?? "", 10);
+    const id = parts.slice(2).join(":");
+    if (!isNaN(ts) && id) {
+      pageConditions.push(
+        or(
+          lt(sentenceCards.createdAt, new Date(ts)),
+          and(eq(sentenceCards.createdAt, new Date(ts)), lt(sentenceCards.id, id)),
+        )!,
+      );
+    }
+  }
+
   const rows = await db
     .select({
       cardId: sentenceCards.id,
@@ -36,8 +56,16 @@ export async function listPhrases(db: Database, userId: string): Promise<PhraseR
     .from(sentenceCards)
     .innerJoin(subtitleLines, eq(subtitleLines.id, sentenceCards.subtitleLineId))
     .innerJoin(videos, eq(videos.id, sentenceCards.videoId))
-    .where(eq(sentenceCards.userId, userId))
-    .orderBy(desc(sentenceCards.createdAt));
+    .where(and(...pageConditions))
+    .orderBy(desc(sentenceCards.createdAt), desc(sentenceCards.id))
+    .limit(limit + 1);
 
-  return rows;
+  const hasMore = rows.length > limit;
+  const items = rows.slice(0, limit) as PhraseRow[];
+  const last = items[items.length - 1];
+  const nextCursor = hasMore && last
+    ? `t:${last.createdAt.getTime()}:${last.cardId}`
+    : null;
+
+  return { items, nextCursor };
 }

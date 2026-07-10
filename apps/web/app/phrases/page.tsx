@@ -11,7 +11,7 @@ export default async function PhrasesPage() {
   if (!session?.user?.id) redirect("/login");
 
   const userId = session.user.id;
-  const [phrases, reviewDue] = await Promise.all([
+  const [{ items: phrases }, reviewDue] = await Promise.all([
     listPhrases(db, userId),
     countDueCards(db, userId),
   ]);

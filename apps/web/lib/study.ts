@@ -1,6 +1,6 @@
 // Study read-side queries (F1). Auth-agnostic and testable; routes add auth.
 
-import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import {
   type Database,
   videos,
@@ -10,9 +10,28 @@ import {
   userWordStats,
 } from "@fuchine/db";
 
-/** Library: every video with its line count, newest first. */
-export async function listVideos(db: Database) {
-  return db
+/** Library: videos with their line count, newest first (paginated). */
+export async function listVideos(
+  db: Database,
+  opts: { limit?: number; cursor?: string } = {},
+) {
+  const limit = opts.limit ?? 24;
+  const pageConditions = [];
+  if (opts.cursor) {
+    const parts = opts.cursor.split(":");
+    const ts = parseInt(parts[1] ?? "", 10);
+    const id = parts.slice(2).join(":");
+    if (!isNaN(ts) && id) {
+      pageConditions.push(
+        or(
+          lt(videos.createdAt, new Date(ts)),
+          and(eq(videos.createdAt, new Date(ts)), lt(videos.id, id)),
+        )!,
+      );
+    }
+  }
+
+  const rows = await db
     .select({
       id: videos.id,
       title: videos.title,
@@ -26,12 +45,21 @@ export async function listVideos(db: Database) {
       embeddable: videos.embeddable,
       category: videos.category,
       createdAt: videos.createdAt,
-      lineCount: count(subtitleLines.id),
+      lineCount: sql<number>`(SELECT count(*)::int FROM ${subtitleLines} WHERE ${subtitleLines.videoId} = ${videos.id})`,
     })
     .from(videos)
-    .leftJoin(subtitleLines, eq(subtitleLines.videoId, videos.id))
-    .groupBy(videos.id) // PK groups all video columns (functional dependency)
-    .orderBy(desc(videos.createdAt));
+    .where(pageConditions.length > 0 ? and(...pageConditions) : undefined)
+    .orderBy(desc(videos.createdAt), desc(videos.id))
+    .limit(limit + 1);
+
+  const hasMore = rows.length > limit;
+  const items = rows.slice(0, limit);
+  const last = items[items.length - 1];
+  const nextCursor = hasMore && last
+    ? `t:${last.createdAt.getTime()}:${last.id}`
+    : null;
+
+  return { items, nextCursor };
 }
 
 /** Dashboard "Continue watching": the newest video only, without the line-count join. */

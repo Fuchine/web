@@ -121,18 +121,23 @@ export function watchHoursLast7(
 
 export interface LibraryKpis {
   watchTimeHours: number;
+  videoCount: number;
   wordsKnown: number;
   dayStreak: number;
 }
 
 /**
- * Lean KPIs for the library StatBar — only the 3 numbers it renders. Two cheap
- * queries (state=2 count + one row per active day from user_daily_stats) instead
- * of the ~6 in getStats (retention, heatmap review scan, top-sources join…),
- * which the library was paying for on every load. See backlog:
- * library-dashboard-overfetch (part 3).
+ * Lean KPIs for the library StatBar — only the numbers it renders. Three cheap
+ * queries (total video count, state=2 card count, one row per active day from
+ * user_daily_stats) instead of the ~6 in getStats (retention, heatmap review
+ * scan, top-sources join…), which the library was paying for on every load.
+ * See backlog: library-dashboard-overfetch (part 3).
  */
 export async function getLibraryKpis(db: Database, userId: string): Promise<LibraryKpis> {
+  const [videoCountRow] = await db
+    .select({ n: count() })
+    .from(videos);
+
   const [known] = await db
     .select({ n: count() })
     .from(sentenceCards)
@@ -157,6 +162,7 @@ export async function getLibraryKpis(db: Database, userId: string): Promise<Libr
 
   return {
     watchTimeHours: watchHoursLast7(dailyRows),
+    videoCount: Number(videoCountRow?.n ?? 0),
     wordsKnown: Number(known?.n ?? 0),
     dayStreak,
   };

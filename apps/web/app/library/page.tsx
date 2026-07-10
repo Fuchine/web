@@ -18,7 +18,7 @@ export default async function LibraryPage() {
   // Fetch the library first so comprehension can be scoped to the videos we
   // actually render (word_examples is catalog-sized — see backlog
   // library-comprehension-full-scan); the rest don't depend on it.
-  const rows = await listVideos(db);
+  const { items: rows, nextCursor } = await listVideos(db);
   const [reviewDue, comprehension, kpis, flags, albums] = await Promise.all([
     countDueCards(db, userId),
     getComprehensionByVideo(db, userId, rows.map((v) => v.id)),
@@ -48,7 +48,7 @@ export default async function LibraryPage() {
       reviewDue={reviewDue}
       stats={{
         watchTimeHours: kpis.watchTimeHours,
-        videoCount: videos.length,
+        videoCount: kpis.videoCount,
         wordsLearned: kpis.wordsKnown,
         dayStreak: kpis.dayStreak,
       }}

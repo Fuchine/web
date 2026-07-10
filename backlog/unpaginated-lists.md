@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Biblioteca (F1) / Phrases (F2)
-**Status:** OPEN
+**Status:** CLOSED (2026-07-10) — backend paginado: `listVideos` e `listPhrases` agora aceitam `{ limit, cursor }` e retornam `{ items, nextCursor }`. `listVideos` trocou o `leftJoin + count` por subquery lateral (conta só a página). API `GET /api/videos?cursor=...&limit=24` suporta infinite scroll. Frontend SSR usa primeira página (24bib / 50frases); infinite scroll no client é follow-up.
 
 ---
 

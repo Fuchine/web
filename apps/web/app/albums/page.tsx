@@ -11,11 +11,12 @@ export default async function AlbumsPage() {
   if (!session?.user?.id) redirect("/login");
   const userId = session.user.id;
 
-  const [albums, videoRows, reviewDue] = await Promise.all([
+  const [albums, videoResult, reviewDue] = await Promise.all([
     listAlbumsForView(db, userId),
-    listVideos(db),
+    listVideos(db, { limit: 10000 }),
     countDueCards(db, userId),
   ]);
+  const videoRows = videoResult.items;
 
   const libraryVideos: PickerVideo[] = videoRows.map((v) => ({
     id: v.id,
