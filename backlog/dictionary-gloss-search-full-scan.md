@@ -2,7 +2,14 @@
 
 **Date:** 2026-07-06
 **Feature:** Dicionário (F2) — busca
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — coluna materializada `glosses_text`
+(concatenação dos glosses) + **índice GIN `pg_trgm`**
+(`word_entries_glosses_trgm_idx`). `searchByGloss` agora faz `glosses_text ILIKE
+'%term%'` — mesma semântica, mas **Bitmap Index Scan** em vez de seq scan +
+unnest de jsonb (verificado via `EXPLAIN` no dev DB: os 298.431 entries
+populados pelo backfill da migration 0013). Seed popula a coluna em re-seeds;
+E2E de gloss agora determinístico (sentinel). O `ORDER BY frequency_rank` ainda
+depende de [[frequency-list-not-seeded]] para ranking real.
 
 ---
 
