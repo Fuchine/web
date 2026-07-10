@@ -7,7 +7,10 @@ import { encryptApiKey } from "@fuchine/llm";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
-export const ALLOWED_PROVIDERS = ["minimax", "openai", "anthropic", "gemini", "openai-compatible", "local"] as const;
+// Only providers that resolveUserProvider can actually build. Reintroduce
+// others when createProvider supports them (anthropic/gemini need native wire
+// formats; openai-compatible needs baseUrl+model which settings don't carry).
+export const ALLOWED_PROVIDERS = ["minimax", "openai"] as const;
 export const ALLOWED_LANGUAGES = ["en", "ja", "pt", "es", "zh", "ko"] as const;
 
 // Per-day goal ceilings: anything above is a typo, not ambition.

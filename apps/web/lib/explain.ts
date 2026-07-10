@@ -63,7 +63,10 @@ export async function explainLine(
   }
 
   // Miss → need a provider. An injected provider (tests) wins; otherwise BYOK
-  // when configured, else fall back to the house key.
+  // when configured, else fall back to the house key. Any failure in resolving
+  // the user's provider (missing key, unimplemented provider, undecryptable
+  // ciphertext from a rotated encryption key) degrades to the house key —
+  // never a 500 (ARQUITETURA: "falha de IA degrada, não quebra").
   let provider: LlmProvider;
   if (opts.provider) {
     provider = opts.provider;
@@ -74,7 +77,16 @@ export async function explainLine(
       if (err instanceof MissingApiKeyError) {
         provider = houseProvider();
       } else {
-        throw err;
+        // Provider construction or key decryption failed (e.g. rotated
+        // FUCHINE_ENCRYPTION_KEY, unimplemented provider saved before the
+        // allow-list was narrowed). Degrade to house key and log for diagnosis.
+        // Never log the key or ciphertext — only the error type and userId.
+        console.warn(
+          `[explain] BYOK provider resolution failed for user ${userId}: ` +
+            `${err instanceof Error ? err.constructor.name : typeof err} ` +
+            `(degrading to house provider)`,
+        );
+        provider = houseProvider();
       }
     }
   }
