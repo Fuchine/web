@@ -2,7 +2,10 @@
 
 **Date:** 2026-07-06
 **Feature:** Player (F1)
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — `useMemo` on `transcriptLines`/`focal`,
+`React.memo` on `PlayerTranscript` + stable toggle callbacks (a `currentMs`-only
+tick now skips the list entirely), and a memoized `TranscriptRow` so a
+`currentLineIdx` change re-renders only the two rows whose `isCurrent` flips.
 
 ---
 

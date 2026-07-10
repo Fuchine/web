@@ -127,6 +127,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const [currentMs, setCurrentMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [rate, setRate] = useState<PlaybackRate>(1.0);
+  const [muted, setMuted] = useState(false);
   const [currentLineIdx, setCurrentLineIdx] = useState(() => {
     if (initialLineId) {
       const i = lines.findIndex((l) => l.id === initialLineId);
@@ -442,11 +443,26 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     h?.setPlaybackRate(next);
   }, [rate]);
 
-  // Volume and fullscreen: the IFrame API does not expose either method, and
-  // the spec for T1.3 keeps the native YouTube controls visible. These
-  // buttons are visual affordances only; clicking is a no-op for now.
-  const onVolume = useCallback(() => undefined, []);
-  const onFullscreen = useCallback(() => undefined, []);
+  // Volume: the IFrame API exposes mute/unMute — toggle it and mirror the state
+  // on the button. (A finer-grained slider can layer on setVolume later.)
+  const onVolume = useCallback(() => {
+    const h = handleRef.current;
+    if (!h) return;
+    const next = !h.isMuted();
+    if (next) h.mute();
+    else h.unMute();
+    setMuted(next);
+  }, []);
+
+  // Fullscreen is a DOM concern, not a YouTube one: toggle the Fullscreen API on
+  // the stage container (captions + controls come along since they're its
+  // children). Degrades silently where the API is unavailable.
+  const onFullscreen = useCallback(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) void document.exitFullscreen?.();
+    else void el.requestFullscreen?.();
+  }, []);
 
   const onReady = useCallback((h: PlayerVideoHandle) => {
     handleRef.current = h;
@@ -887,6 +903,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
               onToggleRomaji,
               onCycleRate,
               onVolume,
+              muted,
               onFullscreen,
               formatTimecode: fmt,
             }}
