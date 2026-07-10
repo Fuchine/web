@@ -91,6 +91,12 @@ async function main() {
   const { startIdx } = lineRangeForChunk(1); // first idx of chunk 1
   await db.insert(subtitleLines).values({ videoId: video.id, idx: startIdx, tStartMs: 60000, tEndMs: 61000, textOriginal: "魚が好き", tokens: [] });
 
+  // A line each in chunks 2/3/4 for the concurrency + claim-sweep cases below.
+  for (const c of [2, 3, 4]) {
+    const { startIdx: s } = lineRangeForChunk(c);
+    await db.insert(subtitleLines).values({ videoId: video.id, idx: s, tStartMs: c * 60000, tEndMs: c * 60000 + 1000, textOriginal: `chunk${c}好き`, tokens: [] });
+  }
+
   // --- 1. Miss → translate + persist + mark ---
   console.log("1. Miss");
   const cp = new CountingProvider();
@@ -141,6 +147,49 @@ async function main() {
   // Retry chunk 1 with a working provider now succeeds.
   const retry = await translateChunk(db, video.id, 1, { provider: new CountingProvider() });
   check("retry after failure => 200 + marker", retry.status === 200 && (await markerCount(video.id, 1)).length === 1, retry.status);
+
+  // --- 6. Concurrent claim: two requests, one paid MT call ---
+  console.log("6. Concurrent claim");
+  const shared = new CountingProvider();
+  const [a, b] = await Promise.all([
+    translateChunk(db, video.id, 2, { provider: shared }),
+    translateChunk(db, video.id, 2, { provider: shared }),
+  ]);
+  check("only one paid MT call for the shared chunk", shared.calls === 1, shared.calls);
+  // Timing-independent invariant: exactly one request paid for a fresh translate;
+  // the other deferred — either 202 pending (lost the claim) or 200 cached (the
+  // winner finished first). Never two fresh translates.
+  const responses = [a, b];
+  const fresh = responses.filter((r) => r.status === 200 && r.body.cached === false);
+  const deferred = responses.filter((r) => r.status === 202 || (r.status === 200 && r.body.cached === true));
+  check("exactly one paid translate, the other deferred to cache/pending", fresh.length === 1 && deferred.length === 1, [a.status, b.status]);
+  check("chunk 2 marked done", (await markerCount(video.id, 2)).length === 1);
+  const after = await translateChunk(db, video.id, 2, { provider: shared });
+  check("subsequent fetch serves cached, no extra call", after.status === 200 && after.body.cached === true && shared.calls === 1, { s: after.status, c: shared.calls });
+
+  // --- 7. Fresh 'pending' claim → 202 (someone else is translating) ---
+  console.log("7. Fresh pending → 202");
+  await db.insert(subtitleTranslationChunks).values({ videoId: video.id, chunkIdx: 3, status: "pending" });
+  const held = new CountingProvider();
+  const pending = await translateChunk(db, video.id, 3, { provider: held });
+  check("held chunk => 202 pending", pending.status === 202 && pending.body.pending === true, pending);
+  check("provider not called while held", held.calls === 0, held.calls);
+
+  // --- 8. Stale 'pending' claim is swept, then translated ---
+  console.log("8. Stale pending is swept");
+  await db.insert(subtitleTranslationChunks).values({
+    videoId: video.id, chunkIdx: 4, status: "pending",
+    createdAt: new Date(Date.now() - 6 * 60_000), // 6 min old — past the stale-claim window
+  });
+  const swept = new CountingProvider();
+  const revived = await translateChunk(db, video.id, 4, { provider: swept });
+  check("stale claim swept → translates => 200", revived.status === 200, revived);
+  check("provider called once after sweep", swept.calls === 1, swept.calls);
+  const [m4] = await db
+    .select({ status: subtitleTranslationChunks.status })
+    .from(subtitleTranslationChunks)
+    .where(and(eq(subtitleTranslationChunks.videoId, video.id), eq(subtitleTranslationChunks.chunkIdx, 4)));
+  check("chunk 4 marker flipped to done", m4?.status === "done", m4);
 
   // --- Cleanup ---
   await db.delete(videos).where(eq(videos.id, video.id)); // cascades lines + chunks

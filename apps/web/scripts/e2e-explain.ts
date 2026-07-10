@@ -70,6 +70,23 @@ class CountingProvider implements LlmProvider {
   }
 }
 
+/** Like CountingProvider but slow, so a concurrent second caller is still
+ *  inside the single-flight window (blocked on the advisory lock) when the
+ *  first generates — deterministically exercising the lock path. */
+class SlowCountingProvider implements LlmProvider {
+  readonly name = "slow-counting";
+  calls = 0;
+  constructor(private readonly delayMs = 300) {}
+  async translateBatch(lines: string[]): Promise<(string | null)[]> {
+    return lines.map(() => null);
+  }
+  async explainLine(): Promise<Explanation> {
+    this.calls++;
+    await new Promise((r) => setTimeout(r, this.delayMs));
+    return { breakdown: [], plainTerms: `slow #${this.calls}` };
+  }
+}
+
 async function main() {
   console.log("\n=== E2E: explanation cache ===\n");
 
@@ -119,6 +136,22 @@ async function main() {
   const rows = await db.select().from(aiExplanations).where(eq(aiExplanations.subtitleLineId, line.id));
   check("exactly 2 cache rows (en + pt), not 4", rows.length === 2, rows.length);
 
+  // ---------- C. single-flight: concurrent misses generate once ----------
+  console.log("C. single-flight (concurrent misses → one provider call)");
+  const [line3] = await db
+    .insert(subtitleLines)
+    .values({ videoId: video.id, idx: 2, tStartMs: 2000, tEndMs: 3000, textOriginal: "鳥も好き", tokens: [] })
+    .returning();
+  const sp = new SlowCountingProvider();
+  const [r1, r2] = await Promise.all([
+    explainLineCached(db, sp, line3.id, ctx, { explanationLanguage: "en" }),
+    explainLineCached(db, sp, line3.id, ctx, { explanationLanguage: "en" }),
+  ]);
+  check("two concurrent misses call the provider exactly once", sp.calls === 1, sp.calls);
+  check("both callers get the same content", r1.plainTerms === r2.plainTerms && r1.plainTerms === "slow #1", [r1.plainTerms, r2.plainTerms]);
+  const line3Rows = await db.select().from(aiExplanations).where(eq(aiExplanations.subtitleLineId, line3.id));
+  check("exactly one cache row for the line", line3Rows.length === 1, line3Rows.length);
+
   // ---------- B. web lib explainLine ----------
   console.log("B. explainLine (lib: cache-first + degrade)");
 
@@ -140,6 +173,32 @@ async function main() {
   // Unknown line => 404.
   const missing = await explainLine(db, user.id, "00000000-0000-0000-0000-000000000000", { encryptionKey: "" });
   check("unknown line => 404", missing.status === 404, missing);
+
+  // ---------- D. explainLine: cache-first + force (injected provider) ----------
+  // The lib resolves BYOK-or-house internally; the provider seam lets us drive
+  // the money-spending path with a call-counting fake (no env key needed) and
+  // assert the layer-2 economics: a hit never calls the provider; force does.
+  console.log("D. explainLine cache-first + force (money path)");
+  const [line4] = await db
+    .insert(subtitleLines)
+    .values({ videoId: video.id, idx: 3, tStartMs: 3000, tEndMs: 4000, textOriginal: "魚も好き", tokens: [] })
+    .returning();
+  const libProv = new CountingProvider();
+
+  const genMiss = await explainLine(db, user.id, line4.id, { provider: libProv });
+  check("miss generates (200, cached:false)", genMiss.status === 200 && genMiss.body.cached === false, genMiss);
+  check("miss called the provider once", libProv.calls === 1, libProv.calls);
+
+  const genHit = await explainLine(db, user.id, line4.id, { provider: libProv });
+  check("cache hit (200, cached:true)", genHit.status === 200 && genHit.body.cached === true, genHit);
+  check("cache hit does NOT call the provider again", libProv.calls === 1, libProv.calls);
+
+  const forcedLib = await explainLine(db, user.id, line4.id, { provider: libProv, force: true });
+  check("force regenerates (200, cached:false)", forcedLib.status === 200 && forcedLib.body.cached === false, forcedLib);
+  check("force calls the provider again", libProv.calls === 2, libProv.calls);
+  check("force overwrote with fresh content", (forcedLib.body.explanation as { plainTerms?: string })?.plainTerms === "generated #2", forcedLib.body.explanation);
+  const line4Rows = await db.select().from(aiExplanations).where(eq(aiExplanations.subtitleLineId, line4.id));
+  check("still a single cache row after force (overwrite, not append)", line4Rows.length === 1, line4Rows.length);
 
   // ---------- Cleanup ----------
   await db.delete(users).where(eq(users.id, user.id)); // cascades settings

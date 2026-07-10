@@ -11,6 +11,7 @@ import {
   PROMPT_VERSION,
   MissingApiKeyError,
   ProviderError,
+  type LlmProvider,
   type SubtitleLineCtx,
 } from "@fuchine/llm";
 import { houseProvider } from "./house-provider";
@@ -22,7 +23,12 @@ export async function explainLine(
   db: Database,
   userId: string,
   lineId: string,
-  opts: { encryptionKey?: string; force?: boolean },
+  opts: {
+    encryptionKey?: string;
+    force?: boolean;
+    /** Test seam: bypass BYOK/house resolution and use this provider directly. */
+    provider?: LlmProvider;
+  },
 ): Promise<Result> {
   const [line] = await db
     .select()
@@ -56,15 +62,20 @@ export async function explainLine(
     if (!rl.ok) return tooManyRequests(rl, "Too many explanation requests right now — try again shortly.");
   }
 
-  // Miss → need a provider. BYOK wins when configured; otherwise fall back to the house key.
-  let provider;
-  try {
-    provider = await resolveUserProvider(db, userId, opts.encryptionKey ?? "");
-  } catch (err) {
-    if (err instanceof MissingApiKeyError) {
-      provider = houseProvider();
-    } else {
-      throw err;
+  // Miss → need a provider. An injected provider (tests) wins; otherwise BYOK
+  // when configured, else fall back to the house key.
+  let provider: LlmProvider;
+  if (opts.provider) {
+    provider = opts.provider;
+  } else {
+    try {
+      provider = await resolveUserProvider(db, userId, opts.encryptionKey ?? "");
+    } catch (err) {
+      if (err instanceof MissingApiKeyError) {
+        provider = houseProvider();
+      } else {
+        throw err;
+      }
     }
   }
 

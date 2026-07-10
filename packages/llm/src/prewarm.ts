@@ -49,6 +49,17 @@ export function planPrewarm(
   return items.filter((it) => !cachedLineIds.has(it.lineId));
 }
 
+/**
+ * Cap the eager pre-warm scope to the first `maxLines` in watch order (the start
+ * of the video, where a viewer arrives first). `undefined`/negative = no cap.
+ * Bounds the per-import cost of layer 2; the tail is covered on demand by the
+ * player's prefetch as the viewer reaches it. (Pure — unit-tested.)
+ */
+export function scopePrewarm(items: PrewarmItem[], maxLines?: number): PrewarmItem[] {
+  if (typeof maxLines !== "number" || maxLines < 0) return items;
+  return items.slice(0, maxLines);
+}
+
 export type PoolResult = { ok: number; failed: number };
 
 /**
@@ -93,7 +104,7 @@ export async function prewarmVideoExplanations(
   db: Database,
   provider: LlmProvider,
   videoId: string,
-  opts: { explanationLanguage: string; concurrency?: number },
+  opts: { explanationLanguage: string; concurrency?: number; maxLines?: number },
 ): Promise<PrewarmSummary> {
   const [video] = await db
     .select({ language: videos.language })
@@ -113,16 +124,18 @@ export async function prewarmVideoExplanations(
     .where(eq(subtitleLines.videoId, videoId))
     .orderBy(asc(subtitleLines.idx));
 
-  const cachedRows = lines.length
+  // Build contexts over the full ordered set (so neighbors are correct), then
+  // cap the scope. Only the scoped lines are cache-checked and generated.
+  const items = scopePrewarm(buildLineCtxs(lines, video.language), opts.maxLines);
+  const scopedIds = items.map((it) => it.lineId);
+
+  const cachedRows = scopedIds.length
     ? await db
         .select({ subtitleLineId: aiExplanations.subtitleLineId })
         .from(aiExplanations)
         .where(
           and(
-            inArray(
-              aiExplanations.subtitleLineId,
-              lines.map((l) => l.id),
-            ),
+            inArray(aiExplanations.subtitleLineId, scopedIds),
             eq(aiExplanations.kind, "line"),
             eq(aiExplanations.explanationLanguage, opts.explanationLanguage),
             eq(aiExplanations.promptVersion, PROMPT_VERSION),
@@ -131,11 +144,13 @@ export async function prewarmVideoExplanations(
     : [];
   const cachedIds = new Set(cachedRows.map((r) => r.subtitleLineId));
 
-  const todo = planPrewarm(buildLineCtxs(lines, video.language), cachedIds);
+  const todo = planPrewarm(items, cachedIds);
   const { ok, failed } = await runPool(todo, opts.concurrency ?? 2, (it) =>
     explainLineCached(db, provider, it.lineId, it.ctx, {
       explanationLanguage: opts.explanationLanguage,
     }),
   );
-  return { total: lines.length, cached: cachedIds.size, generated: ok, failed };
+  // `total` is the scoped set (what this job set out to warm), so
+  // cached + generated + failed reconcile with it.
+  return { total: items.length, cached: cachedIds.size, generated: ok, failed };
 }

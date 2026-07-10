@@ -129,17 +129,16 @@ export function detectMode(q: string): "ja" | "en" {
 
 /** Search entries by English meaning — any gloss contains `term` (case-insensitive). */
 export async function searchByGloss(db: Database, term: string, language = "ja") {
+  // ILIKE '%term%' over the materialized `glosses_text` rides the pg_trgm GIN
+  // index (word_entries_glosses_trgm_idx) — same semantics as the old jsonb
+  // unnest, but an index probe instead of a 298k-row seq scan per keystroke.
   return db
     .select()
     .from(wordEntries)
     .where(
       and(
         eq(wordEntries.language, language),
-        sql`EXISTS (
-          SELECT 1 FROM jsonb_array_elements(${wordEntries.definitions}) AS s,
-                       jsonb_array_elements_text(s->'glosses') AS g
-          WHERE g ILIKE ${"%" + term + "%"}
-        )`,
+        sql`${wordEntries.glossesText} ILIKE ${"%" + term + "%"}`,
       ),
     )
     .orderBy(sql`${wordEntries.frequencyRank} asc nulls last`)

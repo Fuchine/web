@@ -7,7 +7,7 @@
  *
  *   DATABASE_URL=postgres://... pnpm --filter @fuchine/web exec tsx scripts/e2e-mine-sentence.ts
  */
-import { createDb, users, videos, subtitleLines, sentenceCards, type Token } from "@fuchine/db";
+import { createDb, users, videos, subtitleLines, sentenceCards, reviewLogs, type Token } from "@fuchine/db";
 import { mineSentence, getReviewQueue, reviewCardById } from "../lib/cards";
 
 const url = process.env.DATABASE_URL;
@@ -133,10 +133,28 @@ async function main() {
   const { cards: afterQueue } = await getReviewQueue(db, user.id);
   check("reviewed card left the due queue", afterQueue.find((q) => q.cardId === before.cardId) === undefined, afterQueue.map((q) => q.cardType));
 
-  // --- 8. Invalid grade rejected ---
+  // --- 7b. The review wrote a coherent FSRS log (D6) ---
+  // The review_logs history is the declared basis for re-optimizing FSRS
+  // params; a reschedule that loses its log is a data bug. Assert the write.
+  console.log("7b. FSRS log write (D6 history)");
+  const logs1 = await db.select().from(reviewLogs).where(eqLogCard(before.cardId));
+  check("review wrote exactly one FSRS log", logs1.length === 1, logs1.length);
+  check("log records the grade", logs1[0]?.grade === 3, logs1[0]?.grade);
+  check("log carries FSRS scheduling fields", logs1[0]?.stability != null && logs1[0]?.scheduledDays != null, { stability: logs1[0]?.stability, scheduledDays: logs1[0]?.scheduledDays });
+
+  // A second review appends (never overwrites) — the history grows by one.
+  const secondReview = await reviewCardById(db, user.id, before.cardId, 3);
+  check("second review => 200", secondReview.status === 200, secondReview);
+  check("reps incremented again", secondReview.body.reps === 2, secondReview.body.reps);
+  const logs2 = await db.select().from(reviewLogs).where(eqLogCard(before.cardId));
+  check("second review appends a second log (append-only history)", logs2.length === 2, logs2.length);
+
+  // --- 8. Invalid grade rejected (and writes no log) ---
   console.log("8. Invalid grade");
   const badGrade = await reviewCardById(db, user.id, before.cardId, 9);
   check("grade 9 => 400", badGrade.status === 400, badGrade);
+  const logs3 = await db.select().from(reviewLogs).where(eqLogCard(before.cardId));
+  check("rejected grade wrote no log", logs3.length === 2, logs3.length);
 
   // --- Cleanup --- deleting the user cascades to its cards + logs; the video
   // cascades to its subtitle lines. Leaves the DB as we found it.
@@ -152,6 +170,9 @@ async function main() {
 import { eq } from "drizzle-orm";
 function eqUser(id: string) {
   return eq(sentenceCards.userId, id);
+}
+function eqLogCard(cardId: string) {
+  return eq(reviewLogs.cardId, cardId);
 }
 async function closeDb() {
   // postgres-js keeps the socket open; end it so the process can exit cleanly.

@@ -2,7 +2,10 @@
 
 **Date:** 2026-07-06
 **Feature:** Player (F1)
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — volume button is now a mute toggle
+(`mute`/`unMute`/`isMuted` on `PlayerVideoHandle`, state mirrored on the button);
+fullscreen toggles the Fullscreen API on the stage container. Misleading
+comment corrected. A finer volume slider can layer on `setVolume` later.
 
 ---
 

@@ -2,15 +2,20 @@
 
 **Date:** 2026-07-06
 **Feature:** Qualidade / testes
-**Status:** PARTIAL (reassessed 2026-07-09). The **pure** sub-parts now have
-tests: `import.test.ts` covers `validateImportRequest` (URL/caps/truncation),
-`cards.test.ts` covers `buildReviewQueuePayload`. Still **untested** — the
-db-orchestrating critical paths the item is really about: `reviewCardById`
-(grade→FSRS→log write, D6) and `explainLine` (cache-hit-skips-provider,
-BYOK→house fallback, `force`, ProviderError→502). Those need a fake-db harness
-or a small seam refactor (the repo's tests target pure functions and don't mock
-Drizzle) — a deliberate effort, not a drive-by. Item 4 (E2E mine→queue→review→log)
-also still open.
+**Status:** RESOLVED (2026-07-09). Pure sub-parts: `import.test.ts`
+(`validateImportRequest`), `cards.test.ts` (`buildReviewQueuePayload`). The
+**db-orchestrating** critical paths are covered by E2E against a live Postgres
+(the repo's convention for DB logic, not Drizzle mocks):
+
+- `reviewCardById` — grade→FSRS→**log write (D6)** — asserted in
+  `e2e-mine-sentence.ts`: log written with coherent grade/scheduling fields,
+  append-only history across two reviews, rejected grade writes no log. Closes
+  **item 4** (mine→queue→review→log).
+- `explainLine` — a `provider` test seam (mirrors `translateChunk`'s
+  `deps.provider`) lets `e2e-explain.ts` §D drive the money path with a
+  call-counting fake: miss generates, **cache hit does NOT call the provider**,
+  `force` regenerates + overwrites (single cache row). BYOK→house fallback +
+  ProviderError→502 are exercised in §B (no key → house echo → 502).
 
 ---
 

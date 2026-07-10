@@ -31,6 +31,9 @@ export interface PlayerVideoHandle {
   setPlaybackRate(rate: number): void;
   getCurrentTime(): number;
   getDuration(): number;
+  mute(): void;
+  unMute(): void;
+  isMuted(): boolean;
   destroy(): void;
 }
 
@@ -91,6 +94,9 @@ export function PlayerVideo({
               setPlaybackRate: (r) => player.setPlaybackRate(r as YT.playbackRate),
               getCurrentTime: () => player.getCurrentTime(),
               getDuration: () => player.getDuration(),
+              mute: () => player.mute(),
+              unMute: () => player.unMute(),
+              isMuted: () => player.isMuted(),
               destroy: () => player.destroy(),
             };
             onReady?.(handle);

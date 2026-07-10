@@ -35,14 +35,23 @@ function check(name: string, cond: boolean, detail?: unknown) {
 async function main() {
   console.log("\n=== E2E: dictionary ===\n");
 
-  const nekoDef: Definition[] = [{ glosses: ["cat"], partsOfSpeech: ["n"], tags: ["usually kana"] }];
+  // A sentinel gloss makes the meaning-search assertion deterministic even
+  // against a fully seeded dictionary (where "cat" is a substring of category,
+  // cattle, … across thousands of real entries).
+  const nekoGloss = "e2eglosssentinelcat";
+  const nekoDef: Definition[] = [{ glosses: ["cat", nekoGloss], partsOfSpeech: ["n"], tags: ["usually kana"] }];
+  // glosses_text is materialized from definitions (the seed does this); the
+  // meaning search reads that column, so fixtures must populate it too.
+  const glossesOf = (defs: Definition[]) => defs.flatMap((d) => d.glosses).join(" ") || null;
+  const bridgeDef: Definition[] = [{ glosses: ["bridge"], partsOfSpeech: ["n"] }];
+  const chopsticksDef: Definition[] = [{ glosses: ["chopsticks"], partsOfSpeech: ["n"] }];
   // Two homophones (reading はし) with different frequency to test ordering.
   const inserted = await db
     .insert(wordEntries)
     .values([
-      { language: "ja", lemma: "猫", reading: "ねこ", pos: "noun", definitions: nekoDef, frequencyRank: 1000 },
-      { language: "ja", lemma: "橋", reading: "はし", pos: "noun", definitions: [{ glosses: ["bridge"], partsOfSpeech: ["n"] }], frequencyRank: 800 },
-      { language: "ja", lemma: "箸", reading: "はし", pos: "noun", definitions: [{ glosses: ["chopsticks"], partsOfSpeech: ["n"] }], frequencyRank: 300 },
+      { language: "ja", lemma: "猫", reading: "ねこ", pos: "noun", definitions: nekoDef, glossesText: glossesOf(nekoDef), frequencyRank: 1000 },
+      { language: "ja", lemma: "橋", reading: "はし", pos: "noun", definitions: bridgeDef, glossesText: glossesOf(bridgeDef), frequencyRank: 800 },
+      { language: "ja", lemma: "箸", reading: "はし", pos: "noun", definitions: chopsticksDef, glossesText: glossesOf(chopsticksDef), frequencyRank: 300 },
     ])
     .onConflictDoNothing()
     .returning();
@@ -113,8 +122,8 @@ async function main() {
 
   // --- 4. searchByGloss (English meaning) ---
   console.log("4. searchByGloss");
-  const byGloss = await searchByGloss(db, "cat");
-  check("gloss 'cat' finds 猫", byGloss.some((e) => e.lemma === "猫"), byGloss.map((e) => e.lemma));
+  const byGloss = await searchByGloss(db, nekoGloss);
+  check("gloss search finds 猫 by its meaning", byGloss.some((e) => e.lemma === "猫"), byGloss.map((e) => e.lemma));
   check("no gloss match => []", (await searchByGloss(db, "zzzznomatch")).length === 0);
 
   // --- Cleanup ---

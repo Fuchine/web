@@ -92,6 +92,13 @@
       "when": 1783429439950,
       "tag": "0012_quick_smasher",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783646953896,
+      "tag": "0013_magical_wonder_man",
+      "breakpoints": true
     }
   ]
 }

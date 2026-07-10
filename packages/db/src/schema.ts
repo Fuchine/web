@@ -196,6 +196,10 @@ export const wordEntries = pgTable(
     reading: text("reading"),
     pos: text("pos"),
     definitions: jsonb("definitions").$type<Definition[]>().notNull().default([]),
+    // Flattened glosses (all senses, space-joined) for the English meaning
+    // search. Materialized from `definitions` at seed time so ILIKE '%term%' can
+    // ride a trigram index instead of unnesting jsonb over 298k rows per query.
+    glossesText: text("glosses_text"),
     frequencyRank: integer("frequency_rank"), // null: not every word is ranked
   },
   (t) => [
@@ -203,6 +207,9 @@ export const wordEntries = pgTable(
     index("word_entries_reading_idx").on(t.language, t.reading),
     index("word_entries_freq_idx").on(t.language, t.frequencyRank), // recommendation by frequency
     index("word_entries_lemma_len_id_idx").on(t.language, sql`LENGTH(${t.lemma})`, t.id), // browse by simplicity
+    // Trigram GIN over the flattened glosses: serves the EN meaning search's
+    // ILIKE '%term%' (both-sided wildcard) without a seq scan. Needs pg_trgm.
+    index("word_entries_glosses_trgm_idx").using("gin", t.glossesText.op("gin_trgm_ops")),
     // Identity of a dictionary entry for the seed: lets re-seeding upsert
     // instead of duplicating, and powers exact (lemma, reading) lookups.
     uniqueIndex("word_entries_lemma_reading_uq").on(t.language, t.lemma, t.reading),

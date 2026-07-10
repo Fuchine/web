@@ -2,7 +2,12 @@
 
 **Date:** 2026-07-06
 **Feature:** Custos de IA (camada 2)
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — single-flight em `explainLineCached`: o miss
+roda numa transação sob `pg_advisory_xact_lock(hashtext(lineId:kind:lang:version))`
+e re-checa o cache ao adquirir o lock; o segundo chamador concorrente (pre-warm ×
+prefetch) acorda no hit em vez de gerar de novo. Fast-path de leitura sem
+transação preservado para o caminho comum (cache quente). E2E estendido (missas
+concorrentes → 1 chamada de provider) — 18/18 green.
 
 ---
 

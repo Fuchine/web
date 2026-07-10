@@ -25,7 +25,11 @@ export interface PlayerControlBarProps {
   onToggleTranslation: () => void;
   onToggleRomaji: () => void;
   onCycleRate: () => void;
+  /** Toggles mute. When provided, the volume button is live. */
   onVolume?: () => void;
+  /** Reflects the muted state on the volume button (icon + aria-pressed). */
+  muted?: boolean;
+  /** Toggles fullscreen on the player stage. When provided, the button is live. */
   onFullscreen?: () => void;
   formatTimecode: (ms: number) => string;
   className?: string;
@@ -69,6 +73,12 @@ const Icon = {
       <path d="M4 10v4h3l5 4V6L7 10H4zM16 8.5a4 4 0 0 1 0 7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  volumeMuted: (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 10v4h3l5 4V6L7 10H4z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 9.5l4 5M20 9.5l-4 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   fullscreen: (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
@@ -102,6 +112,7 @@ export function PlayerControlBar({
   onToggleRomaji,
   onCycleRate,
   onVolume,
+  muted,
   onFullscreen,
   formatTimecode,
   className,
@@ -217,13 +228,14 @@ export function PlayerControlBar({
         {onVolume && (
           <button
             type="button"
-            className="c-btn"
+            className={btnCx(Boolean(muted), false)}
             onClick={onVolume}
             disabled={disabled}
-            aria-label="Volume"
-            title="Volume"
+            aria-label={muted ? "Unmute" : "Mute"}
+            aria-pressed={muted}
+            title={muted ? "Unmute" : "Mute"}
           >
-            {Icon.volume}
+            {muted ? Icon.volumeMuted : Icon.volume}
           </button>
         )}
         {onFullscreen && (

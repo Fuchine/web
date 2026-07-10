@@ -2,7 +2,13 @@
 
 **Date:** 2026-07-06
 **Feature:** Tradução lazy (F1)
-**Status:** OPEN
+**Status:** RESOLVED (2026-07-09) — the `pending` marker is now a claim
+(`INSERT … 'pending' ON CONFLICT DO NOTHING RETURNING`): exactly one concurrent
+request pays for the MT call, losers get `202 {pending:true}` and the client
+retries onto the cache. Persistence is one batched `UPDATE` (unnest VALUES) +
+flip to `'done'` in a single transaction (was 30 parallel UPDATEs). Stale
+`pending` claims (>2 min) are swept at request start. E2E extended (concurrent
+claim, fresh-pending 202, stale sweep) — 26/26 green.
 
 ---
 
