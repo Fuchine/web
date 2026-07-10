@@ -34,6 +34,7 @@ export type ImportResult = { status: number; body: Record<string, unknown> };
 export const CAPTIONS_MAX = 10_000; // a 3h video is ~3k lines; 10k is generous
 export const TEXT_MAX = 500; // per caption line; longer is bad data, truncate
 export const TITLE_MAX = 300;
+export const CHANNEL_MAX = 200;
 const DURATION_S_MAX = 43_200; // 12h
 
 function intOr(value: unknown, fallback: number): number {
@@ -103,10 +104,10 @@ export function validateImportRequest(
   return {
     ok: true,
     value: {
-      url: req.url,
+      url: `https://www.youtube.com/watch?v=${sourceId}`,
       sourceId,
       title: (req.title?.trim() || sourceId).slice(0, TITLE_MAX),
-      channel: req.channel ?? null,
+      channel: req.channel ? req.channel.trim().slice(0, CHANNEL_MAX) || null : null,
       durationS,
       language: req.language || "ja",
       rows,

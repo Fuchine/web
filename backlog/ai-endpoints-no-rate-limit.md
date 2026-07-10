@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-06
 **Feature:** Segurança / Custos de IA (API)
-**Status:** PARTIAL (5 superfícies autenticadas feitas em 2026-07-07; magic link adiado)
+**Status:** PARTIAL (5 superfícies autenticadas feitas em 2026-07-07; A1 magic link feito em 2026-07-10)
 
 ---
 
@@ -116,14 +116,12 @@ comandos e travaria o request. Limites = a tabela de referência acima
 
 As rotas passam `session.user.id` como chave.
 
-**Adiado — magic link (item 5, único pré-auth).** Precisa de chave por
-IP **e** por e-mail alvo; o `sendVerificationRequest` do Auth.js não recebe o
-IP e o provider de produção usa o envio padrão (sobrescrever exigiria
-reimplementar o mailer). O caminho correto é **middleware** em
-`POST /api/auth/signin/email` (IP + e-mail do body) — mas middleware roda no
-edge, onde o ioredis não conecta; exige runtime nodejs no middleware ou um
-mailer custom. Fica para uma sessão dedicada. A constante `magicLink` (5/h) já
-está em `RATE_LIMITS`.
+**Resolvido — magic link (item 5, A1).** Implementado em 2026-07-10: custom
+`sendVerificationRequest` em `auth.ts` que extrai o IP do `request.headers`
+(x-forwarded-for) e aplica `enforceRateLimit("magicLink", ...)` por e-mail-alvo
+**e** por IP antes de enviar. Denial = throw (Auth.js renderiza erro, nenhum
+email enviado). Reutiliza `RATE_LIMITS.magicLink` (5/h por chave) e o limiter
+fail-open do Redis. Closes A1 de [CORRECOES-PRE-DEPLOY-2026-07-10.md].
 
 **Também destravado:** os itens 2–3 de [stats-writers-daily-caps.md] (frequência
 de beacon, dedup de clicks) agora têm o limiter de que dependiam — ainda não

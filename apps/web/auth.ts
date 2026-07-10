@@ -10,6 +10,7 @@ import {
   verificationTokens,
 } from "@fuchine/db";
 import { db } from "./lib/db";
+import { enforceRateLimit } from "./lib/rate-limit";
 
 // Providers are enabled only when configured, so a self-host instance never
 // shows a sign-in button that errors on click:
@@ -27,6 +28,32 @@ if (process.env.EMAIL_SERVER) {
     Nodemailer({
       server: process.env.EMAIL_SERVER,
       from: process.env.EMAIL_FROM,
+      // Rate-limit magic-link sends: per target email AND per client IP.
+      // A denial throws → Auth.js renders an error page (no email sent).
+      // This is the only pre-auth surface (A1 in CORRECOES-PRE-DEPLOY).
+      async sendVerificationRequest(params) {
+        const { identifier, request } = params;
+        const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+        const [byEmail, byIp] = await Promise.all([
+          enforceRateLimit("magicLink", `email:${identifier}`),
+          enforceRateLimit("magicLink", `ip:${ip}`),
+        ]);
+        if (!byEmail.ok || !byIp.ok) {
+          throw new Error("Too many sign-in attempts. Please try again later.");
+        }
+        // Fall through to the default email-sending implementation.
+        // Nodemailer provider's default code handles the SMTP send and HTML.
+        const { default: nodemailer } = await import("nodemailer");
+        const transporter = nodemailer.createTransport(params.provider.server);
+        const verifyUrl = params.url;
+        await transporter.sendMail({
+          to: identifier,
+          from: params.provider.from,
+          subject: `Sign in to ${new URL(verifyUrl).host}`,
+          text: `Sign in: ${verifyUrl}`,
+          html: `<p>Click <a href="${verifyUrl}">here</a> to sign in.</p>`,
+        });
+      },
     }),
   );
 } else if (process.env.NODE_ENV !== "production") {

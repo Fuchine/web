@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateImportRequest, CAPTIONS_MAX, TEXT_MAX } from "./import";
+import { validateImportRequest, CAPTIONS_MAX, TEXT_MAX, CHANNEL_MAX } from "./import";
 
 const URL = "https://youtu.be/abcdefghijk"; // 11-char id
 const cap = (over: Partial<{ text: string; startMs: number; endMs: number; idx: number }> = {}) => ({
@@ -74,5 +74,21 @@ describe("validateImportRequest", () => {
     const good = validateImportRequest({ url: URL, durationS: 3600, captions: [cap()] });
     expect(bad.ok && bad.value.durationS).toBe(null);
     expect(good.ok && good.value.durationS).toBe(3600);
+  });
+
+  it("normalizes the URL to the canonical YouTube watch URL", () => {
+    const r = validateImportRequest({ url: "https://youtu.be/abcdefghijk?t=30", captions: [cap()] });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.url).toBe("https://www.youtube.com/watch?v=abcdefghijk");
+  });
+
+  it("truncates channel to CHANNEL_MAX and nulls empty/whitespace", () => {
+    const long = validateImportRequest({ url: URL, channel: "x".repeat(CHANNEL_MAX + 50), captions: [cap()] });
+    expect(long.ok).toBe(true);
+    if (long.ok) expect(long.value.channel).toHaveLength(CHANNEL_MAX);
+
+    const blank = validateImportRequest({ url: URL, channel: "   ", captions: [cap()] });
+    expect(blank.ok).toBe(true);
+    if (blank.ok) expect(blank.value.channel).toBeNull();
   });
 });
