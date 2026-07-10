@@ -761,6 +761,21 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     [onNavigate],
   );
 
+  // Memoized so the 4×/s currentMs tick doesn't re-map the whole video: the
+  // transcript changes only when a chunk fetch lands (translations); the focal
+  // line only when the current line moves. Both feed React.memo'd children, so
+  // a pure time tick re-renders just the control bar, not the 600-line list.
+  const currentLine = currentLineIdx >= 0 ? (lines[currentLineIdx] as PlayerSubtitleLine | undefined) : undefined;
+  const transcriptLines = useMemo(() => toTranscript(lines, translations), [lines, translations]);
+  const focal = useMemo(() => toFocal(currentLine, translations), [currentLine, translations]);
+
+  // Stable toggle callbacks so the memoized PlayerTranscript/control bar aren't
+  // invalidated every render by fresh inline arrows.
+  const onToggleTranslation = useCallback(() => setShowTranslation((v) => !v), []);
+  const onToggleFurigana = useCallback(() => setShowFurigana((v) => !v), []);
+  const onToggleRomaji = useCallback(() => setShowRomaji((v) => !v), []);
+  const onToggleLoop = useCallback(() => setLoopLine((v) => !v), []);
+
   if (loadError) {
     const embedBlocked = errorCode === 150 || errorCode === 101;
     const watchUrl = `https://www.youtube.com/watch?v=${video.sourceId}&t=${Math.floor(currentMs / 1000)}s`;
@@ -800,10 +815,6 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       </AppShell>
     );
   }
-
-  const transcriptLines = toTranscript(lines, translations);
-  const currentLine = currentLineIdx >= 0 ? (lines[currentLineIdx] as PlayerSubtitleLine) : undefined;
-  const focal = toFocal(currentLine, translations);
 
   // Adapt WordEntry (API shape) to DictPopup entry shape
   const dictPopupEntry = dictEntry ? {
@@ -870,10 +881,10 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
               onPlayPause,
               onSkip,
               onSeek,
-              onToggleLoop: () => setLoopLine((v) => !v),
-              onToggleTranslation: () => setShowTranslation((v) => !v),
+              onToggleLoop,
+              onToggleTranslation,
               translationsUnavailable: translationsSuspended,
-              onToggleRomaji: () => setShowRomaji((v) => !v),
+              onToggleRomaji,
               onCycleRate,
               onVolume,
               onFullscreen,
@@ -907,8 +918,8 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
                 showFurigana={showFurigana}
                 translationsUnavailable={translationsSuspended}
                 onLineClick={seekToLine}
-                onToggleTranslation={() => setShowTranslation((v) => !v)}
-                onToggleFurigana={() => setShowFurigana((v) => !v)}
+                onToggleTranslation={onToggleTranslation}
+                onToggleFurigana={onToggleFurigana}
                 formatTimecode={fmt}
                 railRef={railRef}
                 lineRefs={lineRefs}
