@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildLineCtxs, planPrewarm, runPool, type PrewarmLine } from "./prewarm";
+import { buildLineCtxs, planPrewarm, runPool, scopePrewarm, type PrewarmLine } from "./prewarm";
 
 const line = (id: string, idx: number, text: string): PrewarmLine => ({
   id,
@@ -38,6 +38,35 @@ describe("planPrewarm", () => {
     );
     const todo = planPrewarm(items, new Set(["b"]));
     expect(todo.map((i) => i.lineId)).toEqual(["a", "c"]);
+  });
+});
+
+describe("scopePrewarm", () => {
+  const items = buildLineCtxs(
+    [line("a", 0, "一"), line("b", 1, "二"), line("c", 2, "三")],
+    "ja",
+  );
+
+  it("caps to the first N in watch order", () => {
+    expect(scopePrewarm(items, 2).map((i) => i.lineId)).toEqual(["a", "b"]);
+  });
+
+  it("preserves correct neighbors within the cap (ctx built over the full set)", () => {
+    // The last kept line still sees its real next line, not null.
+    expect(scopePrewarm(items, 2)[1]!.ctx.nextText).toBe("三");
+  });
+
+  it("returns everything when the cap exceeds the count", () => {
+    expect(scopePrewarm(items, 99)).toHaveLength(3);
+  });
+
+  it("no cap when maxLines is undefined or negative", () => {
+    expect(scopePrewarm(items)).toHaveLength(3);
+    expect(scopePrewarm(items, -1)).toHaveLength(3);
+  });
+
+  it("caps to zero (warm nothing eagerly)", () => {
+    expect(scopePrewarm(items, 0)).toHaveLength(0);
   });
 });
 

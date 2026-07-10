@@ -55,6 +55,7 @@ const explainWorker = new Worker<ExplainJob>(
     const summary = await prewarmVideoExplanations(db, houseProvider(), job.data.videoId, {
       explanationLanguage: job.data.explanationLanguage,
       concurrency: 2,
+      maxLines: env.prewarmMaxLines,
     });
     console.log(
       `[explain] pre-warm ${job.data.videoId}: ` +

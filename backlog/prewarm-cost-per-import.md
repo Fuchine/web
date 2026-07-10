@@ -2,7 +2,12 @@
 
 **Date:** 2026-07-06
 **Feature:** Custos de IA (worker, camada 2)
-**Status:** OPEN
+**Status:** PARTIAL (2026-07-09) — **item 1 feito**: `PREWARM_MAX_LINES`
+(default 150) limita o pre-warm ansioso às primeiras N linhas em ordem de
+watch; o resto é coberto sob demanda pelo prefetch do player. `scopePrewarm`
+(puro, testado) fatia o escopo com vizinhos corretos; `total` do summary passa a
+ser o escopo. **Item 2** (enfileirar o resto no primeiro open) e **item 3**
+(tokens no summary, depende de [[llm-usage-metering]]) seguem abertos.
 
 ---
 
