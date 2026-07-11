@@ -133,6 +133,7 @@ export const videos = pgTable(
     durationS: integer("duration_s"),
     language: text("language").notNull().default("ja"), // D4: multilingual by design
     status: videoStatus("status").notNull().default("pending"),
+    statusReason: text("status_reason"), // human-readable failure cause; null unless status = "failed"
     levelEstimate: contentLevel("level_estimate"), // null until computed
     // null = not checked; false = owner disabled embedded playback (IFrame 150/101).
     embeddable: boolean("embeddable"),

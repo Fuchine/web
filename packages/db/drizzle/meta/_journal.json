@@ -99,6 +99,13 @@
       "when": 1783646953896,
       "tag": "0013_magical_wonder_man",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1783728998092,
+      "tag": "0014_outstanding_phalanx",
+      "breakpoints": true
     }
   ]
 }
