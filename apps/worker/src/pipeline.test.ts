@@ -9,7 +9,7 @@ describe("importVideo catch block", () => {
   });
 
   it("handles non-Error throws gracefully", () => {
-    const thrown = "string error";
+    const thrown: unknown = "string error";
     const reason = thrown instanceof Error ? thrown.message : String(thrown);
     expect(reason).toBe("string error");
   });
