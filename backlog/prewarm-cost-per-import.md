@@ -2,12 +2,18 @@
 
 **Date:** 2026-07-06
 **Feature:** Custos de IA (worker, camada 2)
-**Status:** PARTIAL (2026-07-09) — **item 1 feito**: `PREWARM_MAX_LINES`
-(default 150) limita o pre-warm ansioso às primeiras N linhas em ordem de
-watch; o resto é coberto sob demanda pelo prefetch do player. `scopePrewarm`
-(puro, testado) fatia o escopo com vizinhos corretos; `total` do summary passa a
-ser o escopo. **Item 2** (enfileirar o resto no primeiro open) e **item 3**
-(tokens no summary, depende de [[llm-usage-metering]]) seguem abertos.
+**Status:** PARTIAL (2026-07-11) — **itens 1 e 2 feitos**. Item 1
+(`PREWARM_MAX_LINES`, default 150) limita o pre-warm ansioso às primeiras N
+linhas em ordem de watch; o resto é coberto sob demanda pelo prefetch do player.
+`scopePrewarm` (puro, testado) fatia o escopo com vizinhos corretos; `total` do
+summary passa a ser o escopo. **Item 2 feito (2026-07-11):** `GET
+/api/videos/[id]` enfileira, no open, um job de pre-warm `scope: "full"` (fila
+`explain`) que aquece a **cauda** do vídeo — o head já está em cache, então o
+job cache-first só paga o resto. `ExplainJob` ganhou `scope: "head" | "full"`
+(default `head`); o worker mapeia o escopo → cap com `prewarmMaxLinesForScope`
+(puro, testado) e gateia em `echo` via `hasHouseLlm`. Dedup por `jobId` estável
+(`fullPrewarmJobId`, completed retido 24h), fail-open, nunca bloqueia o payload.
+**Item 3** (tokens no summary, depende de [[llm-usage-metering]]) segue aberto.
 
 ---
 
@@ -38,10 +44,11 @@ limitá-lo.
 1. **Teto no import:** pre-warm apenas das primeiras ~150 linhas (o começo do
    vídeo, onde o viewer chega primeiro), configurável por env
    (`PREWARM_MAX_LINES`).
-2. **Resto no primeiro open:** ao abrir o player pela primeira vez
-   (`GET /api/videos/[id]` ou o beacon inicial), enfileirar o pre-warm do
+2. **Resto no primeiro open:** ✅ feito (2026-07-11). Ao abrir o player
+   (`GET /api/videos/[id]`, só para vídeos `done`), enfileirar o pre-warm do
    restante — sinal barato de que o vídeo tem audiência; o prefetch do player
-   (3 slots) cobre o intervalo até o worker alcançar.
+   (3 slots) cobre o intervalo até o worker alcançar. Implementado como job
+   `scope: "full"` (uncapped) na fila `explain`, dedup por `jobId` estável.
 3. Registrar tokens gastos por vídeo no summary do job (já loga
    generated/cached/failed — anexar tokens quando a medição existir).
 

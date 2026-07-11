@@ -64,8 +64,27 @@ export const WORKER_HEARTBEAT_TTL = 30;
 
 export const EXPLAIN_QUEUE = "explain";
 
-/** Enqueued after import: pre-generate layer-2 explanations for a video. */
-export type ExplainJob = { videoId: string; explanationLanguage: string };
+/**
+ * Enqueued to pre-generate layer-2 explanations for a video.
+ * - "head" (default): the first N lines, enqueued right after import — the
+ *   start of the video, where a viewer arrives first. Bounds per-import cost.
+ * - "full": the whole video, enqueued on first player open, once the video has
+ *   shown audience. The head is already cached, so this only pays for the tail
+ *   (pre-warm is cache-first / idempotent). See backlog/prewarm-cost-per-import.
+ */
+export type ExplainJob = {
+  videoId: string;
+  explanationLanguage: string;
+  scope?: "head" | "full";
+};
+
+/**
+ * Stable job id for the once-per-video "full" pre-warm, so repeat player opens
+ * dedup to a single job instead of one per open.
+ */
+export function fullPrewarmJobId(videoId: string, explanationLanguage: string): string {
+  return `prewarm-full:${videoId}:${explanationLanguage}`;
+}
 
 /** Producer-side handle to the explain pre-warm queue. */
 export function getExplainQueue(redis: Redis): Queue<ExplainJob> {

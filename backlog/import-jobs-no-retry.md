@@ -2,13 +2,17 @@
 
 **Date:** 2026-07-06
 **Feature:** Import (fila / worker)
-**Status:** PARTIAL (2026-07-09) — items 1–2 done. `getImportQueue`/
-`getExplainQueue` now set `defaultJobOptions` (attempts 3, exponential backoff
+**Status:** DONE (2026-07-11) — all three items shipped. `getImportQueue`/
+`getExplainQueue` set `defaultJobOptions` (attempts 3, exponential backoff
 5s, removeOnComplete; removeOnFail:false). Worker startup reconciler
 (`reconcileStuckImports` in `apps/worker/src/index.ts`) re-enqueues videos left
-in `processing` with no job in the queue (idempotent). **Item 3 still open** —
-`status_reason` column on `videos` for a human-readable failure reason (ERD
-decision), which also unblocks the library error state (T1.9).
+in `processing` with no job in the queue (idempotent). **Item 3 done** —
+`status_reason text` column on `videos` (migration `0014`, `schema.ts:136`); the
+pipeline persists a readable reason on both failure paths ("No Japanese captions
+found" and the caught error, capped 500 chars, `pipeline.ts:80,133`); the web
+surfaces it via `listVideos`/`getVideoWithLines` — a tooltip on the library
+"Failed" pill (`library-view.tsx:331`) and the failed-import error screen
+(`app/videos/[id]/page.tsx:28`), closing the T1.9 error state.
 
 ---
 

@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { buildLineCtxs, planPrewarm, runPool, scopePrewarm, type PrewarmLine } from "./prewarm";
+import {
+  buildLineCtxs,
+  planPrewarm,
+  prewarmMaxLinesForScope,
+  runPool,
+  scopePrewarm,
+  type PrewarmLine,
+} from "./prewarm";
 
 const line = (id: string, idx: number, text: string): PrewarmLine => ({
   id,
@@ -67,6 +74,20 @@ describe("scopePrewarm", () => {
 
   it("caps to zero (warm nothing eagerly)", () => {
     expect(scopePrewarm(items, 0)).toHaveLength(0);
+  });
+});
+
+describe("prewarmMaxLinesForScope", () => {
+  it('uncaps "full" so the whole video (tail included) is warmed', () => {
+    expect(prewarmMaxLinesForScope("full", 150)).toBeUndefined();
+  });
+
+  it('caps "head" to the per-import head budget', () => {
+    expect(prewarmMaxLinesForScope("head", 150)).toBe(150);
+  });
+
+  it("defaults an undefined scope to the head budget", () => {
+    expect(prewarmMaxLinesForScope(undefined, 150)).toBe(150);
   });
 });
 

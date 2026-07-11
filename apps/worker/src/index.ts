@@ -5,7 +5,7 @@
 import { Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { createDb, videos } from "@fuchine/db";
-import { prewarmVideoExplanations } from "@fuchine/llm";
+import { prewarmVideoExplanations, prewarmMaxLinesForScope } from "@fuchine/llm";
 import {
   getExplainQueue,
   getImportQueue,
@@ -38,6 +38,7 @@ const importWorker = new Worker<ImportJob>(
         await explainQueue.add("explain", {
           videoId: job.data.videoId,
           explanationLanguage: "en",
+          scope: "head",
         });
       }
     } catch (err) {
@@ -52,13 +53,24 @@ const importWorker = new Worker<ImportJob>(
 const explainWorker = new Worker<ExplainJob>(
   EXPLAIN_QUEUE,
   async (job) => {
+    // "full" jobs come from the web app on first open, which can't know whether
+    // a real provider is configured — gate here, at the single consumer, so
+    // echo never burns a slot failing every line.
+    if (!hasHouseLlm()) {
+      console.log(`[explain] skipped ${job.data.videoId}: no house LLM`);
+      return;
+    }
+    // "full" (first open) warms the whole video; "head" (import) caps to the
+    // first N lines. The head is already cached, so "full" only pays for the tail.
+    const scope = job.data.scope ?? "head";
+    const maxLines = prewarmMaxLinesForScope(scope, env.prewarmMaxLines);
     const summary = await prewarmVideoExplanations(db, houseProvider(), job.data.videoId, {
       explanationLanguage: job.data.explanationLanguage,
       concurrency: 2,
-      maxLines: env.prewarmMaxLines,
+      maxLines,
     });
     console.log(
-      `[explain] pre-warm ${job.data.videoId}: ` +
+      `[explain] pre-warm ${job.data.videoId} (${scope}): ` +
         `${summary.generated} generated, ${summary.cached} cached, ` +
         `${summary.failed} failed of ${summary.total}`,
     );
