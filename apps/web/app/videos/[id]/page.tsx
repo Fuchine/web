@@ -5,6 +5,7 @@ import { getVideoWithLines } from "@/lib/study";
 import { getSavedWordIds } from "@/lib/dictionary";
 import { hiraToRomaji } from "@fuchine/nlp";
 import { PlayerView } from "./player-view";
+import { ErrorScreen } from "./error-screen";
 import "./player.css";
 
 export default async function VideoPage({
@@ -20,6 +21,14 @@ export default async function VideoPage({
   const { id } = await params;
   const result = await getVideoWithLines(db, id);
   if (!result) notFound();
+  if (result.video.status === "failed") {
+    return (
+      <ErrorScreen
+        title={result.video.title}
+        reason={result.video.statusReason ?? "Unknown error"}
+      />
+    );
+  }
   if (result.video.status !== "done") redirect("/");
 
   const { line } = await searchParams;
