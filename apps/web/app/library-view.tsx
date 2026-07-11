@@ -327,7 +327,9 @@ function VideoCardWithMenu({
       />
       {status && (
         <div className="mt-[10px]">
-          <span className={`inline-flex items-center gap-[6px] rounded-full px-[9px] py-[3px] text-[11.5px] font-[500] ${
+          <span
+            title={v.statusReason ?? undefined}
+            className={`inline-flex items-center gap-[6px] rounded-full px-[9px] py-[3px] text-[11.5px] font-[500] ${
             status.variant === "error" ? "bg-[var(--error)]/10 text-[var(--error)]" :
             status.variant === "warning" ? "bg-amber-50 text-amber-700" :
             "bg-bg-2 text-muted"
