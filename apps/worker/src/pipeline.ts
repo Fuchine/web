@@ -75,6 +75,13 @@ export async function importVideo(
       }
     }
 
+    if (lines.length === 0) {
+      await db.update(videos)
+        .set({ status: "failed", statusReason: "No Japanese captions found" })
+        .where(eq(videos.id, video.id));
+      return;
+    }
+
     // --- Layer 0: tokenize + resolve dictionary entries (local, free). Also
     // record where each resolved word occurs, for the dictionary's "From your
     // videos" — deduped per line; the unique index dedupes across re-runs.
@@ -121,7 +128,10 @@ export async function importVideo(
       .set({ status: "done", levelEstimate, embeddable, category })
       .where(eq(videos.id, video.id));
   } catch (err) {
-    await db.update(videos).set({ status: "failed" }).where(eq(videos.id, video.id));
+    const reason = err instanceof Error ? err.message : String(err);
+    await db.update(videos)
+      .set({ status: "failed", statusReason: reason.slice(0, 500) })
+      .where(eq(videos.id, video.id));
     throw err;
   }
 }
