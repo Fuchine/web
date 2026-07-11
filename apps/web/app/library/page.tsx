@@ -35,6 +35,7 @@ export default async function LibraryPage() {
     sourceId: v.sourceId,
     durationS: v.durationS,
     status: v.status,
+    statusReason: v.statusReason,
     level: v.levelEstimate ? (LEVEL[v.levelEstimate] ?? null) : null,
     comprehension: comprehension.get(v.id) ?? null,
     embeddable: v.embeddable,

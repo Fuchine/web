@@ -41,6 +41,7 @@ export async function listVideos(
       durationS: videos.durationS,
       language: videos.language,
       status: videos.status,
+      statusReason: videos.statusReason,
       levelEstimate: videos.levelEstimate,
       embeddable: videos.embeddable,
       category: videos.category,

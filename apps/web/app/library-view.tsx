@@ -14,6 +14,7 @@ export type LibraryVideo = {
   sourceId: string;
   durationS: number | null;
   status: "pending" | "processing" | "done" | "failed";
+  statusReason?: string | null;
   level: number | null;
   comprehension: number | null;
   embeddable?: boolean | null; // false = owner blocked embedded playback
