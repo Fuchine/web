@@ -2,9 +2,23 @@
 
 **Date:** 2026-07-04 · **Updated:** 2026-07-12
 **Feature:** Metas diárias (Settings / Dashboard / Review)
-**Status:** PARTIAL — fila de review + `maxReviewsPerDay` (2026-07-05) e
-**dashboard de progresso do dia** (2026-07-12) resolvidos; **só o onboarding
-segue aberto**.
+**Status:** RESOLVED (2026-07-12) — fila de review + `maxReviewsPerDay`
+(2026-07-05), dashboard de progresso do dia e **onboarding de metas**
+(2026-07-12) feitos. Nada aberto.
+
+---
+
+## Resolução do onboarding (2026-07-12)
+
+Novo passo "Daily goals" no fluxo de onboarding (`onboarding-view.tsx`, entre
+language e key): dois steppers on-brand (compostos do mesmo padrão do
+`settings-view`) para **New cards per day** (default 20) e **Watch time per day**
+(default 20 min). O passo é opcional/pulável como os demais; só grava
+`dailyGoals` quando o usuário passa por ele (Continue → `goalsSet`), então pular
+antes não seta metas. A rota `/api/onboarding` já repassava o body inteiro ao
+`updateSettings` (que valida/mescla `dailyGoals`) — **nenhuma mudança de
+backend**. Verificado: typecheck 8/8. Não dirigido ao vivo (precisa de sessão
+com usuário novo não-onboarded).
 
 ---
 
@@ -59,8 +73,8 @@ day" em `/settings` persiste `newCardsPerDay`. Os contadores diários existem em
   `watchMinutesPerDay` onde fizer sentido.
 - ~~**Dashboard**: mostrar progresso do dia vs meta~~ — **FEITO 2026-07-12**
   (`getDailyProgress` + seção "Today's goals"; ver Resolução parcial acima).
-- **Onboarding**: o inventário prevê metas configuráveis no onboarding; o
-  fluxo atual não pergunta. **(único aberto)**
+- ~~**Onboarding**: metas configuráveis no onboarding~~ — **FEITO 2026-07-12**
+  (passo "Daily goals"; ver Resolução do onboarding acima).
 
 ### 2. Campo "Maximum reviews per day" — ✅ FEITO 2026-07-05
 

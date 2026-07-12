@@ -49,8 +49,12 @@ const EyeOffIcon = () => (
 );
 
 /* ---- types ---- */
-type Step = "welcome" | "language" | "key" | "done";
-const NUMBERED: Step[] = ["welcome", "language", "key"];
+type Step = "welcome" | "language" | "goals" | "key" | "done";
+const NUMBERED: Step[] = ["welcome", "language", "goals", "key"];
+
+/** Onboarding goal defaults — gentle, immersion-first (tunable in Settings). */
+const DEFAULT_NEW_CARDS = 20;
+const DEFAULT_WATCH_MIN = 20;
 
 const LANGS = [
   { v: "en", name: "English",   native: "English",              flag: "Recommended" },
@@ -270,7 +274,118 @@ function StepLanguage({
   );
 }
 
-/* ---- Step 3: API Key ---- */
+/* ---- shared stepper (matches Settings) ---- */
+function Stepper({
+  value, min, max, onChange, label,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+  label: string;
+}) {
+  const bump = (dir: 1 | -1) => onChange(Math.min(max, Math.max(min, value + dir)));
+  return (
+    <div className="flex items-center gap-0 rounded-[8px] border border-border-strong bg-surface">
+      <button
+        type="button"
+        className="grid h-[38px] w-[38px] place-items-center text-[18px] text-faint hover:text-fg disabled:opacity-40"
+        aria-label={`decrease ${label}`}
+        disabled={value <= min}
+        onClick={() => bump(-1)}
+      >
+        −
+      </button>
+      <span className="w-[52px] text-center text-[14.5px] tabular-nums text-fg">{value}</span>
+      <button
+        type="button"
+        className="grid h-[38px] w-[38px] place-items-center text-[18px] text-faint hover:text-fg disabled:opacity-40"
+        aria-label={`increase ${label}`}
+        disabled={value >= max}
+        onClick={() => bump(1)}
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+/* ---- Step 3: Daily goals ---- */
+function StepGoals({
+  newCards, onNewCards, watchMin, onWatchMin, onNext, onBack, onSkip,
+}: {
+  newCards: number;
+  onNewCards: (v: number) => void;
+  watchMin: number;
+  onWatchMin: (v: number) => void;
+  onNext: () => void;
+  onBack: () => void;
+  onSkip: () => void;
+}) {
+  return (
+    <div key="goals" className="motion-safe:animate-[ob-rise_0.5s_var(--ease)_both]">
+      <Progress step="goals" />
+      <span className="inline-flex items-center gap-[8px] text-[12px] font-[550] tracking-[0.06em] uppercase text-link mb-[14px]">
+        Daily goals
+      </span>
+      <h1 className="text-[28px] font-semibold tracking-[-0.022em] leading-[1.18] m-0 mb-[10px] [text-wrap:pretty] max-sm:text-[24px]">
+        Set a gentle daily rhythm
+      </h1>
+      <p className="text-[15px] leading-[1.6] text-muted m-0 [text-wrap:pretty]">
+        A small daily target keeps a streak alive. Start light — you can{" "}
+        <span className="text-fg font-medium">change these anytime</span> in Settings.
+      </p>
+
+      <div className="grid gap-[8px] mt-[26px]">
+        <div className="flex items-center gap-[14px] w-full px-[16px] py-[13px] border border-border-strong rounded-[var(--radius)] bg-surface">
+          <span className="flex-1 min-w-0 flex flex-col">
+            <span className="block text-[14.5px] font-medium text-fg">New cards per day</span>
+            <span className="block text-[12.5px] text-faint mt-[2px]">
+              Freshly mined words to introduce daily
+            </span>
+          </span>
+          <Stepper value={newCards} min={1} max={500} onChange={onNewCards} label="new cards per day" />
+        </div>
+
+        <div className="flex items-center gap-[14px] w-full px-[16px] py-[13px] border border-border-strong rounded-[var(--radius)] bg-surface">
+          <span className="flex-1 min-w-0 flex flex-col">
+            <span className="block text-[14.5px] font-medium text-fg">Watch time per day</span>
+            <span className="block text-[12.5px] text-faint mt-[2px]">
+              Minutes of immersion to aim for
+            </span>
+          </span>
+          <Stepper value={watchMin} min={1} max={1440} onChange={onWatchMin} label="watch minutes per day" />
+        </div>
+      </div>
+
+      <div className="mt-[30px]">
+        <button
+          className="w-full h-[47px] text-[14.5px] font-[550] tracking-[0.005em] rounded-[var(--radius)] cursor-pointer flex items-center justify-center gap-[9px] transition-[background] duration-[0.18s] ease-[var(--ease)] text-on-accent bg-accent border-none hover:bg-accent-hover active:bg-accent-press active:[transform:translateY(0.5px)] [&_svg]:w-[17px] [&_svg]:h-[17px]"
+          onClick={onNext}
+        >
+          Continue <ArrowIcon />
+        </button>
+        <div className="flex items-center justify-center gap-[8px] mt-[16px]">
+          <button
+            className="bg-none border-none px-[8px] py-[6px] text-[13.5px] font-medium text-muted cursor-pointer rounded-[7px] transition-[color] duration-[0.16s] ease-[var(--ease)] hover:text-fg"
+            onClick={onBack}
+          >
+            Back
+          </button>
+          <span className="w-[3px] h-[3px] rounded-full bg-faint opacity-60" />
+          <button
+            className="bg-none border-none px-[8px] py-[6px] text-[13.5px] font-medium text-muted cursor-pointer rounded-[7px] transition-[color] duration-[0.16s] ease-[var(--ease)] hover:text-fg"
+            onClick={onSkip}
+          >
+            Skip for now
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---- Step 4: API Key ---- */
 function StepKey({
   provider, onProvider, keyVal, onKey, onFinish, onBack, onSkip,
 }: {
@@ -456,6 +571,9 @@ export function OnboardingView({ name }: { name: string }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("welcome");
   const [lang, setLang] = useState("en");
+  const [newCards, setNewCards] = useState(DEFAULT_NEW_CARDS);
+  const [watchMin, setWatchMin] = useState(DEFAULT_WATCH_MIN);
+  const [goalsSet, setGoalsSet] = useState(false);
   const [provider, setProvider] = useState("anthropic");
   const [keyVal, setKeyVal] = useState("");
   const [saving, setSaving] = useState(false);
@@ -464,20 +582,33 @@ export function OnboardingView({ name }: { name: string }) {
 
   const enter = () => router.replace("/");
 
+  // Body shared by finish/skip: language always, goals once the user has passed
+  // the goals step (skipping before it leaves goals untouched), key on finish.
+  const baseBody = (): Record<string, unknown> => {
+    const body: Record<string, unknown> = { explanationLanguage: lang };
+    if (goalsSet) {
+      body.dailyGoals = { newCardsPerDay: newCards, watchMinutesPerDay: watchMin };
+    }
+    return body;
+  };
+
+  const post = (body: Record<string, unknown>) =>
+    fetch("/api/onboarding", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
   const finish = async () => {
     if (saving) return;
     setSaving(true);
-    const body: Record<string, string> = { explanationLanguage: lang };
+    const body = baseBody();
     if (keyVal.trim()) {
       body.llmProvider = provider;
       body.apiKey = keyVal;
     }
     try {
-      await fetch("/api/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      await post(body);
     } finally {
       setSaving(false);
       go("done");
@@ -486,11 +617,7 @@ export function OnboardingView({ name }: { name: string }) {
 
   const skip = async () => {
     // Mark done even when skipping, so the user isn't looped back.
-    await fetch("/api/onboarding", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ explanationLanguage: lang }),
-    });
+    await post(baseBody());
     enter();
   };
 
@@ -537,8 +664,19 @@ export function OnboardingView({ name }: { name: string }) {
             <StepLanguage
               value={lang}
               onChange={setLang}
-              onNext={() => go("key")}
+              onNext={() => go("goals")}
               onBack={() => go("welcome")}
+              onSkip={skip}
+            />
+          )}
+          {step === "goals" && (
+            <StepGoals
+              newCards={newCards}
+              onNewCards={setNewCards}
+              watchMin={watchMin}
+              onWatchMin={setWatchMin}
+              onNext={() => { setGoalsSet(true); go("key"); }}
+              onBack={() => go("language")}
               onSkip={skip}
             />
           )}
@@ -549,7 +687,7 @@ export function OnboardingView({ name }: { name: string }) {
               keyVal={keyVal}
               onKey={setKeyVal}
               onFinish={finish}
-              onBack={() => go("language")}
+              onBack={() => go("goals")}
               onSkip={skip}
             />
           )}
