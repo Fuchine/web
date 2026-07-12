@@ -81,9 +81,16 @@ export type DashboardVideo = {
   durationS: number | null;
 };
 
+export type DashboardGoal = {
+  key: "newCards" | "reviews" | "watchMinutes";
+  done: number;
+  goal: number;
+};
+
 export type DashboardProps = {
   account: { name: string; sub?: string };
   reviewDue: number;
+  todaysGoals: DashboardGoal[];
   continueVideo: DashboardVideo | null;
 };
 
@@ -279,6 +286,51 @@ function ContinueWatching({ video }: { video: DashboardVideo }) {
   );
 }
 
+const GOAL_META: Record<DashboardGoal["key"], { label: string; unit: string }> = {
+  newCards: { label: "New cards", unit: "" },
+  reviews: { label: "Reviews", unit: "" },
+  watchMinutes: { label: "Watch time", unit: "min" },
+};
+
+function GoalCard({ goal }: { goal: DashboardGoal }) {
+  const { label, unit } = GOAL_META[goal.key];
+  const pct = goal.goal > 0 ? Math.min(100, Math.round((goal.done / goal.goal) * 100)) : 0;
+  const met = goal.done >= goal.goal;
+
+  return (
+    <div className="rounded-[16px] border border-border bg-surface p-4 shadow-[var(--shadow-sm)]">
+      <div className="mb-[10px] flex items-baseline justify-between gap-2">
+        <span className="text-[13px] font-[600] text-fg">{label}</span>
+        <span className="text-[12.5px] tabular-nums text-muted">
+          <span className={met ? "font-[600] text-ok" : "font-[600] text-fg"}>{goal.done}</span>
+          {" / "}
+          {goal.goal}
+          {unit ? ` ${unit}` : ""}
+        </span>
+      </div>
+      <div className="h-[7px] overflow-hidden rounded-full bg-bg-2">
+        <div
+          className={"h-full rounded-full transition-[width] " + (met ? "bg-ok" : "bg-accent")}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function GoalsToday({ goals }: { goals: DashboardGoal[] }) {
+  return (
+    <section className="rise-3 mt-[38px]">
+      <SectionHead title="Today's goals" />
+      <div className="grid grid-cols-1 gap-[14px] sm:grid-cols-2 xl:grid-cols-3">
+        {goals.map((g) => (
+          <GoalCard key={g.key} goal={g} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function QuickImport() {
   const router = useRouter();
   const [url, setUrl] = useState("");
@@ -422,7 +474,7 @@ function FirstRun() {
 }
 
 /* ---- main export ---- */
-export function DashboardView({ account, reviewDue, continueVideo }: DashboardProps) {
+export function DashboardView({ account, reviewDue, todaysGoals, continueVideo }: DashboardProps) {
   const [collapsed, setCollapsed] = useState(false);
   const firstRun = continueVideo === null;
 
@@ -454,6 +506,9 @@ export function DashboardView({ account, reviewDue, continueVideo }: DashboardPr
           <div className="rise-2">
             <HeroReviews due={reviewDue} />
           </div>
+
+          {/* Today's goals — only when the user has set any */}
+          {todaysGoals.length > 0 && <GoalsToday goals={todaysGoals} />}
 
           {/* Continue watching */}
           {continueVideo && <ContinueWatching video={continueVideo} />}

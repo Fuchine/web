@@ -1,9 +1,28 @@
 # backlog: Metas diárias persistem mas nada as consome
 
-**Date:** 2026-07-04 · **Updated:** 2026-07-05
+**Date:** 2026-07-04 · **Updated:** 2026-07-12
 **Feature:** Metas diárias (Settings / Dashboard / Review)
-**Status:** PARTIAL — fila de review + `maxReviewsPerDay` resolvidos
-(2026-07-05); dashboard e onboarding ainda abertos
+**Status:** PARTIAL — fila de review + `maxReviewsPerDay` (2026-07-05) e
+**dashboard de progresso do dia** (2026-07-12) resolvidos; **só o onboarding
+segue aberto**.
+
+---
+
+## Resolução parcial (2026-07-12) — dashboard consome as metas
+
+`getDailyProgress(db, userId)` (`lib/goals.ts`) pareia cada meta **definida** com
+o progresso de hoje: `newCardsPerDay` × introduções (review_logs state=0),
+`maxReviewsPerDay` × reviews (state≠0) — mesmo split da `dailyAllowances` — e
+`watchMinutesPerDay` × `user_daily_stats.msWatched` de hoje. As queries são
+gated (só busca a fonte de cada meta setada); sem meta → `[]`. `reviewMinutesPerDay`
+é **omitido de propósito**: não há rastreio de tempo de review (fonte
+inexistente — anotar se/quando virar requisito). O core puro `buildDailyProgress`
+é testado em `lib/goals.test.ts` (6). O dashboard (`app/page.tsx` →
+`DashboardView`) renderiza uma seção "Today's goals" (barra done/goal por meta,
+clampada, marca ✓ ao bater) só quando há metas. Verificado: typecheck 8/8 +
+`pnpm test` (154 web). Não dirigido ao vivo (precisa de DB + sessão + metas
+setadas). Nota: a seção reusa o vocabulário visual existente do dashboard; o
+polimento fino pode passar pelo Claude Design.
 
 ---
 
@@ -38,10 +57,10 @@ day" em `/settings` persiste `newCardsPerDay`. Os contadores diários existem em
 - ~~**Fila de revisão**: respeitar `newCardsPerDay`~~ — **FEITO 2026-07-05**
   (ver Resolução parcial). Ainda pode considerar `reviewMinutesPerDay`/
   `watchMinutesPerDay` onde fizer sentido.
-- **Dashboard**: mostrar progresso do dia vs meta (`user_daily_stats` de hoje ×
-  `dailyGoals`) — "quantas revisões hoje / meta" é elemento-chave do inventário.
+- ~~**Dashboard**: mostrar progresso do dia vs meta~~ — **FEITO 2026-07-12**
+  (`getDailyProgress` + seção "Today's goals"; ver Resolução parcial acima).
 - **Onboarding**: o inventário prevê metas configuráveis no onboarding; o
-  fluxo atual não pergunta.
+  fluxo atual não pergunta. **(único aberto)**
 
 ### 2. Campo "Maximum reviews per day" — ✅ FEITO 2026-07-05
 
