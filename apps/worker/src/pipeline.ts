@@ -11,7 +11,7 @@
 import { asc, eq } from "drizzle-orm";
 import { type Database, videos, subtitleLines, wordExamples, wordEntries } from "@fuchine/db";
 import { inArray } from "drizzle-orm";
-import { analyzeLine } from "@fuchine/nlp";
+import { analyzeLines } from "@fuchine/nlp";
 import type { ImportJob } from "./queue";
 import { estimateLevel } from "./level";
 import { checkEmbeddable } from "./embeddable";
@@ -87,21 +87,24 @@ export async function importVideo(
     // videos" — deduped per line; the unique index dedupes across re-runs.
     //
     // Analysis (tokenize + dictionary lookups) runs first, outside any write
-    // transaction: a per-video lookup cache means a common lemma (は, する, 私…)
-    // is resolved once for the whole video instead of once per line. Only then
-    // are the tokens flushed, batched in a single transaction rather than one
-    // autocommit UPDATE per line (backlog: import-pipeline-batching). ---
-    const cache = new Map<string, string | null>();
-    const analyzed: { id: string; tokens: Awaited<ReturnType<typeof analyzeLine>> }[] = [];
+    // transaction: `analyzeLines` tokenizes every line, then resolves all the
+    // video's distinct lemmas in a single dictionary round trip instead of one
+    // query per unique lemma. Only then are the tokens flushed, batched in a
+    // single transaction rather than one autocommit UPDATE per line (backlog:
+    // import-pipeline-batching). ---
+    const tokensByLine = await analyzeLines(
+      lines.map((l) => l.textOriginal),
+      video.language,
+      db,
+    );
+    const analyzed = lines.map((line, i) => ({ id: line.id, tokens: tokensByLine[i]! }));
     const exampleRows: { wordEntryId: string; subtitleLineId: string; videoId: string }[] = [];
-    for (const line of lines) {
-      const tokens = await analyzeLine(line.textOriginal, video.language, db, cache);
-      analyzed.push({ id: line.id, tokens });
+    for (const { id, tokens } of analyzed) {
       const seen = new Set<string>();
       for (const t of tokens) {
         if (t.wordEntryId && !seen.has(t.wordEntryId)) {
           seen.add(t.wordEntryId);
-          exampleRows.push({ wordEntryId: t.wordEntryId, subtitleLineId: line.id, videoId: video.id });
+          exampleRows.push({ wordEntryId: t.wordEntryId, subtitleLineId: id, videoId: video.id });
         }
       }
     }

@@ -4,7 +4,13 @@
 
 export * from "./interfaces";
 export { JaTokenizer } from "./ja/tokenizer";
-export { JaDictionary } from "./ja/dictionary";
+export { JaDictionary, groupHitsByLemma } from "./ja/dictionary";
 export { kataToHira, hiraToRomaji } from "./ja/kana";
 export { getTokenizer, getDictionary } from "./registry";
-export { resolveWordEntries, analyzeLine } from "./analyze";
+export {
+  resolveWordEntries,
+  analyzeLine,
+  analyzeLines,
+  lookupLemmas,
+  resolveTokensFromHits,
+} from "./analyze";

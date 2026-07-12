@@ -21,16 +21,20 @@ violá-las.
 > corrida no translateChunk, single-flight do explain, índice trgm da busca EN,
 > testes de caminhos críticos; do #19: todo o Portão 1 de produção (ver
 > [PRODUCAO-2026-07-06.md]) mais `stats-writers-daily-caps`,
-> `frequency-list-not-seeded` e `summary-screen-uses-mock-data`. **Restam 10
-> itens** (4 abertos + 5 parciais + o doc-vivo `dictionary-screen-state`).
+> `frequency-list-not-seeded` e `summary-screen-uses-mock-data`.
+>
+> **Reconciliação (2026-07-12):** três itens estavam de fato prontos e só o
+> backlog estava desatualizado. `import-pipeline-batching` fechou (item 2,
+> lookup em lote, feito hoje); `import-jobs-no-retry` fechou (item 3,
+> `status_reason` via migration 0014, feito depois da nota); `ai-endpoints-no-rate-limit`
+> fechou (magic link A1 desde 2026-07-10). Removidos do backlog (histórico e as
+> notas de resolução no `git log`). **Restam 7 itens** (2 abertos + 2 parciais +
+> 3 referenciados sem arquivo, abaixo).
 
 ## Índice por prioridade
 
 | Item | Dimensão | Esforço | Prioridade | Impacto (1 linha) |
 |---|---|---|---|---|
-| 🟡 [ai-endpoints-no-rate-limit.md](ai-endpoints-no-rate-limit.md) | Custos / Segurança | S-M | **Alta** (PARTIAL) | Limiter Redis + 5 superfícies autenticadas feitos; **sobra o magic link** pré-auth (precisa de middleware). |
-| 🟡 [import-pipeline-batching.md](import-pipeline-batching.md) | Desempenho (worker) | M | **Alta** (PARTIAL) | Cache por vídeo + write em transação feitos; **sobra a query única** (`WHERE lemma = ANY(...)`), que precisaria estender a interface. |
-| [import-jobs-no-retry.md](import-jobs-no-retry.md) | Robustez | S-M | Média | Jobs com 1 tentativa: blip transitório deixa vídeo preso em "processing"; `failed` não guarda motivo legível. |
 | [prewarm-cost-per-import.md](prewarm-cost-per-import.md) | Custos | M | Média (PARTIAL) | Teto de linhas (`PREWARM_MAX_LINES`) feito; **sobra** o warm do tail sob demanda e o log de tokens (depende do metering). |
 | [llm-usage-metering.md](llm-usage-metering.md) | Custos / Observabilidade | M | Média | `usage` das respostas é descartado — custo por vídeo/linha é chute e a quota da cloud (F3) não tem base. |
 | [unpaginated-lists.md](unpaginated-lists.md) | Arquitetura / Desempenho | M | Média | Biblioteca e frases carregam o dataset inteiro; vira problema junto com a biblioteca pública da F2. |
@@ -58,10 +62,11 @@ com índice próprio: **[PRODUCAO-2026-07-06.md](PRODUCAO-2026-07-06.md)**
 
 ## Recomendação de sequência (do que restou)
 
-1. **Fechar as caudas dos parciais:** magic link em
-   [ai-endpoints-no-rate-limit.md] (middleware) e a query única de
-   [import-pipeline-batching.md].
-2. **Custo estrutural (quando o provider house deixar de ser free tier):**
+1. **Custo estrutural (quando o provider house deixar de ser free tier):**
    [llm-usage-metering.md] → [prewarm-cost-per-import.md] (fechar o tail +
    log de tokens), nessa ordem (medir antes de aparar).
-3. **Desempenho restante:** [unpaginated-lists.md] quando a F2 chegar.
+2. **Desempenho restante:** [unpaginated-lists.md] quando a F2 chegar.
+
+> `llm-usage-metering.md`, `unpaginated-lists.md` e `catalog-visibility-decision.md`
+> (Portão 2) são citados como abertos mas **ainda não têm arquivo próprio** —
+> filá-los é trabalho pendente de backlog.
