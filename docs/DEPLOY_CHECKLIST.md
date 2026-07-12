@@ -106,5 +106,40 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
 
 ---
 
+## Apêndice A — Ensaio de backup → restore (OPS-4)
+
+Rode **uma vez antes do primeiro usuário real** — backup não testado não é
+backup. Ferramentas prontas: `scripts/pg-backup.sh` (sidecar `db-backup`) e
+`scripts/pg-restore.sh` (a metade que faltava). Registre a data e o resultado
+aqui embaixo ao concluir.
+
+1. **Dados de amostra.** Com a stack de pé, crie o mínimo que exercita o que
+   importa no restore: um usuário logado (sessão em banco), um vídeo importado
+   com legendas, e **uma chave BYOK salva** (`PATCH /api/settings` com `apiKey`;
+   ou rode `apps/web/scripts/e2e-settings.ts`, que faz o round-trip BYOK).
+2. **Backup.** `docker compose --profile backup up -d`; espere um ciclo ou force
+   um dump agora:
+   `docker compose exec db-backup sh -c 'pg_dump -Fc "$DATABASE_URL" > /backups/rehearsal.dump'`.
+   Copie o arquivo pra fora: `docker compose cp db-backup:/backups/rehearsal.dump ./rehearsal.dump`.
+3. **Restore num Postgres limpo** (um container/DB descartável, **não** o de
+   produção):
+   `DATABASE_URL=postgres://fuchine:<senha>@<host-limpo>:5432/fuchine ./scripts/pg-restore.sh ./rehearsal.dump`.
+   Se o schema já andou desde o dump, `pnpm db:migrate` depois.
+4. **Verificar** contra o banco restaurado (apontando o app pra ele):
+   - [ ] **Login** funciona (a sessão veio no dump).
+   - [ ] O **vídeo** aparece com legendas/tokens.
+   - [ ] **Decifragem BYOK** — o teste real: com o **mesmo
+     `FUCHINE_ENCRYPTION_KEY`** de quando o dump foi tirado, `resolveUserProvider`
+     decifra a chave (um Explain/Translate com cache miss usa a chave BYOK; ou
+     rode de novo o round-trip do `e2e-settings.ts`). **Com a chave errada, o
+     ciphertext AES-GCM é lixo irrecuperável** — é por isso que a chave vai no
+     cofre junto do dump, nunca só no disco do servidor.
+5. **Registrar** a chave de cifragem junto do artefato de backup (mesmo cofre,
+   não o mesmo disco) e anotar o resultado do ensaio abaixo.
+
+> **Ensaio feito em:** _(preencher: data · quem · dump usado · resultado)_
+
+---
+
 *Manter este arquivo vivo: cada deploy real que descobrir um passo novo o
 adiciona aqui, com data.*

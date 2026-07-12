@@ -1,8 +1,16 @@
 # backlog: Ensaio de backup → restore (com a chave de cifragem junto)
 
-**Date:** 2026-07-10
+**Date:** 2026-07-10 · **Updated:** 2026-07-12
 **Feature:** Operação / dados
-**Status:** OPEN — bloqueia o deploy (OPS-4 de [CORRECOES-PRE-DEPLOY-2026-07-10.md])
+**Status:** OPEN — bloqueia o deploy (OPS-4 de [CORRECOES-PRE-DEPLOY-2026-07-10.md]).
+Ferramenta + runbook prontos (2026-07-12): falta **rodar o ensaio** (processo,
+depende de docker + stack real — não automatizável neste ambiente).
+
+> **Preparado (2026-07-12):** `scripts/pg-restore.sh` — companheiro do
+> `pg-backup.sh` (restore com `--clean --if-exists --no-owner --no-acl`, para um
+> Postgres limpo) — e o **Apêndice A** de `docs/DEPLOY_CHECKLIST.md` com o passo
+> a passo do ensaio (amostra → dump → restore → verificar login/vídeo/decifragem
+> BYOK). O item fecha quando o ensaio for executado e anotado no checklist.
 
 ---
 
