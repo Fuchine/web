@@ -60,6 +60,20 @@ export function scopePrewarm(items: PrewarmItem[], maxLines?: number): PrewarmIt
   return items.slice(0, maxLines);
 }
 
+export type PrewarmScope = "head" | "full";
+
+/**
+ * Map a job's scope to the line cap. `full` warms the whole video (the tail
+ * past the eager cap, enqueued on first player open); anything else keeps the
+ * import-time head cap. (Pure — unit-tested.)
+ */
+export function resolveMaxLines(
+  scope: PrewarmScope | undefined,
+  headCap: number,
+): number | undefined {
+  return scope === "full" ? undefined : headCap;
+}
+
 export type PoolResult = { ok: number; failed: number };
 
 /**

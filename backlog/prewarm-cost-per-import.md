@@ -1,13 +1,23 @@
 # backlog: Pre-warm de explicações gera o vídeo inteiro — custo por import sem teto
 
-**Date:** 2026-07-06
+**Date:** 2026-07-06 · **Updated:** 2026-07-13
 **Feature:** Custos de IA (worker, camada 2)
-**Status:** PARTIAL (2026-07-09) — **item 1 feito**: `PREWARM_MAX_LINES`
-(default 150) limita o pre-warm ansioso às primeiras N linhas em ordem de
-watch; o resto é coberto sob demanda pelo prefetch do player. `scopePrewarm`
-(puro, testado) fatia o escopo com vizinhos corretos; `total` do summary passa a
-ser o escopo. **Item 2** (enfileirar o resto no primeiro open) e **item 3**
-(tokens no summary, depende de [[llm-usage-metering]]) seguem abertos.
+**Status:** PARTIAL — **itens 1 e 2 feitos**. Sobra só o **item 3** (tokens no
+summary, depende de [[llm-usage-metering]]).
+
+- **Item 1 (2026-07-09):** `PREWARM_MAX_LINES` (default 150) limita o pre-warm
+  ansioso às primeiras N linhas em ordem de watch; o resto é coberto sob demanda
+  pelo prefetch do player. `scopePrewarm` (puro, testado) fatia o escopo com
+  vizinhos corretos; `total` do summary passa a ser o escopo.
+- **Item 2 (2026-07-13):** `GET /api/videos/[id]` (primeiro open do player)
+  enfileira um pre-warm `scope: "full"` do vídeo inteiro — sinal barato de
+  audiência que aquece o tail que o import pulou. `ExplainJob.scope`
+  (`head`|`full`) + `resolveMaxLines` (puro, testado) mapeiam o escopo pro cap;
+  o worker usa `undefined` (sem cap) no `full`. Idempotente **sem schema**:
+  `jobId` `explain-full:<videoId>:<lang>` colapsa opens concorrentes/repetidos e
+  o prewarm é cache-first (re-run depois do tail aquecido gera zero — só a query
+  de cache). Guard `hasHouseLlm` no web espelha o do worker (não pré-aquece com
+  `echo`). Fire-and-forget: nunca bloqueia/quebra o payload do player.
 
 ---
 
@@ -35,15 +45,13 @@ limitá-lo.
 
 ## Proposta
 
-1. **Teto no import:** pre-warm apenas das primeiras ~150 linhas (o começo do
-   vídeo, onde o viewer chega primeiro), configurável por env
-   (`PREWARM_MAX_LINES`).
-2. **Resto no primeiro open:** ao abrir o player pela primeira vez
-   (`GET /api/videos/[id]` ou o beacon inicial), enfileirar o pre-warm do
-   restante — sinal barato de que o vídeo tem audiência; o prefetch do player
+1. ~~**Teto no import:**~~ **FEITO (item 1)** — `PREWARM_MAX_LINES`.
+2. ~~**Resto no primeiro open:**~~ **FEITO (item 2)** — `GET /api/videos/[id]`
+   enfileira o pre-warm `scope: "full"` do restante; o prefetch do player
    (3 slots) cobre o intervalo até o worker alcançar.
 3. Registrar tokens gastos por vídeo no summary do job (já loga
-   generated/cached/failed — anexar tokens quando a medição existir).
+   generated/cached/failed — anexar tokens quando a medição existir). **Aberto**,
+   depende de [[llm-usage-metering]].
 
 ## Esforço / prioridade
 

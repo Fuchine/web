@@ -5,7 +5,7 @@
 import { Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { createDb, videos } from "@fuchine/db";
-import { prewarmVideoExplanations } from "@fuchine/llm";
+import { prewarmVideoExplanations, resolveMaxLines } from "@fuchine/llm";
 import {
   getExplainQueue,
   getImportQueue,
@@ -55,10 +55,13 @@ const explainWorker = new Worker<ExplainJob>(
     const summary = await prewarmVideoExplanations(db, houseProvider(), job.data.videoId, {
       explanationLanguage: job.data.explanationLanguage,
       concurrency: 2,
-      maxLines: env.prewarmMaxLines,
+      // `full` (first-open tail warm) covers the whole video; `head`/default
+      // keeps the eager import cap. Cache-first, so the overlap re-checks but
+      // never re-generates the head.
+      maxLines: resolveMaxLines(job.data.scope, env.prewarmMaxLines),
     });
     console.log(
-      `[explain] pre-warm ${job.data.videoId}: ` +
+      `[explain] pre-warm ${job.data.videoId} (${job.data.scope ?? "head"}): ` +
         `${summary.generated} generated, ${summary.cached} cached, ` +
         `${summary.failed} failed of ${summary.total}`,
     );

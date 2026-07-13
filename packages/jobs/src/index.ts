@@ -64,8 +64,17 @@ export const WORKER_HEARTBEAT_TTL = 30;
 
 export const EXPLAIN_QUEUE = "explain";
 
-/** Enqueued after import: pre-generate layer-2 explanations for a video. */
-export type ExplainJob = { videoId: string; explanationLanguage: string };
+/**
+ * Enqueued to pre-generate layer-2 explanations for a video.
+ * - `head` (default): cap to PREWARM_MAX_LINES, enqueued at import time.
+ * - `full`: the whole video (tail included), enqueued on first player open as a
+ *   cheap audience signal. See backlog/prewarm-cost-per-import (item 2).
+ */
+export type ExplainJob = {
+  videoId: string;
+  explanationLanguage: string;
+  scope?: "head" | "full";
+};
 
 /** Producer-side handle to the explain pre-warm queue. */
 export function getExplainQueue(redis: Redis): Queue<ExplainJob> {
