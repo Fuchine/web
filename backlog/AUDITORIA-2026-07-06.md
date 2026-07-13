@@ -52,16 +52,18 @@ violá-las.
 
 ## Arquivos existentes atualizados nesta auditoria
 
-- [dictionary-screen-state.md](dictionary-screen-state.md) — §7 escala de
-  frequência divergente popup × dicionário; §8 link para a busca EN full scan.
+- [dictionary-screen-state.md](dictionary-screen-state.md) — §7 (escala de
+  frequência) e §8 (busca EN full scan) **ambos resolvidos**. Os residuais
+  §4/§5/§6 são recortes de UI/limitações aceitas por design, não bugs abertos.
 
 ## Itens abertos antes da auditoria
 
 O PR #16 ("Backlog sweep") resolveu quase todos os itens pré-auditoria
-destravados (removidos do backlog). Continua com trabalho aberto apenas os
-residuais de [dictionary-screen-state.md](dictionary-screen-state.md)
-(`daily-goals-not-consumed` fechou em 2026-07-13). `frequency-list-not-seeded`
-foi resolvido em código (falta só rodar o seed) e removido do backlog.
+destravados (removidos do backlog). `daily-goals-not-consumed` fechou em
+2026-07-13; `dictionary-screen-state` não tem mais bug acionável (§8 resolvido
+2026-07-13, verificado em código). `frequency-list-not-seeded` foi resolvido em
+código (falta só rodar o seed) e removido do backlog. **Nada pré-auditoria em
+aberto.**
 
 ## Análise complementar
 

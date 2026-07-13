@@ -45,6 +45,12 @@ diferentes de dots nos dois lugares (ex.: rank 4000 → 4 dots no dicionário,
 tanto pelo Player quanto pelo dicionário. Os cortes 1500/5000/15000/30000
 são a única fonte de verdade, mesma palavra = mesmos dots em todo lugar.
 
-### 8. (2026-07-06, auditoria) Busca EN é full scan
-A busca por significado varre a tabela inteira com jsonb + ILIKE — detalhado em
-[dictionary-gloss-search-full-scan.md].
+### 8. (2026-07-06, auditoria) Busca EN é full scan — ✅ CORRIGIDO
+~~A busca por significado varria a tabela inteira com jsonb + ILIKE.~~ A coluna
+materializada `word_entries.glosses_text` (blob de todas as glosses por entrada)
+tem um índice GIN `pg_trgm` (`word_entries_glosses_trgm_idx`, migration `0013`).
+`searchByGloss` (`lib/dictionary.ts`) faz `ILIKE '%term%'` sobre `glosses_text`
+— mesma semântica, mas sondagem de índice em vez de seq scan de ~298k linhas por
+tecla. O seed popula `glosses_text` no insert e no conflict (`seed/index.ts`);
+a migration 0013 ainda backfilla as linhas existentes, então funciona sem
+re-seed.
