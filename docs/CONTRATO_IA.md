@@ -191,6 +191,14 @@ O cache da camada 2 é único por:
 
 A coluna `model` registra qual modelo escreveu a explicação (para depuração e custo), mas **não** faz parte da identidade do cache. Uma explicação gerada pelo Claude é reaproveitada mesmo que o usuário depois troque para GPT: a explicação é "correta o bastante" independimente de quem a escreveu, e reusá-la economiza dinheiro. Se um dia você quiser regenerar tudo com um modelo melhor, isso é feito subindo `prompt_version` (§6), não tirando o modelo da chave.
 
+> **Atualização 2026-07-13 — metering por request.** `translateBatch` e
+> `explainLine` aceitam um campo **opcional** `meta` em opts
+> (`{ userId?, videoId?, lineId? }`), usado só para atribuir a chamada na tabela
+> `llm_usage` (uma linha por chamada de provider: tokens + latência, custo por
+> vídeo/usuário). É telemetria: **não** afeta a saída nem a chave de cache, e
+> omitir é válido. Persistido por um sink plugável (`setUsageSink`/`dbUsageSink`),
+> registrado no boot do web e do worker.
+
 ### 5.3. Regeneração preguiçosa
 
 Quando `prompt_version` sobe, requisições novas erram o cache e geram conteúdo fresco. As entradas antigas permanecem no banco, órfãs e inofensivas — ninguém as apaga, ninguém as serve. Sem job de migração, sem downtime.

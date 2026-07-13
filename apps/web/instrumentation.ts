@@ -6,6 +6,13 @@
 export async function register() {
   // Only the Node.js server runtime; skip the edge runtime and the browser.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  // Persist per-request LLM usage into `llm_usage` (backlog: llm-usage-metering).
+  // Dynamic imports so the db/llm modules never reach the edge bundle.
+  const { setUsageSink, dbUsageSink } = await import("@fuchine/llm");
+  const { db } = await import("@/lib/db");
+  setUsageSink(dbUsageSink(db));
+
   if (process.env.NODE_ENV !== "production") return;
 
   const missing: string[] = [];

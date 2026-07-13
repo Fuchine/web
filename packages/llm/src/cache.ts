@@ -9,6 +9,7 @@ import {
   type ExplanationKind,
   type LlmProvider,
   type SubtitleLineCtx,
+  type UsageMeta,
 } from "./contract";
 import { RateLimitError } from "./errors";
 
@@ -83,7 +84,13 @@ export async function explainLineCached(
   provider: LlmProvider,
   subtitleLineId: string,
   ctx: SubtitleLineCtx,
-  opts: { explanationLanguage: string; kind?: ExplanationKind; model?: string; force?: boolean },
+  opts: {
+    explanationLanguage: string;
+    kind?: ExplanationKind;
+    model?: string;
+    force?: boolean;
+    meta?: UsageMeta;
+  },
 ): Promise<Explanation> {
   const key: CacheKey = {
     subtitleLineId,
@@ -113,7 +120,10 @@ export async function explainLineCached(
     // the lock + connection; the next caller re-acquires and retries.
     const fresh = await withTimeout(
       callWithRetry(() =>
-        provider.explainLine(ctx, { explanationLanguage: opts.explanationLanguage }),
+        provider.explainLine(ctx, {
+          explanationLanguage: opts.explanationLanguage,
+          meta: { lineId: subtitleLineId, ...opts.meta },
+        }),
       ),
       GENERATION_TIMEOUT_MS,
     );

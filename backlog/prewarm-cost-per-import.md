@@ -50,8 +50,9 @@ limitá-lo.
    enfileira o pre-warm `scope: "full"` do restante; o prefetch do player
    (3 slots) cobre o intervalo até o worker alcançar.
 3. Registrar tokens gastos por vídeo no summary do job (já loga
-   generated/cached/failed — anexar tokens quando a medição existir). **Aberto**,
-   depende de [[llm-usage-metering]].
+   generated/cached/failed — anexar tokens). **Aberto, agora desbloqueado:**
+   [[llm-usage-metering]] shipou (2026-07-13) a tabela `llm_usage` com atribuição
+   por `video_id` — o summary pode somar `in_tokens`/`out_tokens` daquele vídeo.
 
 ## Esforço / prioridade
 

@@ -106,6 +106,13 @@
       "when": 1783728998092,
       "tag": "0014_outstanding_phalanx",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1783970881502,
+      "tag": "0015_nifty_yellowjacket",
+      "breakpoints": true
     }
   ]
 }

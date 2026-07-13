@@ -117,6 +117,7 @@ export async function explainLine(
     const explanation = await explainLineCached(db, provider, lineId, ctx, {
       explanationLanguage,
       force: opts.force,
+      meta: { userId, videoId: line.videoId },
     });
     return { status: 200, body: { explanation, cached: false } };
   } catch (err) {

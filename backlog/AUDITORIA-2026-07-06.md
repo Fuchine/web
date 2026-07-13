@@ -30,24 +30,29 @@ violá-las.
 > fechou (magic link A1 desde 2026-07-10). Removidos do backlog (histórico e as
 > notas de resolução no `git log`).
 >
-> **Reconciliação (2026-07-13):** `daily-goals-not-consumed` fechou (fila +
-> `maxReviewsPerDay`, dashboard e onboarding de metas — todos os subitens feitos)
-> e foi removido do backlog. **Restam 6 itens** (2 abertos + 1 parcial +
-> 3 referenciados sem arquivo, abaixo).
+> **Reconciliação (2026-07-13):** vários itens estavam de fato prontos ou foram
+> fechados hoje:
+> - `daily-goals-not-consumed` — fechou (fila + `maxReviewsPerDay` + dashboard +
+>   onboarding); removido.
+> - `unpaginated-lists` — fechou (queries/rotas cursor-paginated + `GET /api/phrases`
+>   novo + infinite scroll `usePaginatedList`); restou só a limitação de escopo
+>   da busca, filada em [list-search-covers-loaded-only.md](list-search-covers-loaded-only.md)
+>   (baixa, F2).
+> - `dictionary-screen-state` §8 — já estava resolvido (índice trgm + `glosses_text`,
+>   migration 0013); sem bug acionável.
+> - `prewarm-cost-per-import` — item 2 (tail no primeiro open) fechou; sobra o item 3.
+> - `llm-usage-metering` — fechou: tabela `llm_usage` por request (migration 0015),
+>   sink DB no web+worker, atribuição por vídeo/usuário. Desbloqueia o item 3 do prewarm.
 >
-> **Reconciliação (2026-07-13):** `unpaginated-lists` fechou — as queries e as
-> rotas (`GET /api/videos`, novo `GET /api/phrases`) são cursor-paginated e a UI
-> ganhou infinite scroll (`usePaginatedList`). Restou só a limitação de escopo
-> da busca/sort (cobre páginas carregadas), filada como
-> [list-search-covers-loaded-only.md](list-search-covers-loaded-only.md) (baixa,
-> F2). Também **item 2 do prewarm** fechou (tail no primeiro open).
+> **Restam 3 itens de auditoria:** [prewarm-cost-per-import.md] (item 3, baixa),
+> [list-search-covers-loaded-only.md] (F2, baixa) e `catalog-visibility-decision`
+> (Portão 2, decisão de produto, sem arquivo).
 
 ## Índice por prioridade
 
 | Item | Dimensão | Esforço | Prioridade | Impacto (1 linha) |
 |---|---|---|---|---|
-| [prewarm-cost-per-import.md](prewarm-cost-per-import.md) | Custos | M | Média (PARTIAL) | Teto de linhas (`PREWARM_MAX_LINES`) feito; **sobra** o warm do tail sob demanda e o log de tokens (depende do metering). |
-| [llm-usage-metering.md](llm-usage-metering.md) | Custos / Observabilidade | M | Média | `usage` das respostas é descartado — custo por vídeo/linha é chute e a quota da cloud (F3) não tem base. |
+| [prewarm-cost-per-import.md](prewarm-cost-per-import.md) | Custos | S | Baixa (PARTIAL) | Itens 1 e 2 feitos; **sobra só o item 3** (tokens no summary do job) — agora **desbloqueado** pelo metering. |
 | [list-search-covers-loaded-only.md](list-search-covers-loaded-only.md) | Arquitetura / Desempenho | M | Baixa (F2) | Sucessor do `unpaginated-lists` (paginação feita): busca/sort da library e phrases cobre só as páginas carregadas. |
 
 ## Arquivos existentes atualizados nesta auditoria
@@ -74,11 +79,12 @@ com índice próprio: **[PRODUCAO-2026-07-06.md](PRODUCAO-2026-07-06.md)**
 
 ## Recomendação de sequência (do que restou)
 
-1. **Custo estrutural (quando o provider house deixar de ser free tier):**
-   [llm-usage-metering.md] → [prewarm-cost-per-import.md] (fechar o tail +
-   log de tokens), nessa ordem (medir antes de aparar).
+1. **Custo estrutural:** `llm-usage-metering` **resolvido 2026-07-13** (tabela
+   `llm_usage` por request, sink DB no web+worker, atribuição por vídeo/usuário).
+   Sobra fechar [prewarm-cost-per-import.md] item 3 (anexar tokens ao summary do
+   job — agora tem fonte).
 2. **Desempenho restante:** [list-search-covers-loaded-only.md] quando a F2 chegar.
 
-> `llm-usage-metering.md` e `catalog-visibility-decision.md` (Portão 2) são
-> citados como abertos mas **ainda não têm arquivo próprio** — filá-los é
-> trabalho pendente de backlog.
+> `catalog-visibility-decision.md` (Portão 2) é citado como aberto mas **ainda
+> não tem arquivo próprio** — filá-lo é trabalho pendente de backlog. É decisão
+> de produto (ver [PRODUCAO-2026-07-06.md]).

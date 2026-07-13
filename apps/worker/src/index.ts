@@ -5,7 +5,7 @@
 import { Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { createDb, videos } from "@fuchine/db";
-import { prewarmVideoExplanations, resolveMaxLines } from "@fuchine/llm";
+import { prewarmVideoExplanations, resolveMaxLines, setUsageSink, dbUsageSink } from "@fuchine/llm";
 import {
   getExplainQueue,
   getImportQueue,
@@ -23,6 +23,11 @@ import { env } from "./env";
 // plenty; keep it lean to leave connection budget for web. Overridable via
 // DB_POOL_MAX for larger deploys.
 const db = createDb(env.databaseUrl, { max: Number(process.env.DB_POOL_MAX) || 5 });
+
+// Persist per-request LLM usage into `llm_usage` (backlog: llm-usage-metering).
+// The worker is the heaviest LLM caller (import translation + explain pre-warm).
+setUsageSink(dbUsageSink(db));
+
 const explainQueue = getExplainQueue(connection);
 const importQueue = getImportQueue(connection);
 

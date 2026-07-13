@@ -184,7 +184,8 @@ export async function translateChunk(
   try {
     translations = await provider.translateBatch(
       lines.map((l) => l.textOriginal),
-      { from: video.language, to: "en" },
+      // Shared-cache MT (D3): attribute cost to the video, not a single viewer.
+      { from: video.language, to: "en", meta: { videoId } },
     );
   } catch (err) {
     await releaseClaim(db, videoId, chunkIdx);

@@ -2,9 +2,9 @@
 // /chat/completions API — MiniMax (api.minimax.io/v1, model "minimax-m3"),
 // OpenAI, local vLLM/Ollama-OpenAI, etc. Provider choice is configuration (D5).
 
-import type { Explanation, ExplanationPart, PartTag, LlmProvider, SubtitleLineCtx } from "../contract";
+import type { Explanation, ExplanationPart, PartTag, LlmProvider, SubtitleLineCtx, UsageMeta } from "../contract";
 import { ProviderError, RateLimitError } from "../errors";
-import { logLlmUsage, type UsageContext } from "../usage";
+import { logLlmUsage, type UsageFn } from "../usage";
 import {
   buildExplainMessages,
   buildTranslateMessages,
@@ -12,10 +12,14 @@ import {
   type ChatMessage,
 } from "../prompts";
 
+/** Per-call attribution for usage logging, threaded from the provider method. */
+export type ChatContext = UsageMeta & { fn: UsageFn };
+
 /** A single call to the chat model. Injectable so the contract is testable. */
 export type ChatFn = (
   messages: ChatMessage[],
   opts?: { temperature?: number; jsonMode?: boolean },
+  ctx?: ChatContext,
 ) => Promise<string>;
 
 export type OpenAICompatibleConfig = {
@@ -47,12 +51,12 @@ export class OpenAICompatibleProvider implements LlmProvider {
 
   async translateBatch(
     lines: string[],
-    opts: { from: string; to: string },
+    opts: { from: string; to: string; meta?: UsageMeta },
   ): Promise<(string | null)[]> {
     const out: (string | null)[] = new Array(lines.length).fill(null);
     for (let i = 0; i < lines.length; i += TRANSLATE_CHUNK) {
       const chunk = lines.slice(i, i + TRANSLATE_CHUNK);
-      const translated = await this.translateChunk(chunk, opts.from, opts.to);
+      const translated = await this.translateChunk(chunk, opts.from, opts.to, opts.meta);
       for (let j = 0; j < chunk.length; j++) out[i + j] = translated[j] ?? null;
     }
     return out;
@@ -60,11 +64,12 @@ export class OpenAICompatibleProvider implements LlmProvider {
 
   async explainLine(
     ctx: SubtitleLineCtx,
-    opts: { explanationLanguage: string },
+    opts: { explanationLanguage: string; meta?: UsageMeta },
   ): Promise<Explanation> {
     const content = await this.chat(
       buildExplainMessages(ctx, opts.explanationLanguage),
       { temperature: 0.2, jsonMode: true },
+      { fn: "explainLine", ...opts.meta },
     );
     return coerceExplanation(extractJson(content));
   }
@@ -74,26 +79,29 @@ export class OpenAICompatibleProvider implements LlmProvider {
     chunk: string[],
     from: string,
     to: string,
+    meta?: UsageMeta,
   ): Promise<(string | null)[]> {
     for (let attempt = 0; attempt < 2; attempt++) {
-      const parsed = await this.tryTranslateChunk(chunk, from, to);
+      const parsed = await this.tryTranslateChunk(chunk, from, to, meta);
       if (parsed && parsed.length === chunk.length) return parsed;
     }
     // Persistent misalignment: fall back to line-by-line (aligned by
     // construction), but bounded — a provider that just failed twice must not be
     // hit with TRANSLATE_CHUNK parallel calls (429 cascade + wasted cost).
-    return boundedTranslateFallback(chunk, (line) => this.translateOne(line, from, to));
+    return boundedTranslateFallback(chunk, (line) => this.translateOne(line, from, to, meta));
   }
 
   private async tryTranslateChunk(
     chunk: string[],
     from: string,
     to: string,
+    meta?: UsageMeta,
   ): Promise<(string | null)[] | null> {
     try {
       const content = await this.chat(
         buildTranslateMessages(chunk, from, to),
         { temperature: 0.2, jsonMode: true },
+        { fn: "translateBatch", ...meta },
       );
       const raw = extractJson(content);
       const arr = (raw as { translations?: unknown }).translations;
@@ -108,11 +116,13 @@ export class OpenAICompatibleProvider implements LlmProvider {
     line: string,
     from: string,
     to: string,
+    meta?: UsageMeta,
   ): Promise<string | null> {
     try {
       const content = await this.chat(
         buildTranslateOneMessages(line, from, to),
         { temperature: 0.2, jsonMode: true },
+        { fn: "translateOne", ...meta },
       );
       const raw = extractJson(content);
       return normalizeTranslation((raw as { translation?: unknown }).translation);
@@ -172,7 +182,7 @@ export async function boundedTranslateFallback(
 function defaultChat(config: Required<Omit<OpenAICompatibleConfig, "chat" | "usageProvider">> & {
   usageProvider?: string;
 }): ChatFn {
-  return async (messages, opts) => {
+  return async (messages, opts, ctx) => {
     const body: Record<string, unknown> = {
       model: config.model,
       messages,
@@ -181,6 +191,17 @@ function defaultChat(config: Required<Omit<OpenAICompatibleConfig, "chat" | "usa
     if (opts?.jsonMode ?? config.jsonMode) {
       body.response_format = { type: "json_object" };
     }
+
+    // Attribution for the usage record: the call's fn + video/line/user come from
+    // ctx (threaded from the provider method); provider/model from config.
+    const usageCtx = {
+      fn: ctx?.fn ?? "translateBatch",
+      provider: config.usageProvider ?? "unknown",
+      model: config.model,
+      userId: ctx?.userId,
+      videoId: ctx?.videoId,
+      lineId: ctx?.lineId,
+    };
 
     const t0 = Date.now();
     let res: Response;
@@ -195,26 +216,17 @@ function defaultChat(config: Required<Omit<OpenAICompatibleConfig, "chat" | "usa
         signal: AbortSignal.timeout(30_000),
       });
     } catch (err) {
-      logLlmUsage(
-        { fn: "translateBatch", provider: config.usageProvider ?? "unknown", model: config.model },
-        { ms: Date.now() - t0, ok: false },
-      );
+      logLlmUsage(usageCtx, { ms: Date.now() - t0, ok: false });
       throw new ProviderError(`Network error: ${(err as Error).message}`);
     }
 
     if (res.status === 429) {
-      logLlmUsage(
-        { fn: "translateBatch", provider: config.usageProvider ?? "unknown", model: config.model },
-        { ms: Date.now() - t0, ok: false },
-      );
+      logLlmUsage(usageCtx, { ms: Date.now() - t0, ok: false });
       throw new RateLimitError("Provider rate limited");
     }
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      logLlmUsage(
-        { fn: "translateBatch", provider: config.usageProvider ?? "unknown", model: config.model },
-        { ms: Date.now() - t0, ok: false },
-      );
+      logLlmUsage(usageCtx, { ms: Date.now() - t0, ok: false });
       throw new ProviderError(`Provider error ${res.status}: ${detail}`);
     }
 
@@ -224,21 +236,15 @@ function defaultChat(config: Required<Omit<OpenAICompatibleConfig, "chat" | "usa
     };
     const content = data.choices?.[0]?.message?.content;
     if (typeof content !== "string") {
-      logLlmUsage(
-        { fn: "translateBatch", provider: config.usageProvider ?? "unknown", model: config.model },
-        { ms: Date.now() - t0, ok: false },
-      );
+      logLlmUsage(usageCtx, { ms: Date.now() - t0, ok: false });
       throw new ProviderError("Provider returned no content");
     }
-    logLlmUsage(
-      { fn: "translateBatch", provider: config.usageProvider ?? "unknown", model: config.model },
-      {
-        inTokens: data.usage?.prompt_tokens,
-        outTokens: data.usage?.completion_tokens,
-        ms: Date.now() - t0,
-        ok: true,
-      },
-    );
+    logLlmUsage(usageCtx, {
+      inTokens: data.usage?.prompt_tokens,
+      outTokens: data.usage?.completion_tokens,
+      ms: Date.now() - t0,
+      ok: true,
+    });
     return content;
   };
 }

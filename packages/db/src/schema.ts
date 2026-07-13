@@ -451,6 +451,34 @@ export const userDailyStats = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.day] })], // one row per user per day → streaks
 );
 
+// Per-request LLM usage (backlog: llm-usage-metering). One row per provider call
+// (translate/explain), so cost per video (prewarm summary) and per user/day (F3
+// quota) are queryable instead of grep-only. Tokens/latency, never key/content
+// (CONTRATO §6.3). Nullable owner/video: house/background calls (prewarm) have
+// no user; a user's deletion nulls their attribution rather than dropping the
+// cost record. lineId has no FK — it's cleaned up via the video cascade.
+export const llmUsage = pgTable(
+  "llm_usage",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    videoId: uuid("video_id").references(() => videos.id, { onDelete: "cascade" }),
+    lineId: uuid("line_id"),
+    fn: text("fn").notNull(), // explainLine | translateBatch | translateOne
+    provider: text("provider").notNull(),
+    model: text("model"),
+    inTokens: integer("in_tokens"),
+    outTokens: integer("out_tokens"),
+    ms: integer("ms").notNull(),
+    ok: boolean("ok").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("llm_usage_video_idx").on(t.videoId), // cost per video (prewarm summary)
+    index("llm_usage_user_time_idx").on(t.userId, t.createdAt), // cost per user/day (F3)
+  ],
+);
+
 /* ------------------------------------------------------------------ */
 /* Relations (Drizzle query API)                                       */
 /* ------------------------------------------------------------------ */

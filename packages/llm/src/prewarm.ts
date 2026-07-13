@@ -162,6 +162,8 @@ export async function prewarmVideoExplanations(
   const { ok, failed } = await runPool(todo, opts.concurrency ?? 2, (it) =>
     explainLineCached(db, provider, it.lineId, it.ctx, {
       explanationLanguage: opts.explanationLanguage,
+      // Background/house call: attribute the cost to the video (no user).
+      meta: { videoId },
     }),
   );
   // `total` is the scoped set (what this job set out to warm), so

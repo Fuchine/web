@@ -3,9 +3,11 @@
 // regardless of the provider behind it.
 
 import type { Token, Explanation } from "@fuchine/db";
+import type { UsageMeta } from "./usage";
 
 export type { Token, Explanation };
 export type { ExplanationPart, PartTag } from "@fuchine/db";
+export type { UsageMeta } from "./usage";
 
 /** prompt_version 2: breakdown + plainTerms shape (was summary/grammarPoints/nuance). */
 export const PROMPT_VERSION = 2;
@@ -35,12 +37,12 @@ export interface LlmProvider {
    */
   translateBatch(
     lines: string[],
-    opts: { from: string; to: string },
+    opts: { from: string; to: string; meta?: UsageMeta },
   ): Promise<(string | null)[]>;
 
   /** Deep line explanation (layer 2), generated on demand and cached. */
   explainLine(
     ctx: SubtitleLineCtx,
-    opts: { explanationLanguage: string },
+    opts: { explanationLanguage: string; meta?: UsageMeta },
   ): Promise<Explanation>;
 }
