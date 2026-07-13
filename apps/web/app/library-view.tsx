@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { VideoCard } from "@fuchine/ui";
 import { AppLayout } from "@/components/AppLayout";
+import { usePaginatedList } from "@/lib/use-paginated-list";
 
 export type LibraryVideo = {
   id: string;
@@ -580,10 +581,11 @@ function FirstRun({ onAdd }: { onAdd: () => void }) {
 export type LibraryAlbum = { id: string; name: string; videoIds: string[] };
 
 export function LibraryView({
-  videos, account, reviewDue, stats, activeKey = "library",
+  videos: initialVideos, nextCursor = null, account, reviewDue, stats, activeKey = "library",
   initialSaved = [], initialHidden = [], albums = [],
 }: {
   videos: LibraryVideo[];
+  nextCursor?: string | null;
   account: { name: string; sub?: string };
   reviewDue?: number;
   stats: LibraryStats;
@@ -593,6 +595,23 @@ export function LibraryView({
   albums?: LibraryAlbum[];
 }) {
   const router = useRouter();
+
+  // Infinite scroll: the server seeds the first page; the sentinel at the
+  // bottom of the grid fetches the rest of the library on demand. Client-side
+  // filter/sort/search below operate over the loaded pages.
+  const fetchVideos = useCallback(async (cursor: string) => {
+    const r = await fetch(`/api/videos?cursor=${encodeURIComponent(cursor)}`);
+    if (!r.ok) throw new Error(`videos ${r.status}`);
+    const data = (await r.json()) as { videos: LibraryVideo[]; nextCursor: string | null };
+    return { items: data.videos, nextCursor: data.nextCursor };
+  }, []);
+  const keyOfVideo = useCallback((v: LibraryVideo) => v.id, []);
+  const { items: videos, loading: loadingMore, hasMore, sentinelRef } = usePaginatedList<LibraryVideo>({
+    initial: initialVideos,
+    initialCursor: nextCursor,
+    keyOf: keyOfVideo,
+    fetchPage: fetchVideos,
+  });
   const [collapsed, setCollapsed] = useState(false);
   const [cat, setCat] = useState("All");
   const [query, setQuery] = useState("");
@@ -735,6 +754,11 @@ export function LibraryView({
                 </div>
               )}
             </section>
+            {hasMore && (
+              <div ref={sentinelRef} className="flex justify-center py-8 text-[13px] text-faint">
+                {loadingMore ? "Loading more…" : ""}
+              </div>
+            )}
           </div>
         </>
       )}

@@ -6,9 +6,8 @@ import { countDueCards } from "@/lib/cards";
 import { getLibraryKpis } from "@/lib/stats";
 import { getVideoFlags } from "@/lib/video-flags";
 import { getAlbumMemberships } from "@/lib/albums";
+import { toLibraryVideo } from "@/lib/library";
 import { LibraryView, type LibraryVideo } from "../library-view";
-
-const LEVEL: Record<string, number> = { beginner: 1, intermediate: 3, advanced: 5 };
 
 export default async function LibraryPage() {
   const session = await auth();
@@ -27,24 +26,14 @@ export default async function LibraryPage() {
     getAlbumMemberships(db, userId),
   ]);
 
-  const videos: LibraryVideo[] = rows.map((v) => ({
-    id: v.id,
-    title: v.title,
-    channel: v.channel,
-    source: v.source,
-    sourceId: v.sourceId,
-    durationS: v.durationS,
-    status: v.status,
-    statusReason: v.statusReason,
-    level: v.levelEstimate ? (LEVEL[v.levelEstimate] ?? null) : null,
-    comprehension: comprehension.get(v.id) ?? null,
-    embeddable: v.embeddable,
-    category: v.category,
-  }));
+  const videos: LibraryVideo[] = rows.map((v) =>
+    toLibraryVideo(v, comprehension.get(v.id) ?? null),
+  );
 
   return (
     <LibraryView
       videos={videos}
+      nextCursor={nextCursor}
       account={{ name: session.user.name ?? session.user.email ?? "You", sub: session.user.email ?? undefined }}
       reviewDue={reviewDue}
       stats={{

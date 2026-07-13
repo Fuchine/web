@@ -11,7 +11,7 @@ export default async function PhrasesPage() {
   if (!session?.user?.id) redirect("/login");
 
   const userId = session.user.id;
-  const [{ items: phrases }, reviewDue] = await Promise.all([
+  const [{ items: phrases, nextCursor }, reviewDue] = await Promise.all([
     listPhrases(db, userId),
     countDueCards(db, userId),
   ]);
@@ -22,7 +22,7 @@ export default async function PhrasesPage() {
       reviewDue={reviewDue}
       activeKey="phrases"
     >
-      <PhrasesView phrases={phrases} reviewDue={reviewDue} />
+      <PhrasesView phrases={phrases} nextCursor={nextCursor} reviewDue={reviewDue} />
     </AppLayout>
   );
 }

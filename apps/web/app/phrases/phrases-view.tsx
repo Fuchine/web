@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, type SVGProps } from "react";
 import { useRouter } from "next/navigation";
 import type { PhraseRow } from "@/lib/phrases";
+import { usePaginatedList } from "@/lib/use-paginated-list";
 
 /* ---- icons ---- */
 function ISearch(p: SVGProps<SVGSVGElement>) {
@@ -270,10 +271,40 @@ function Toast({ msg, undo, onDismiss }: { msg: string; undo?: () => void; onDis
 }
 
 /* ---- Main view ---- */
-export function PhrasesView({ phrases: initialPhrases, reviewDue }: { phrases: PhraseRow[]; reviewDue: number }) {
+export function PhrasesView({
+  phrases: initialPhrases,
+  nextCursor = null,
+  reviewDue,
+}: {
+  phrases: PhraseRow[];
+  nextCursor?: string | null;
+  reviewDue: number;
+}) {
   const router = useRouter();
 
-  const phrases: Phrase[] = initialPhrases.map((p) => ({
+  // Infinite scroll: the server seeds the first page; the sentinel fetches more
+  // on demand. Fetched rows arrive as JSON, so revive the Date fields the RSC
+  // payload gives natively. Search/sort/filter below run over loaded pages.
+  const fetchPhrases = useCallback(async (cursor: string) => {
+    const r = await fetch(`/api/phrases?cursor=${encodeURIComponent(cursor)}`);
+    if (!r.ok) throw new Error(`phrases ${r.status}`);
+    const data = (await r.json()) as { phrases: PhraseRow[]; nextCursor: string | null };
+    const items = data.phrases.map((p) => ({
+      ...p,
+      due: new Date(p.due),
+      createdAt: new Date(p.createdAt),
+    }));
+    return { items, nextCursor: data.nextCursor };
+  }, []);
+  const keyOfPhrase = useCallback((p: PhraseRow) => p.cardId, []);
+  const { items, loading: loadingMore, hasMore, sentinelRef } = usePaginatedList<PhraseRow>({
+    initial: initialPhrases,
+    initialCursor: nextCursor,
+    keyOf: keyOfPhrase,
+    fetchPage: fetchPhrases,
+  });
+
+  const phrases: Phrase[] = items.map((p) => ({
     ...p,
     status: deriveStatus(p.state, p.due),
   }));
@@ -432,6 +463,11 @@ export function PhrasesView({ phrases: initialPhrases, reviewDue }: { phrases: P
               <PhraseCard key={p.cardId} phrase={p} onRemove={onRemove} />
             ))
         }
+        {hasMore && (
+          <div ref={sentinelRef} className="flex justify-center py-6 text-[13px] text-faint">
+            {loadingMore ? "Loading more…" : ""}
+          </div>
+        )}
       </div>
 
       {/* Toast */}
