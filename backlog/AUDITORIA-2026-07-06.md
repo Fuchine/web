@@ -28,7 +28,11 @@ violá-las.
 > lookup em lote, feito hoje); `import-jobs-no-retry` fechou (item 3,
 > `status_reason` via migration 0014, feito depois da nota); `ai-endpoints-no-rate-limit`
 > fechou (magic link A1 desde 2026-07-10). Removidos do backlog (histórico e as
-> notas de resolução no `git log`). **Restam 7 itens** (2 abertos + 2 parciais +
+> notas de resolução no `git log`).
+>
+> **Reconciliação (2026-07-13):** `daily-goals-not-consumed` fechou (fila +
+> `maxReviewsPerDay`, dashboard e onboarding de metas — todos os subitens feitos)
+> e foi removido do backlog. **Restam 6 itens** (2 abertos + 1 parcial +
 > 3 referenciados sem arquivo, abaixo).
 
 ## Índice por prioridade
@@ -47,10 +51,9 @@ violá-las.
 ## Itens abertos antes da auditoria
 
 O PR #16 ("Backlog sweep") resolveu quase todos os itens pré-auditoria
-destravados (removidos do backlog). Continuam com trabalho aberto:
-[daily-goals-not-consumed.md](daily-goals-not-consumed.md) (PARTIAL — falta
-dashboard/onboarding) e os residuais de
-[dictionary-screen-state.md](dictionary-screen-state.md). `frequency-list-not-seeded`
+destravados (removidos do backlog). Continua com trabalho aberto apenas os
+residuais de [dictionary-screen-state.md](dictionary-screen-state.md)
+(`daily-goals-not-consumed` fechou em 2026-07-13). `frequency-list-not-seeded`
 foi resolvido em código (falta só rodar o seed) e removido do backlog.
 
 ## Análise complementar
