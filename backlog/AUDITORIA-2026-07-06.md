@@ -48,17 +48,22 @@ violá-las.
 > item 3 (tokens no summary do job) foi feito: `prewarmVideoExplanations` soma
 > `in_tokens`/`out_tokens`/calls de `llm_usage` (fn `explainLine`, por vídeo,
 > cumulativo) e o worker loga o spend junto de generated/cached/failed.
-> Removido do backlog (histórico no `git log`).
+> `list-search-covers-loaded-only` também fechou: busca/filtro/sort da library
+> e das phrases rodam no servidor (`q`/`category`|`status`/`sort` nas rotas
+> paginadas, keyset por sort, contadores reais via `count(*)`/group-by;
+> `usePaginatedList` refaz a 1ª página quando os params mudam). Exceção
+> deliberada: o sort "Most comprehensible" segue client-side sobre as páginas
+> carregadas — comprehension é agregado por usuário sobre `word_examples`
+> (catalog-sized) e ordenar por ele no servidor recomputaria o agregado a cada
+> página. Ambos removidos do backlog (histórico no `git log`).
 >
-> **Restam 2 itens de auditoria:** [list-search-covers-loaded-only.md] (F2,
-> baixa) e `catalog-visibility-decision` (Portão 2, decisão de produto, sem
-> arquivo).
+> **Resta 1 item de auditoria:** `catalog-visibility-decision` (Portão 2,
+> decisão de produto, sem arquivo).
 
 ## Índice por prioridade
 
-| Item | Dimensão | Esforço | Prioridade | Impacto (1 linha) |
-|---|---|---|---|---|
-| [list-search-covers-loaded-only.md](list-search-covers-loaded-only.md) | Arquitetura / Desempenho | M | Baixa (F2) | Sucessor do `unpaginated-lists` (paginação feita): busca/sort da library e phrases cobre só as páginas carregadas. |
+Vazio — todos os itens de auditoria com arquivo próprio foram resolvidos
+(o que sobra é a decisão de produto abaixo).
 
 ## Arquivos existentes atualizados nesta auditoria
 
@@ -86,7 +91,8 @@ com índice próprio: **[PRODUCAO-2026-07-06.md](PRODUCAO-2026-07-06.md)**
 
 1. **Custo estrutural:** `llm-usage-metering` **resolvido 2026-07-13** e
    `prewarm-cost-per-import` **fechado 2026-07-17** (tokens no summary do job).
-2. **Desempenho restante:** [list-search-covers-loaded-only.md] quando a F2 chegar.
+2. **Desempenho restante:** `list-search-covers-loaded-only` **fechado
+   2026-07-17** (busca/filtro/sort server-side nas rotas paginadas).
 
 > `catalog-visibility-decision.md` (Portão 2) é citado como aberto mas **ainda
 > não tem arquivo próprio** — filá-lo é trabalho pendente de backlog. É decisão

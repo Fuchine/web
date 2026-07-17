@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, type SVGProps } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, type SVGProps } from "react";
 import { useRouter } from "next/navigation";
-import type { PhraseRow } from "@/lib/phrases";
+import type { PhraseCounts, PhraseRow } from "@/lib/phrases";
 import { usePaginatedList } from "@/lib/use-paginated-list";
 
 /* ---- icons ---- */
@@ -274,45 +274,77 @@ function Toast({ msg, undo, onDismiss }: { msg: string; undo?: () => void; onDis
 export function PhrasesView({
   phrases: initialPhrases,
   nextCursor = null,
+  counts: initialCounts = null,
   reviewDue,
 }: {
   phrases: PhraseRow[];
   nextCursor?: string | null;
+  counts?: PhraseCounts | null;
   reviewDue: number;
 }) {
   const router = useRouter();
 
+  const [filter, setFilter] = useState<"all" | PhraseStatus>("all");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortKey>("recent");
+  const [sortOpen, setSortOpen] = useState(false);
+
+  // Server-side search/filter/sort: any non-default combination refetches
+  // page 1 with these params, so results cover the user's whole set instead of
+  // just the loaded pages. The search term is debounced; while it settles, the
+  // client-side filter below narrows the loaded pages for instant feedback.
+  const [debouncedQ, setDebouncedQ] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+  const paramsKey = useMemo(() => {
+    const ps = new URLSearchParams();
+    if (debouncedQ) ps.set("q", debouncedQ);
+    if (filter !== "all") ps.set("status", filter);
+    if (sort !== "recent") ps.set("sort", sort);
+    return ps.toString();
+  }, [debouncedQ, filter, sort]);
+
+  // Real per-status totals for the chips/header, from the server (RSC seed
+  // first, then each params change's first page — counts ignore q/filter, like
+  // the chips always did).
+  const [serverCounts, setServerCounts] = useState<PhraseCounts | null>(initialCounts);
+
   // Infinite scroll: the server seeds the first page; the sentinel fetches more
   // on demand. Fetched rows arrive as JSON, so revive the Date fields the RSC
-  // payload gives natively. Search/sort/filter below run over loaded pages.
-  const fetchPhrases = useCallback(async (cursor: string) => {
-    const r = await fetch(`/api/phrases?cursor=${encodeURIComponent(cursor)}`);
+  // payload gives natively.
+  const fetchPhrases = useCallback(async (cursor: string | null) => {
+    const ps = new URLSearchParams(paramsKey);
+    if (cursor) ps.set("cursor", cursor);
+    const r = await fetch(`/api/phrases?${ps.toString()}`);
     if (!r.ok) throw new Error(`phrases ${r.status}`);
-    const data = (await r.json()) as { phrases: PhraseRow[]; nextCursor: string | null };
+    const data = (await r.json()) as {
+      phrases: PhraseRow[];
+      nextCursor: string | null;
+      counts?: PhraseCounts;
+    };
+    if (!cursor && data.counts) setServerCounts(data.counts);
     const items = data.phrases.map((p) => ({
       ...p,
       due: new Date(p.due),
       createdAt: new Date(p.createdAt),
     }));
     return { items, nextCursor: data.nextCursor };
-  }, []);
+  }, [paramsKey]);
   const keyOfPhrase = useCallback((p: PhraseRow) => p.cardId, []);
   const { items, loading: loadingMore, hasMore, sentinelRef } = usePaginatedList<PhraseRow>({
     initial: initialPhrases,
     initialCursor: nextCursor,
     keyOf: keyOfPhrase,
     fetchPage: fetchPhrases,
+    paramsKey,
   });
 
   const phrases: Phrase[] = items.map((p) => ({
     ...p,
     status: deriveStatus(p.state, p.due),
   }));
-
-  const [filter, setFilter] = useState<"all" | PhraseStatus>("all");
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortKey>("recent");
-  const [sortOpen, setSortOpen] = useState(false);
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ msg: string; undo?: () => void } | null>(null);
   const sortRef = useRef<HTMLDivElement>(null);
@@ -336,11 +368,28 @@ export function PhrasesView({
 
   const q = query.trim().toLowerCase();
 
-  const counts = phrases.reduce<Record<string, number>>((acc, p) => {
+  // Chip/header counts: the server totals cover the whole set; fall back to
+  // the loaded pages until they arrive. Phrases removed in this session are
+  // subtracted client-side (removal is a client overlay).
+  const loadedCounts = phrases.reduce<Record<string, number>>((acc, p) => {
     if (!removed.has(p.cardId)) acc[p.status] = (acc[p.status] ?? 0) + 1;
     return acc;
   }, {});
-  const total = phrases.filter((p) => !removed.has(p.cardId)).length;
+  const removedCounts = phrases.reduce<Record<string, number>>((acc, p) => {
+    if (removed.has(p.cardId)) acc[p.status] = (acc[p.status] ?? 0) + 1;
+    return acc;
+  }, {});
+  const counts: Record<string, number> = serverCounts
+    ? Object.fromEntries(
+        (["due", "learning", "new", "known"] as const).map((s) => [
+          s,
+          Math.max(0, serverCounts[s] - (removedCounts[s] ?? 0)),
+        ]),
+      )
+    : loadedCounts;
+  const total = serverCounts
+    ? Math.max(0, serverCounts.total - removed.size)
+    : phrases.filter((p) => !removed.has(p.cardId)).length;
 
   const list = phrases
     .filter((p) => {

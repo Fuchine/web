@@ -1,6 +1,6 @@
 // Study read-side queries (F1). Auth-agnostic and testable; routes add auth.
 
-import { and, asc, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import {
   type Database,
   videos,
@@ -9,25 +9,76 @@ import {
   wordExamples,
   userWordStats,
 } from "@fuchine/db";
+import { decodeListCursor, encodeListCursor, escapeLike } from "./list-query";
+import { LEVEL } from "./library";
 
-/** Library: videos with their line count, newest first (paginated). */
+// Nulls sort last: videos without a duration on "shortest first", without a
+// level estimate on "level". The level bands mirror LEVEL in lib/library.ts.
+const DURATION_NULL = 2147483647;
+const LEVEL_NULL = 99;
+
+export const VIDEO_SORTS = ["newest", "short", "level"] as const;
+export type VideoSort = (typeof VIDEO_SORTS)[number];
+
+/**
+ * Library: videos with their line count (paginated). Search, category filter
+ * and sort run here, over the whole catalog — the client's infinite scroll
+ * only ever sees pages that already match. "Most comprehensible" is NOT a
+ * server sort: comprehension is a per-user aggregate over word_examples
+ * (catalog-sized, D3), and ordering by it would recompute it for every video
+ * on every page; the client keeps that ordering over loaded pages.
+ * `total` (count under the same filters) comes only with the first page.
+ */
 export async function listVideos(
   db: Database,
-  opts: { limit?: number; cursor?: string } = {},
+  opts: {
+    limit?: number;
+    cursor?: string;
+    q?: string;
+    category?: string;
+    sort?: VideoSort;
+  } = {},
 ) {
   const limit = opts.limit ?? 24;
-  const pageConditions = [];
+  const sort: VideoSort = opts.sort ?? "newest";
+
+  const filters: SQL[] = [];
+  const q = opts.q?.trim();
+  if (q) {
+    const pattern = `%${escapeLike(q)}%`;
+    filters.push(or(ilike(videos.title, pattern), ilike(videos.channel, pattern))!);
+  }
+  if (opts.category) filters.push(eq(videos.category, opts.category));
+
+  // Constants go in as raw literals, not bind params: a CASE whose branches
+  // are all untyped parameters leaves Postgres unable to infer its type.
+  const durationKey = sql<number>`coalesce(${videos.durationS}, ${sql.raw(String(DURATION_NULL))})`;
+  const levelKey = sql<number>`case when ${videos.levelEstimate} = 'beginner' then ${sql.raw(String(LEVEL.beginner))} when ${videos.levelEstimate} = 'intermediate' then ${sql.raw(String(LEVEL.intermediate))} when ${videos.levelEstimate} = 'advanced' then ${sql.raw(String(LEVEL.advanced))} else ${sql.raw(String(LEVEL_NULL))} end`;
+  const sortKey = sort === "short" ? durationKey : sort === "level" ? levelKey : null;
+
+  const pageConditions = [...filters];
   if (opts.cursor) {
-    const parts = opts.cursor.split(":");
-    const ts = parseInt(parts[1] ?? "", 10);
-    const id = parts.slice(2).join(":");
-    if (!isNaN(ts) && id) {
-      pageConditions.push(
-        or(
-          lt(videos.createdAt, new Date(ts)),
-          and(eq(videos.createdAt, new Date(ts)), lt(videos.id, id)),
-        )!,
-      );
+    if (sortKey === null) {
+      const parts = opts.cursor.split(":");
+      const ts = parseInt(parts[1] ?? "", 10);
+      const id = parts.slice(2).join(":");
+      if (!isNaN(ts) && id) {
+        pageConditions.push(
+          or(
+            lt(videos.createdAt, new Date(ts)),
+            and(eq(videos.createdAt, new Date(ts)), lt(videos.id, id)),
+          )!,
+        );
+      }
+    } else {
+      const cur = decodeListCursor(opts.cursor);
+      const v = typeof cur?.[0] === "number" ? cur[0] : null;
+      const id = typeof cur?.[1] === "string" ? cur[1] : null;
+      if (v !== null && id) {
+        pageConditions.push(
+          or(sql`${sortKey} > ${v}`, and(sql`${sortKey} = ${v}`, lt(videos.id, id)))!,
+        );
+      }
     }
   }
 
@@ -50,17 +101,36 @@ export async function listVideos(
     })
     .from(videos)
     .where(pageConditions.length > 0 ? and(...pageConditions) : undefined)
-    .orderBy(desc(videos.createdAt), desc(videos.id))
+    .orderBy(
+      ...(sortKey === null
+        ? [desc(videos.createdAt), desc(videos.id)]
+        : [asc(sortKey), desc(videos.id)]),
+    )
     .limit(limit + 1);
 
   const hasMore = rows.length > limit;
   const items = rows.slice(0, limit);
   const last = items[items.length - 1];
-  const nextCursor = hasMore && last
-    ? `t:${last.createdAt.getTime()}:${last.id}`
-    : null;
+  let nextCursor: string | null = null;
+  if (hasMore && last) {
+    nextCursor =
+      sort === "short"
+        ? encodeListCursor([last.durationS ?? DURATION_NULL, last.id])
+        : sort === "level"
+          ? encodeListCursor([LEVEL[last.levelEstimate ?? ""] ?? LEVEL_NULL, last.id])
+          : `t:${last.createdAt.getTime()}:${last.id}`;
+  }
 
-  return { items, nextCursor };
+  let total: number | undefined;
+  if (!opts.cursor) {
+    const [row] = await db
+      .select({ n: count() })
+      .from(videos)
+      .where(filters.length > 0 ? and(...filters) : undefined);
+    total = row?.n ?? 0;
+  }
+
+  return { items, nextCursor, total };
 }
 
 /** Dashboard "Continue watching": the newest video only, without the line-count join. */
