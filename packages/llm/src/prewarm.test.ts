@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildLineCtxs,
+  getVideoExplainSpend,
   planPrewarm,
   resolveMaxLines,
   runPool,
@@ -85,6 +86,29 @@ describe("resolveMaxLines", () => {
   it("keeps the head cap for the head scope and the default", () => {
     expect(resolveMaxLines("head", 150)).toBe(150);
     expect(resolveMaxLines(undefined, 150)).toBe(150);
+  });
+});
+
+describe("getVideoExplainSpend", () => {
+  const fakeDb = (rows: unknown[]) =>
+    ({
+      select: () => ({ from: () => ({ where: () => Promise.resolve(rows) }) }),
+    }) as never;
+
+  it("returns the aggregated row", async () => {
+    const spend = await getVideoExplainSpend(
+      fakeDb([{ calls: 3, inTokens: 1200, outTokens: 500 }]),
+      "v1",
+    );
+    expect(spend).toEqual({ calls: 3, inTokens: 1200, outTokens: 500 });
+  });
+
+  it("falls back to zeros when the aggregate yields no row", async () => {
+    expect(await getVideoExplainSpend(fakeDb([]), "v1")).toEqual({
+      calls: 0,
+      inTokens: 0,
+      outTokens: 0,
+    });
   });
 });
 

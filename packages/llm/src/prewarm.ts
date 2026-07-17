@@ -4,9 +4,10 @@
 // meant for the worker with the house provider, where a slow call only delays
 // a background job.
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   aiExplanations,
+  llmUsage,
   subtitleLines,
   videos,
   type Database,
@@ -103,11 +104,37 @@ export async function runPool<T>(
   return result;
 }
 
+export type VideoExplainSpend = { calls: number; inTokens: number; outTokens: number };
+
+/**
+ * Layer-2 spend attributed to a video: sums the `llm_usage` rows with
+ * fn=explainLine and this videoId. Cumulative across runs — the number a cost
+ * review wants is "what has this video cost", not one job's slice. Token sums
+ * skip rows where the provider reported no usage; `calls` counts every attempt
+ * (including failures — they cost real tokens even when unreported).
+ */
+export async function getVideoExplainSpend(
+  db: Database,
+  videoId: string,
+): Promise<VideoExplainSpend> {
+  const [row] = await db
+    .select({
+      calls: sql<number>`count(*)::int`,
+      inTokens: sql<number>`coalesce(sum(${llmUsage.inTokens}), 0)::int`,
+      outTokens: sql<number>`coalesce(sum(${llmUsage.outTokens}), 0)::int`,
+    })
+    .from(llmUsage)
+    .where(and(eq(llmUsage.videoId, videoId), eq(llmUsage.fn, "explainLine")));
+  return row ?? { calls: 0, inTokens: 0, outTokens: 0 };
+}
+
 export type PrewarmSummary = {
   total: number;
   cached: number;
   generated: number;
   failed: number;
+  /** Cumulative explain spend for the video; null when the usage query failed. */
+  spend: VideoExplainSpend | null;
 };
 
 /**
@@ -166,7 +193,12 @@ export async function prewarmVideoExplanations(
       meta: { videoId },
     }),
   );
+  // Spend is telemetry: it must never fail a prewarm that just succeeded.
+  // The usage sink inserts fire-and-forget, so the very last calls of this run
+  // may not be committed yet — a slight undercount, fine for a cost signal.
+  const spend = await getVideoExplainSpend(db, videoId).catch(() => null);
+
   // `total` is the scoped set (what this job set out to warm), so
   // cached + generated + failed reconcile with it.
-  return { total: items.length, cached: cachedIds.size, generated: ok, failed };
+  return { total: items.length, cached: cachedIds.size, generated: ok, failed, spend };
 }

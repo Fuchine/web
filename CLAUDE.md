@@ -154,7 +154,10 @@ Pacotes e seus pontos de entrada:
   Pós-import, enfileira **pre-warm de explicações** (fila `explain`): gera a
   camada 2 do vídeo inteiro em background via provider house
   (`prewarmVideoExplanations` em `@fuchine/llm` — cache-first, idempotente,
-  pool interno de 2; pulado se o provider for `echo`). `backfill:explain`
+  pool interno de 2; pulado se o provider for `echo`). O summary do job inclui
+  o **spend cumulativo do vídeo** (`getVideoExplainSpend`: soma
+  `in_tokens`/`out_tokens`/calls de `llm_usage`, fn `explainLine`) e o worker
+  o loga junto de generated/cached/failed. `backfill:explain`
   cobre vídeos antigos. No fim do import, `estimateVideoLevel` grava
   `videos.level_estimate` (mediana do frequency_rank das palavras distintas;
   `src/level.ts`, mínimo 20 palavras ranqueadas; `backfill:level` para vídeos

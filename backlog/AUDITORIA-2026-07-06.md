@@ -44,15 +44,20 @@ violá-las.
 > - `llm-usage-metering` — fechou: tabela `llm_usage` por request (migration 0015),
 >   sink DB no web+worker, atribuição por vídeo/usuário. Desbloqueia o item 3 do prewarm.
 >
-> **Restam 3 itens de auditoria:** [prewarm-cost-per-import.md] (item 3, baixa),
-> [list-search-covers-loaded-only.md] (F2, baixa) e `catalog-visibility-decision`
-> (Portão 2, decisão de produto, sem arquivo).
+> **Limpeza (2026-07-17):** `prewarm-cost-per-import` fechou por completo — o
+> item 3 (tokens no summary do job) foi feito: `prewarmVideoExplanations` soma
+> `in_tokens`/`out_tokens`/calls de `llm_usage` (fn `explainLine`, por vídeo,
+> cumulativo) e o worker loga o spend junto de generated/cached/failed.
+> Removido do backlog (histórico no `git log`).
+>
+> **Restam 2 itens de auditoria:** [list-search-covers-loaded-only.md] (F2,
+> baixa) e `catalog-visibility-decision` (Portão 2, decisão de produto, sem
+> arquivo).
 
 ## Índice por prioridade
 
 | Item | Dimensão | Esforço | Prioridade | Impacto (1 linha) |
 |---|---|---|---|---|
-| [prewarm-cost-per-import.md](prewarm-cost-per-import.md) | Custos | S | Baixa (PARTIAL) | Itens 1 e 2 feitos; **sobra só o item 3** (tokens no summary do job) — agora **desbloqueado** pelo metering. |
 | [list-search-covers-loaded-only.md](list-search-covers-loaded-only.md) | Arquitetura / Desempenho | M | Baixa (F2) | Sucessor do `unpaginated-lists` (paginação feita): busca/sort da library e phrases cobre só as páginas carregadas. |
 
 ## Arquivos existentes atualizados nesta auditoria
@@ -79,10 +84,8 @@ com índice próprio: **[PRODUCAO-2026-07-06.md](PRODUCAO-2026-07-06.md)**
 
 ## Recomendação de sequência (do que restou)
 
-1. **Custo estrutural:** `llm-usage-metering` **resolvido 2026-07-13** (tabela
-   `llm_usage` por request, sink DB no web+worker, atribuição por vídeo/usuário).
-   Sobra fechar [prewarm-cost-per-import.md] item 3 (anexar tokens ao summary do
-   job — agora tem fonte).
+1. **Custo estrutural:** `llm-usage-metering` **resolvido 2026-07-13** e
+   `prewarm-cost-per-import` **fechado 2026-07-17** (tokens no summary do job).
 2. **Desempenho restante:** [list-search-covers-loaded-only.md] quando a F2 chegar.
 
 > `catalog-visibility-decision.md` (Portão 2) é citado como aberto mas **ainda
