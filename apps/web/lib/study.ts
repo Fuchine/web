@@ -97,7 +97,10 @@ export async function listVideos(
       embeddable: videos.embeddable,
       category: videos.category,
       createdAt: videos.createdAt,
-      lineCount: sql<number>`(SELECT count(*)::int FROM ${subtitleLines} WHERE ${subtitleLines.videoId} = ${videos.id})`,
+      // Columns hand-qualified: in a select projection drizzle renders bare
+      // column refs unqualified, so `${videos.id}` here would resolve to the
+      // subquery's own `subtitle_lines.id` and the count would always be 0.
+      lineCount: sql<number>`(SELECT count(*)::int FROM ${subtitleLines} WHERE ${subtitleLines}."video_id" = ${videos}."id")`,
     })
     .from(videos)
     .where(pageConditions.length > 0 ? and(...pageConditions) : undefined)
