@@ -596,26 +596,65 @@ export function LibraryView({
 }) {
   const router = useRouter();
 
+  const [collapsed, setCollapsed] = useState(false);
+  const [cat, setCat] = useState("All");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortKey>("newest");
+
+  // Server-side search/filter/sort: any non-default query/category/sort
+  // refetches page 1 with these params, so results cover the whole catalog
+  // instead of just the loaded pages. The search term is debounced; while it
+  // settles, the client-side filter below narrows the loaded pages for
+  // instant feedback. "comp" has no server sort (per-user aggregate) — those
+  // pages come newest-first and the client orders the loaded set.
+  const [debouncedQ, setDebouncedQ] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+  const paramsKey = useMemo(() => {
+    const ps = new URLSearchParams();
+    if (debouncedQ) ps.set("q", debouncedQ);
+    if (cat !== "All") ps.set("category", cat);
+    if (sort === "short" || sort === "level") ps.set("sort", sort);
+    return ps.toString();
+  }, [debouncedQ, cat, sort]);
+
+  // Real catalog-wide count under the current server filters (first page of
+  // each params change); null on the default view (RSC seed carries no total).
+  const [serverTotal, setServerTotal] = useState<number | null>(null);
+  const paramsKeyRef = useRef(paramsKey);
+  paramsKeyRef.current = paramsKey;
+  useEffect(() => {
+    if (!paramsKey) setServerTotal(null);
+  }, [paramsKey]);
+
   // Infinite scroll: the server seeds the first page; the sentinel at the
-  // bottom of the grid fetches the rest of the library on demand. Client-side
-  // filter/sort/search below operate over the loaded pages.
-  const fetchVideos = useCallback(async (cursor: string) => {
-    const r = await fetch(`/api/videos?cursor=${encodeURIComponent(cursor)}`);
+  // bottom of the grid fetches the rest on demand.
+  const fetchVideos = useCallback(async (cursor: string | null) => {
+    const ps = new URLSearchParams(paramsKey);
+    if (cursor) ps.set("cursor", cursor);
+    const r = await fetch(`/api/videos?${ps.toString()}`);
     if (!r.ok) throw new Error(`videos ${r.status}`);
-    const data = (await r.json()) as { videos: LibraryVideo[]; nextCursor: string | null };
+    const data = (await r.json()) as {
+      videos: LibraryVideo[];
+      nextCursor: string | null;
+      total?: number;
+    };
+    // Guard against a slow first page from stale params landing late.
+    if (!cursor && typeof data.total === "number" && paramsKeyRef.current === paramsKey) {
+      setServerTotal(data.total);
+    }
     return { items: data.videos, nextCursor: data.nextCursor };
-  }, []);
+  }, [paramsKey]);
   const keyOfVideo = useCallback((v: LibraryVideo) => v.id, []);
   const { items: videos, loading: loadingMore, hasMore, sentinelRef } = usePaginatedList<LibraryVideo>({
     initial: initialVideos,
     initialCursor: nextCursor,
     keyOf: keyOfVideo,
     fetchPage: fetchVideos,
+    paramsKey,
   });
-  const [collapsed, setCollapsed] = useState(false);
-  const [cat, setCat] = useState("All");
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortKey>("newest");
   const [albumFilter, setAlbumFilter] = useState<string | null>(null);
   const [mine, setMine] = useState(false);
   const [modal, setModal] = useState(false);
@@ -711,8 +750,13 @@ export function LibraryView({
     [videos, hidden]
   );
 
+  // Prefer the catalog-wide count from the server when its filters match the
+  // view; fall back to the loaded count when a client-only filter (album/My
+  // Imports) narrows further. Hidden videos are a client overlay the server
+  // can't see — a small, accepted skew.
+  const shown = serverTotal != null && !mine && !albumFilter ? serverTotal : list.length;
   const gridHeading = activeAlbum ? activeAlbum.name : mine ? "My imports" : q ? `Results for "${query.trim()}"` : cat === "All" ? "All videos" : cat;
-  const gridSub = mine ? `${list.length} of your imports` : q ? `${list.length} found` : `${list.length} videos`;
+  const gridSub = mine ? `${list.length} of your imports` : q ? `${shown} found` : `${shown} videos`;
 
   return (
     <AppLayout account={account} reviewDue={reviewDue} activeKey={activeKey} collapsed={collapsed} onCollapsedChange={setCollapsed}>

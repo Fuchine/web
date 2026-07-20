@@ -120,7 +120,14 @@ Pacotes e seus pontos de entrada:
   BYOK) e álbuns (F2): `GET/POST /api/albums`, `PATCH/DELETE /api/albums/[id]`,
   `POST/DELETE /api/albums/[id]/videos` (list com contagem de vídeos, dedup por
   PK composta, ownership por usuário; na biblioteca, "Add to album" abre modal
-  com criação inline; E2E em `scripts/e2e-albums.ts`). **Writers de atividade**
+  com criação inline; E2E em `scripts/e2e-albums.ts`). Biblioteca e phrases são
+  cursor-paginated com **busca/filtro/sort server-side** (`q`/`category`|`status`/
+  `sort` nas rotas paginadas; keyset por sort — valor do sort + id no cursor,
+  `lib/list-query.ts` — e contadores reais: `total` da biblioteca e `counts` por
+  status das phrases na 1ª página; `usePaginatedList` refaz a página 1 quando os
+  params mudam, com epoch guard contra respostas velhas). Exceção deliberada: o
+  sort "Most comprehensible" é client-side sobre as páginas carregadas
+  (comprehension é agregado por usuário, catalog-sized). **Writers de atividade**
   (`lib/progress.ts`): `POST /api/videos/[id]/progress` (beacon do player a
   cada 15s: ms assistidos + linhas vistas → `user_daily_stats` +
   `user_word_stats.views`) e `POST /api/dictionary/[id]/click` (popup →
@@ -154,7 +161,10 @@ Pacotes e seus pontos de entrada:
   Pós-import, enfileira **pre-warm de explicações** (fila `explain`): gera a
   camada 2 do vídeo inteiro em background via provider house
   (`prewarmVideoExplanations` em `@fuchine/llm` — cache-first, idempotente,
-  pool interno de 2; pulado se o provider for `echo`). `backfill:explain`
+  pool interno de 2; pulado se o provider for `echo`). O summary do job inclui
+  o **spend cumulativo do vídeo** (`getVideoExplainSpend`: soma
+  `in_tokens`/`out_tokens`/calls de `llm_usage`, fn `explainLine`) e o worker
+  o loga junto de generated/cached/failed. `backfill:explain`
   cobre vídeos antigos. No fim do import, `estimateVideoLevel` grava
   `videos.level_estimate` (mediana do frequency_rank das palavras distintas;
   `src/level.ts`, mínimo 20 palavras ranqueadas; `backfill:level` para vídeos

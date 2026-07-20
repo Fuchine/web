@@ -65,10 +65,15 @@ const explainWorker = new Worker<ExplainJob>(
       // never re-generates the head.
       maxLines: resolveMaxLines(job.data.scope, env.prewarmMaxLines),
     });
+    // Spend is the video's cumulative explain cost (all runs), not this job's slice.
+    const spend = summary.spend
+      ? `; video spend ${summary.spend.inTokens} in / ${summary.spend.outTokens} out tokens ` +
+        `(${summary.spend.calls} calls)`
+      : "";
     console.log(
       `[explain] pre-warm ${job.data.videoId} (${job.data.scope ?? "head"}): ` +
         `${summary.generated} generated, ${summary.cached} cached, ` +
-        `${summary.failed} failed of ${summary.total}`,
+        `${summary.failed} failed of ${summary.total}${spend}`,
     );
   },
   // One video at a time; prewarm's internal pool already runs 2 calls in
