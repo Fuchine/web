@@ -137,7 +137,19 @@ aqui embaixo ao concluir.
 5. **Registrar** a chave de cifragem junto do artefato de backup (mesmo cofre,
    não o mesmo disco) e anotar o resultado do ensaio abaixo.
 
-> **Ensaio feito em:** _(preencher: data · quem · dump usado · resultado)_
+> **Ensaio feito em:** 2026-07-20 · Gabriel + Claude · dump `rehearsal.dump`
+> (19,2 MB, `pg_dump -Fc` forçado no sidecar `db-backup`; o ciclo nightly do
+> sidecar também gerou o seu primeiro dump sozinho) → restore com
+> `scripts/pg-restore.sh` num `postgres:16-alpine` limpo e descartável ·
+> **PASS 8/8** via `apps/web/scripts/e2e-restore-verify.ts` (reutilizável em
+> ensaios futuros): sessões restauradas (login em banco), 16 vídeos + 2742
+> linhas de legenda com tokens, contagens idênticas ao vivo em todas as
+> tabelas, e **ciphertext BYOK decifrado com a mesma `FUCHINE_ENCRYPTION_KEY`**
+> pelo `resolveUserProvider` real. Achados colaterais corrigidos no dia:
+> `FUCHINE_ENCRYPTION_KEY` estava **vazia** no `.env` (web preso no fail-fast —
+> o guard funcionou; chave gerada e guardada no cofre junto do backup) e as
+> imagens do compose estavam 2 migrations atrás do repo (14/16 aplicadas —
+> `docker compose up` não rebuilda; usar `up -d --build` ao atualizar o repo).
 
 ---
 

@@ -24,8 +24,10 @@ deploy" não forem resolvidos.
       [pnpm-overrides-not-applied.md](pnpm-overrides-not-applied.md) (resolvido 2026-07-10)
 - [x] **OPS-2** — Fechar as portas de Postgres/Redis no host + trocar senha default →
       [compose-ports-exposed.md](compose-ports-exposed.md) (resolvido 2026-07-10)
-- [ ] **OPS-4** — Ensaiar backup → restore (com a chave de cifragem junto) →
-      [backup-restore-rehearsal.md](backup-restore-rehearsal.md)
+- [x] **OPS-4** — Ensaiar backup → restore (com a chave de cifragem junto) →
+      ensaio executado 2026-07-20, **PASS 8/8** (registro no Apêndice A do
+      [DEPLOY_CHECKLIST.md](../docs/DEPLOY_CHECKLIST.md); arquivo de backlog
+      removido)
 
 Os demais são hardening/reliability e podem ir logo depois.
 
@@ -212,10 +214,10 @@ por env; setar `requirepass` no Redis.
 Do [`docs/DEPLOY_CHECKLIST.md`](../docs/DEPLOY_CHECKLIST.md) — não auditáveis por
 leitura de código:
 
-- [ ] **OPS-4 — Backup + restore ensaiado** antes do primeiro usuário. O
-  `db-backup` é opt-in (`--profile backup`); fazer restore de amostra num banco
-  limpo. Guardar o `FUCHINE_ENCRYPTION_KEY` junto do dump — perdê-la invalida
-  todas as chaves BYOK.
+- [x] **OPS-4 — Backup + restore ensaiado** (2026-07-20, PASS 8/8 — ver
+  Apêndice A do [DEPLOY_CHECKLIST.md](../docs/DEPLOY_CHECKLIST.md)). Restore
+  validado num banco limpo com decifragem BYOK; `FUCHINE_ENCRYPTION_KEY`
+  guardada junto do artefato de backup.
 - [ ] **Deliverability do magic link** — SPF/DKIM/DMARC do remetente; testar
   login contra Gmail e Outlook (e-mail em spam = instância inutilizável).
 - [ ] **RSS real do worker** — kuromoji carrega o IPADIC inteiro na memória no
