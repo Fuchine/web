@@ -20,9 +20,12 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-// Discover suites: every e2e-*.ts except this runner. Sorted for stable order.
+// Discover suites: every e2e-*.ts except this runner and the manual OPS-4
+// verifier (it needs a restored DB + FUCHINE_ENCRYPTION_KEY, not a fresh one).
+// Sorted for stable order.
+const EXCLUDED = new Set(["e2e-all.ts", "e2e-restore-verify.ts"]);
 const suites = readdirSync(here)
-  .filter((f) => f.startsWith("e2e-") && f.endsWith(".ts") && f !== "e2e-all.ts")
+  .filter((f) => f.startsWith("e2e-") && f.endsWith(".ts") && !EXCLUDED.has(f))
   .sort();
 
 const tsx = join(here, "..", "node_modules", ".bin", "tsx");
