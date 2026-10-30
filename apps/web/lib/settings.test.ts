@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseSettingsInput } from "./settings";
+import { mergeDailyGoals, parseSettingsInput } from "./settings";
 
 describe("parseSettingsInput — dailyGoals", () => {
   it("accepts valid goals and keeps only the known fields", () => {
@@ -43,6 +43,26 @@ describe("parseSettingsInput — dailyGoals", () => {
     const r = parseSettingsInput({});
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value.dailyGoals).toBeUndefined();
+  });
+
+  it("accepts null on a single field to clear just that goal", () => {
+    const r = parseSettingsInput({ dailyGoals: { maxReviewsPerDay: null, reviewMinutesPerDay: 20 } });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.dailyGoals).toEqual({ maxReviewsPerDay: null, reviewMinutesPerDay: 20 });
+  });
+});
+
+describe("mergeDailyGoals", () => {
+  it("merges set fields over the stored goals", () => {
+    expect(mergeDailyGoals({ newCardsPerDay: 10, watchMinutesPerDay: 30 }, { maxReviewsPerDay: 100 }))
+      .toEqual({ newCardsPerDay: 10, watchMinutesPerDay: 30, maxReviewsPerDay: 100 });
+  });
+
+  it("removes fields patched to null and tolerates no stored goals", () => {
+    expect(mergeDailyGoals({ newCardsPerDay: 10, maxReviewsPerDay: 100 }, { maxReviewsPerDay: null }))
+      .toEqual({ newCardsPerDay: 10 });
+    expect(mergeDailyGoals(null, { reviewMinutesPerDay: 20, maxReviewsPerDay: null }))
+      .toEqual({ reviewMinutesPerDay: 20 });
   });
 });
 

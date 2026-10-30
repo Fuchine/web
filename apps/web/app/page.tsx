@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { getLatestVideo } from "@/lib/study";
 import { countDueCards } from "@/lib/cards";
 import { isOnboardingDone } from "@/lib/settings";
-import { getDailyProgress } from "@/lib/goals";
+import { getDailyProgress, getTomorrowProjection } from "@/lib/goals";
 import { DashboardView } from "./dashboard-view";
 
 export default async function DashboardPage() {
@@ -13,11 +13,12 @@ export default async function DashboardPage() {
 
   const userId = session.user.id;
 
-  const [done, mostRecent, reviewDue, todaysGoals] = await Promise.all([
+  const [done, mostRecent, reviewDue, todaysGoals, tomorrow] = await Promise.all([
     isOnboardingDone(db, userId),
     getLatestVideo(db),
     countDueCards(db, userId),
     getDailyProgress(db, userId),
+    getTomorrowProjection(db, userId),
   ]);
   if (!done) redirect("/onboarding");
 
@@ -29,6 +30,7 @@ export default async function DashboardPage() {
       }}
       reviewDue={reviewDue}
       todaysGoals={todaysGoals}
+      tomorrow={tomorrow}
       continueVideo={
         mostRecent
           ? {
