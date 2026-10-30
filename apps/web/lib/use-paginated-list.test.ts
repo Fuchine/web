@@ -29,10 +29,14 @@ describe("toLibraryVideo", () => {
       durationS: 100, status: "done" as const, statusReason: null,
       levelEstimate: "intermediate", embeddable: true, category: "Gaming",
     };
-    expect(toLibraryVideo(row, 0.42)).toMatchObject({ id: "v1", level: 3, comprehension: 0.42 });
+    const cov = { headline: 93, low: 89, high: 95, unique: 70, uniqueLow: 60, uniqueHigh: 75, tokens: 400, words: 120 };
+    expect(toLibraryVideo(row, cov)).toMatchObject({
+      id: "v1", level: 3, comprehension: 93, coverageBand: { low: 89, high: 95, unique: 70 },
+    });
     expect(toLibraryVideo({ ...row, levelEstimate: null }, null)).toMatchObject({
       level: null,
       comprehension: null,
+      coverageBand: null,
     });
   });
 });

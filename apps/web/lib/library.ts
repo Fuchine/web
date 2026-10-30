@@ -4,6 +4,7 @@
 // page and passed in.
 
 import type { LibraryVideo } from "@/app/library-view";
+import type { Coverage } from "./known-words";
 
 export const LEVEL: Record<string, number> = { beginner: 1, intermediate: 3, advanced: 5 };
 
@@ -22,7 +23,8 @@ export type LibraryListRow = {
   category: string | null;
 };
 
-export function toLibraryVideo(v: LibraryListRow, comprehension: number | null): LibraryVideo {
+/** `coverage`: the page's token-weighted coverage (T3.9), null = no number. */
+export function toLibraryVideo(v: LibraryListRow, coverage: Coverage | null): LibraryVideo {
   return {
     id: v.id,
     title: v.title,
@@ -33,7 +35,8 @@ export function toLibraryVideo(v: LibraryListRow, comprehension: number | null):
     status: v.status,
     statusReason: v.statusReason,
     level: v.levelEstimate ? (LEVEL[v.levelEstimate] ?? null) : null,
-    comprehension,
+    comprehension: coverage?.headline ?? null,
+    coverageBand: coverage ? { low: coverage.low, high: coverage.high, unique: coverage.unique } : null,
     embeddable: v.embeddable,
     category: v.category,
   };
