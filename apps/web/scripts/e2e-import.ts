@@ -16,6 +16,7 @@ import {
   subtitleLines,
   wordEntries,
   wordExamples,
+  videoWordCounts,
   type Database,
   type Token,
   type Definition,
@@ -131,6 +132,9 @@ async function main() {
     examples.some((e) => e.wordEntryId === neko?.wordEntryId && e.subtitleLineId === lines[0]!.id),
     { nekoWordEntryId: neko?.wordEntryId, examples },
   );
+  // T3.9: running-word frequency for token-weighted coverage, written at import.
+  const counts = await db.select().from(videoWordCounts).where(eq(videoWordCounts.videoId, newVideoId));
+  check("video_word_counts populated (猫 counted)", counts.some((c) => c.wordEntryId === neko?.wordEntryId && c.occurrences >= 1), counts);
 
   // --- 5. Re-import after done => cached:true ---
   console.log("5. Dedup (post-processing)");
@@ -145,6 +149,9 @@ async function main() {
   check("still two lines after re-run", linesAgain.length === 2, linesAgain.length);
   const examplesAgain = await db.select().from(wordExamples).where(eq(wordExamples.videoId, newVideoId));
   check("word_examples not duplicated on re-run", examplesAgain.length === examples.length, { first: examples.length, again: examplesAgain.length });
+  const countsAgain = await db.select().from(videoWordCounts).where(eq(videoWordCounts.videoId, newVideoId));
+  check("video_word_counts rebuilt, not doubled, on re-run",
+    countsAgain.length === counts.length && countsAgain.reduce((a, c) => a + c.occurrences, 0) === counts.reduce((a, c) => a + c.occurrences, 0));
 
   // --- Cleanup ---
   await db.delete(videos).where(eq(videos.id, newVideoId)); // cascades to subtitle_lines
