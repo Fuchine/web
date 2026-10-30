@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isUuid } from "@/lib/ids";
 import { db } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { sentenceCards } from "@fuchine/db";
@@ -15,6 +16,8 @@ export async function PATCH(
   }
 
   const { id } = await params;
+
+  if (!isUuid(id)) return NextResponse.json({ error: "card not found" }, { status: 404 });
   const body = (await req.json().catch(() => null)) ?? {};
 
   if (typeof body.notes !== "string") {

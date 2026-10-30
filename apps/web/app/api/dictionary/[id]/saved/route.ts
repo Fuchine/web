@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isUuid } from "@/lib/ids";
 import { db } from "@/lib/db";
 import { saveWord, unsaveWord, setWordStatus, type WordStatus } from "@/lib/dictionary";
 
@@ -12,6 +13,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await ctx.params;
+  if (!isUuid(id)) return NextResponse.json({ error: "word not found" }, { status: 404 });
   await saveWord(db, session.user.id, id);
   return NextResponse.json({ saved: true });
 }
@@ -22,6 +24,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await ctx.params;
+  if (!isUuid(id)) return NextResponse.json({ error: "word not found" }, { status: 404 });
   await unsaveWord(db, session.user.id, id);
   return NextResponse.json({ saved: false });
 }
@@ -38,6 +41,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({ error: "status must be known|learning|new or null" }, { status: 400 });
   }
   const { id } = await ctx.params;
+  if (!isUuid(id)) return NextResponse.json({ error: "word not found" }, { status: 404 });
   await setWordStatus(db, session.user.id, id, status as WordStatus | null);
   return NextResponse.json({ saved: true, status });
 }

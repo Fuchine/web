@@ -9,6 +9,7 @@ import {
   wordExamples,
   userWordStats,
 } from "@fuchine/db";
+import { isUuid } from "./ids";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
@@ -271,6 +272,7 @@ export async function addVideoToAlbum(
   if (typeof videoId !== "string" || !videoId) {
     return { status: 400, body: { error: "videoId is required" } };
   }
+  if (!isUuid(videoId)) return { status: 400, body: { error: "videoId must be a uuid" } };
 
   const [album] = await db
     .select({ id: albums.id })
@@ -304,6 +306,7 @@ export async function removeVideoFromAlbum(
   if (typeof videoId !== "string" || !videoId) {
     return { status: 400, body: { error: "videoId is required" } };
   }
+  if (!isUuid(videoId)) return { status: 400, body: { error: "videoId must be a uuid" } };
 
   const [album] = await db
     .select({ id: albums.id })

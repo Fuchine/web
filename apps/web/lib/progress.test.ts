@@ -2,13 +2,16 @@ import { describe, it, expect } from "vitest";
 import { parseProgressInput, countWordOccurrences } from "./progress";
 import type { Token } from "@fuchine/db";
 
+const A = "11111111-1111-4111-8111-111111111111";
+const B = "22222222-2222-4222-8222-222222222222";
+
 describe("parseProgressInput", () => {
   it("accepts watched ms plus line ids", () => {
-    const r = parseProgressInput({ msWatched: 15000, lineIds: ["a", "b"] });
+    const r = parseProgressInput({ msWatched: 15000, lineIds: [A, B] });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value.msWatched).toBe(15000);
-    expect(r.value.lineIds).toEqual(["a", "b"]);
+    expect(r.value.lineIds).toEqual([A, B]);
   });
 
   it("accepts watched ms alone (paused on one line)", () => {
@@ -36,13 +39,18 @@ describe("parseProgressInput", () => {
 
   it("rejects non-string line ids and caps the batch size", () => {
     expect(parseProgressInput({ msWatched: 1000, lineIds: [42] }).ok).toBe(false);
-    expect(parseProgressInput({ msWatched: 1000, lineIds: Array(501).fill("x") }).ok).toBe(false);
+    expect(parseProgressInput({ msWatched: 1000, lineIds: Array(501).fill(A) }).ok).toBe(false);
+  });
+
+  it("rejects line ids that aren't uuids (no Postgres cast error)", () => {
+    expect(parseProgressInput({ msWatched: 1000, lineIds: ["abc"] }).ok).toBe(false);
+    expect(parseProgressInput({ msWatched: 1000, lineIds: [A, "x"] }).ok).toBe(false);
   });
 
   it("dedupes line ids", () => {
-    const r = parseProgressInput({ lineIds: ["a", "a", "b"] });
+    const r = parseProgressInput({ lineIds: [A, A, B] });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value.lineIds).toEqual(["a", "b"]);
+    if (r.ok) expect(r.value.lineIds).toEqual([A, B]);
   });
 
   it("rejects a non-object body", () => {

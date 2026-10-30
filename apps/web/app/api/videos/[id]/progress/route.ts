@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isUuid } from "@/lib/ids";
 import { db } from "@/lib/db";
 import { recordProgress } from "@/lib/progress";
 import { enforceRateLimit } from "@/lib/rate-limit";
@@ -23,6 +24,8 @@ export async function POST(
   }
 
   const { id } = await params;
+
+  if (!isUuid(id)) return NextResponse.json({ error: "video not found" }, { status: 404 });
   const body = (await req.json().catch(() => null)) ?? {};
   const result = await recordProgress(db, session.user.id, id, body);
   return NextResponse.json(result.body, { status: result.status });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isUuid } from "@/lib/ids";
 import { db } from "@/lib/db";
 import { explainLine } from "@/lib/explain";
 import { retryAfterHeader } from "@/lib/rate-limit";
@@ -14,6 +15,7 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await ctx.params;
+  if (!isUuid(id)) return NextResponse.json({ error: "line not found" }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as { force?: unknown };
   const result = await explainLine(db, session.user.id, id, {
     encryptionKey: process.env.FUCHINE_ENCRYPTION_KEY,

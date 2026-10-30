@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getVideoWithLines } from "@/lib/study";
+import { isUuid } from "@/lib/ids";
 import { getSavedWordIds } from "@/lib/dictionary";
 import { hiraToRomaji } from "@fuchine/nlp";
 import { PlayerView } from "./player-view";
@@ -19,6 +20,7 @@ export default async function VideoPage({
   if (!session?.user?.id) redirect("/login");
 
   const { id } = await params;
+  if (!isUuid(id)) notFound();
   const result = await getVideoWithLines(db, id);
   if (!result) notFound();
   if (result.video.status === "failed") {
