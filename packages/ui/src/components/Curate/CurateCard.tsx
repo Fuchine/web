@@ -39,6 +39,11 @@ export type CurateCardProps = {
   explanation: CurateExplanation | null;
   /** Clip position label, e.g. "5:24". */
   time: string;
+  /**
+   * i+1 (T3.10): the line's one new word when every other countable word is
+   * known/likely — shown as a small "i+1 · word" badge. Null/absent ⇒ none.
+   */
+  iPlusOneWord?: string | null;
   notes: string;
   onNotesChange: (notes: string) => void;
   maxNotes?: number;
@@ -113,6 +118,7 @@ export function CurateCard({
   wordEntries,
   explanation,
   time,
+  iPlusOneWord,
   notes,
   onNotesChange,
   maxNotes = 2000,
@@ -247,7 +253,17 @@ export function CurateCard({
               )
             : sentence.text}
         </p>
-        <span className="mt-1.5 shrink-0 text-[12px] tabular-nums text-faint">{time}</span>
+        <span className="mt-1.5 flex shrink-0 flex-col items-end gap-1 text-[12px] tabular-nums text-faint">
+          {time}
+          {iPlusOneWord && (
+            <span
+              className="rounded-[4px] bg-accent-soft-2 px-1 py-[1px] text-[10.5px] font-[650] text-link"
+              title={`i+1: the only new word in this sentence is ${iPlusOneWord}`}
+            >
+              i+1 · <span className="jp">{iPlusOneWord}</span>
+            </span>
+          )}
+        </span>
       </div>
       {sentence.translation && (
         <p className="m-0 mt-1 text-[14px] leading-[1.5] text-muted">{sentence.translation}</p>

@@ -10,6 +10,7 @@ import type { WordEntryData, WordEntryRow } from "./cards";
 import { decodeListCursor, encodeListCursor, escapeLike } from "./list-query";
 import { isUuid } from "./ids";
 import { withTokenOverrides, type TokenSpan } from "./token-overrides";
+import { getIPlusOneLines } from "./i-plus-one";
 
 export type PhraseRow = {
   cardId: string;
@@ -260,6 +261,8 @@ export type UncuratedCard = {
   sourceId: string;
   /** The cached layer-2 explanation, if one exists. Never generated here. */
   explanation: Explanation | null;
+  /** i+1 (T3.10): the line's one new word, when it is an i+1 sentence for the user. */
+  iPlusOneWord?: string | null;
 };
 
 export type UncuratedPage = {
@@ -309,6 +312,7 @@ export async function listUncuratedCards(
       videoTitle: videos.title,
       source: videos.source,
       sourceId: videos.sourceId,
+      language: videos.language,
     })
     .from(sentenceCards)
     .innerJoin(subtitleLines, eq(subtitleLines.id, sentenceCards.subtitleLineId))
@@ -319,7 +323,19 @@ export async function listUncuratedCards(
 
   const hasMore = rows.length > limit;
   // The user's token corrections (T3.7), before collecting the entries.
-  const page = await withTokenOverrides(db, userId, rows.slice(0, limit), (r) => r.lineId);
+  const corrected = await withTokenOverrides(db, userId, rows.slice(0, limit), (r) => r.lineId);
+  // i+1 badge (T3.10): one query for the page's words, per content language.
+  const ip1 = new Map<string, string>();
+  for (const lang of new Set(corrected.map((r) => r.language))) {
+    const hits = await getIPlusOneLines(
+      db, userId, corrected.filter((r) => r.language === lang).map((r) => ({ id: r.lineId, tokens: r.tokens })), lang,
+    );
+    for (const r of corrected) {
+      const h = hits.get(r.lineId);
+      if (h) ip1.set(r.cardId, r.tokens[h.tokenIdx]?.surface ?? "");
+    }
+  }
+  const page = corrected.map(({ language: _language, ...r }) => ({ ...r, iPlusOneWord: ip1.get(r.cardId) || null }));
   const lineIds = page.map((r) => r.lineId);
   const wordIds = [
     ...new Set(

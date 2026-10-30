@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, type MutableRefObject, type ReactNode, type RefObject } from "react";
+import { memo, useCallback, useMemo, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import { cn } from "../../lib/cn";
 import { showReadingFor, statusOf, type FuriganaMode, type WordStatus } from "../../lib/listening";
 
@@ -20,6 +20,11 @@ export type TranscriptLine = {
   textOriginal: string;
   textTranslation: string | null;
   tokens: TranscriptToken[];
+  /**
+   * i+1 (T3.10): index of the line's single unknown countable word, when
+   * every other countable word is known/likely. Absent/null ⇒ not i+1.
+   */
+  iPlusOneIdx?: number | null;
 };
 
 export interface PlayerTranscriptProps {
@@ -46,6 +51,14 @@ export interface PlayerTranscriptProps {
   onCycleFurigana: () => void;
   /** When provided, shows the known-word coloring toggle (with its legend). */
   onToggleColorKnown?: () => void;
+  /** i+1 filter: show only the i+1 lines (T3.10). */
+  onlyIPlusOne?: boolean;
+  /** When provided (and some line is i+1), shows the "Show i+1 lines" filter. */
+  onToggleIPlusOne?: () => void;
+  /** "Mine this i+1 line" on i+1 rows — an explicit click, never automatic. */
+  onMineLine?: (lineIdx: number) => void;
+  /** Lines already mined this session (the button turns into "Mined"). */
+  minedLineIds?: ReadonlySet<string>;
   formatTimecode: (ms: number) => string;
   /** Ref to the scrollable region (used by the autoscroll logic). */
   railRef?: RefObject<HTMLDivElement | null>;
@@ -69,6 +82,15 @@ function CcIcon() {
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="16" height="16">
       <rect x="3" y="6" width="18" height="12" rx="2" stroke="currentColor" strokeWidth="1.6" />
       <path d="M9 11.5a1.5 1.5 0 1 1 1.5 1.5M14 11.5a1.5 1.5 0 1 1 1.5 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PlusOneIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="16" height="16">
+      <path d="M4 12h6M7 9v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M14.5 8.5L17 7v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -104,6 +126,8 @@ interface TranscriptRowProps {
   onLineClick: (lineIdx: number) => void;
   /** Stable ref registrar keyed by line index; used by the autoscroll logic. */
   onRowRef?: (idx: number, el: HTMLButtonElement | null) => void;
+  onMineLine?: (lineIdx: number) => void;
+  mined: boolean;
 }
 
 // Memoized so a currentLineIdx change only re-renders the two rows whose
@@ -122,24 +146,34 @@ const TranscriptRow = memo(function TranscriptRow({
   formatTimecode,
   onLineClick,
   onRowRef,
+  onMineLine,
+  mined,
 }: TranscriptRowProps) {
   const tokens = line.tokens.length > 0 ? line.tokens : null;
-  return (
+  const ip1 = line.iPlusOneIdx != null && line.iPlusOneIdx >= 0 ? line.iPlusOneIdx : null;
+  const target = ip1 != null ? line.tokens[ip1] : undefined;
+  const row = (
     <button
       ref={(el) => onRowRef?.(line.idx, el)}
       type="button"
-      className={cn("tr-line", isCurrent && "current")}
+      className={cn("tr-line", isCurrent && "current", ip1 != null && "ip1")}
       data-line-idx={line.idx}
+      data-i-plus-one={ip1 != null || undefined}
       onClick={() => onLineClick(line.idx)}
     >
-      <span className="tr-time">{formatTimecode(line.tStartMs)}</span>
+      <span className="tr-time">
+        {formatTimecode(line.tStartMs)}
+        {ip1 != null && (
+          <span className="tr-ip1" title={target ? `i+1: one new word, ${target.surface}` : "i+1: one new word"}>i+1</span>
+        )}
+      </span>
       <div>
         <div className={cn("tr-ja jp", maskJapanese && "tr-masked")} aria-hidden={maskJapanese || undefined}>
           {tokens
             ? tokens.map((t, i) => {
                 const word = isWord(t);
                 const status = word ? statusOf(wordStatuses, t.wordEntryId) : "unknown";
-                const cls = colorKnown && word ? `k-${status}` : undefined;
+                const cls = cn(colorKnown && word && `k-${status}`, i === ip1 && "ip1-target") || undefined;
                 return showReadingFor(furigana, status) && t.reading && t.reading !== t.surface ? (
                   <ruby key={i} className={cls}>
                     {t.surface}
@@ -159,6 +193,21 @@ const TranscriptRow = memo(function TranscriptRow({
       </div>
     </button>
   );
+  if (ip1 == null || !onMineLine) return row;
+  return (
+    <div className="tr-row">
+      {row}
+      <button
+        type="button"
+        className={cn("tr-mine", mined && "done")}
+        onClick={() => onMineLine(line.idx)}
+        disabled={mined}
+        aria-label={mined ? "Mined" : `Mine this i+1 line${target ? ` (new word: ${target.surface})` : ""}`}
+      >
+        {mined ? "Mined" : "Mine this i+1 line"}
+      </button>
+    </div>
+  );
 });
 
 function PlayerTranscriptImpl({
@@ -175,11 +224,20 @@ function PlayerTranscriptImpl({
   onToggleTranslation,
   onCycleFurigana,
   onToggleColorKnown,
+  onlyIPlusOne = false,
+  onToggleIPlusOne,
+  onMineLine,
+  minedLineIds,
   formatTimecode,
   railRef,
   lineRefs,
   className,
 }: PlayerTranscriptProps): ReactNode {
+  const ip1Count = useMemo(() => lines.reduce((n, l) => n + (l.iPlusOneIdx != null ? 1 : 0), 0), [lines]);
+  const shown = useMemo(
+    () => (onlyIPlusOne ? lines.filter((l) => l.iPlusOneIdx != null) : lines),
+    [lines, onlyIPlusOne],
+  );
   // Stable registrar so the memoized rows don't re-render on every parent tick.
   const onRowRef = useCallback(
     (idx: number, el: HTMLButtonElement | null) => {
@@ -193,6 +251,18 @@ function PlayerTranscriptImpl({
     <>
       <div className="tr-sub">
         <div className="tr-tools">
+          {onToggleIPlusOne && ip1Count > 0 && (
+            <button
+              type="button"
+              className={cn("tr-tool", onlyIPlusOne && "on")}
+              onClick={onToggleIPlusOne}
+              aria-label={`Show i+1 lines (${ip1Count})`}
+              aria-pressed={onlyIPlusOne}
+              title={`Show i+1 lines: sentences with exactly one new word (${ip1Count})`}
+            >
+              <PlusOneIcon />
+            </button>
+          )}
           {onToggleColorKnown && (
             <span className="kw-toggle">
               <button
@@ -236,7 +306,10 @@ function PlayerTranscriptImpl({
         </div>
       </div>
       <div className="tr-list" ref={railRef}>
-        {lines.map((line) => (
+        {onlyIPlusOne && shown.length === 0 && (
+          <p className="tr-empty">No i+1 lines in this video yet.</p>
+        )}
+        {shown.map((line) => (
           <TranscriptRow
             key={line.id}
             line={line}
@@ -250,6 +323,8 @@ function PlayerTranscriptImpl({
             formatTimecode={formatTimecode}
             onLineClick={onLineClick}
             onRowRef={onRowRef}
+            onMineLine={onMineLine}
+            mined={minedLineIds?.has(line.id) ?? false}
           />
         ))}
       </div>
