@@ -12,24 +12,37 @@ UI é em inglês.
 
 - `docs/ARQUITETURA.md` — visão, modelo open core, decisões travadas (D1–D8),
   arquitetura do sistema, stack, roadmap por fases. **Fonte da verdade.**
-- `docs/ROADMAP_ENGENHARIA.md` — companheiro executável da arquitetura: tarefas
-  tamanho-sessão (T0.x, T1.x), em ordem de dependência, com "Pronto quando".
-  **É a fila de trabalho.**
+- `docs/ROADMAP_ENGENHARIA.md` (v0.2) — companheiro executável da arquitetura:
+  tarefas tamanho-sessão (T0.x–T3.x), em ordem de dependência, com "Pronto
+  quando". **É a fila de trabalho**; hoje a fila é a Fase 2 ("Lançar", M0–M3).
 - `docs/CONTRATO_IA.md` — formato de entrada/saída das funções de IA
   (`translateBatch`, `explainLine`) e o contrato de cache. Ancora a coluna
   `ai_explanations.content` e o campo `text_translation`.
 - `docs/ANALISE_CUSTOS.md` — modelo de custo unitário e base de precificação
   da cloud (foco: clientes pagantes em dólar; Pro US$ 8/mês a lápis).
-  Estimativas pré-medição; validar com o item de metering do backlog.
-- `backlog/AUDITORIA-2026-07-06.md` e `backlog/PRODUCAO-2026-07-06.md` —
-  índices da auditoria de código e da análise de prontidão de produção
-  (mapas de leitura do backlog, por prioridade e por portão de lançamento).
+  Estimativas pré-medição; validar com os dados reais de `llm_usage`.
+- `docs/PESQUISA_MERCADO-2026-10-29.md` — concorrentes (HayaiLearn, Migaku,
+  Language Reactor…), necessidades do aluno, faixa de preço, o que adicionar e
+  o que inovar. Origem das Fases 3–4 do roadmap. Números com † vêm de snippet,
+  não de página primária.
+- `backlog/ANALISE-SEGURANCA-LANCAMENTO-2026-10-29.md` — estado real do projeto,
+  achados de segurança (A1…G1) e milestones de lançamento M0–M5. Origem da
+  Fase 2 do roadmap.
+- `backlog/AUDITORIA-2026-07-06.md`, `backlog/PRODUCAO-2026-07-06.md` e
+  `backlog/CORRECOES-PRE-DEPLOY-2026-07-10.md` — ondas anteriores (auditoria de
+  código, portões de produção, correções pré-deploy). Itens fechados saem do
+  backlog; o histórico fica no git.
+- `docs/DEPLOY_CHECKLIST.md` — runbook do dia do deploy (env, auth, sequência,
+  smoke test, ensaio de backup → restore).
+- `docs/plans/` — specs e planos de implementação por feature
+  (`AAAA-MM-DD-<feature>-spec.md` + `AAAA-MM-DD-<feature>.md`).
 - `docs/INVENTARIO_TELAS.md` e `docs/PROMPT_PACK_TELAS.md` — telas do produto
   (o design em si é gerado fora, no Claude Design).
 - `screens.md` — guia para gerar telas (handoff para IA): sistema visual,
   fluxo component-first, tokens/utilitários, componentes prontos em
   `@fuchine/ui` e os shapes de API por tela.
-- `packages/db/src/schema.ts` — schema Drizzle das 13 tabelas (já verificado).
+- `packages/db/src/schema.ts` — schema Drizzle: 21 tabelas (18 do app + 3 do
+  adapter Auth.js).
 
 ## Decisões que NÃO podem ser violadas
 
@@ -81,34 +94,65 @@ UI é em inglês.
 
 ## Estado atual do repositório
 
-Fase 0 (Fundação). Monorepo pnpm + Turborepo montado e compilando
-(`pnpm typecheck` verde nos 6 pacotes; `apps/web` builda no Next 15).
+*Revisado em 2026-10-30 (T2.1).*
+
+**Fase:** F0 (Fundação) e F1 (MVP usável) concluídas; F2 (Alcance, na
+numeração da ARQUITETURA §10) ~80% construída — extensão funcional (popup +
+bridge in-app), álbuns, dicionário/busca, lista de frases, stats, biblioteca
+compartilhada com flags por usuário, export Anki (TSV), exclusão de conta,
+`/api/health`, backups, compose + Caddy/TLS, rate limits e metering em
+`llm_usage`. **Portão 1 de produção (self-host, 1 usuário) fechado** pelo PR #19
++ ensaio backup → restore de 2026-07-20 (PASS 8/8). Nunca houve release, tag,
+imagem publicada nem instância pública. **Fila atual:** Fase 2 ("Lançar",
+M0–M3) do `docs/ROADMAP_ENGENHARIA.md` v0.2 — prontos T2.1 (reconciliação dos
+docs), T2.3 (registro controlado) e T2.4 (teto da chave da casa); próximos
+T2.2, T2.5, T2.6 (hardening antes de qualquer IP público), depois T2.7 (deploy
+do mantenedor).
+
+Monorepo pnpm + Turborepo: `pnpm typecheck` e `pnpm test` verdes nos 8
+pacotes (`apps/web`, `apps/worker`, `packages/{core,db,nlp,llm,jobs,ui}`);
+`apps/web` builda no Next 15. CI (`.github/workflows/`): `ci.yml` (typecheck,
+test, build), `e2e.yml` (migrate + suítes E2E contra Postgres real), `dco.yml`
+(Signed-off-by) e `spike-captions.yml`.
 
 Pacotes e seus pontos de entrada:
 
-- `packages/db` — schema Drizzle (13 tabelas de conteúdo + 3 do adapter Auth.js:
-  `accounts`, `sessions`, `verification_tokens`) + tipos jsonb (`Token`,
-  `Explanation`, `Definition`, `DailyGoals`) + `createDb()` + `ensureUserSettings`.
+- `packages/db` — schema Drizzle com 21 tabelas: 18 do app (`users`,
+  `user_settings`, `invites`, `videos`, `subtitle_lines`,
+  `subtitle_translation_chunks`, `word_entries`, `word_examples`,
+  `sentence_cards`, `review_logs`, `ai_explanations`, `albums`, `album_videos`,
+  `user_video_flags`, `user_word_stats`, `saved_words`, `user_daily_stats`,
+  `llm_usage`) + 3 do adapter Auth.js (`accounts`, `sessions`,
+  `verification_tokens`). Tipos jsonb (`Token`, `Explanation`, `Definition`,
+  `DailyGoals`) + `createDb()` (pool configurável, `DB_POOL_MAX`) +
+  `ensureUserSettings` + helpers de convite (`invites.ts`) e `normalizeEmail`.
   Exporta também `Transaction`/`DbOrTx` (handle de transação do Drizzle) para
   helpers que rodam tanto standalone quanto dentro de `db.transaction(...)`.
-  Migrations em `drizzle/` (`0000_init`, `0001_word_entries_unique`,
-  `0002_auth_tables`) com meta journal (`pnpm db:migrate`). Seed JMdict +
-  frequência em `src/seed/` (`pnpm --filter @fuchine/db seed`; fixture em
-  `seeds/fixtures/`).
+  Migrations em `drizzle/` de `0000_init` a `0017` com meta journal
+  (`pnpm db:migrate`; a `0013` cria a extensão `pg_trgm`). Seed JMdict +
+  frequência em `src/seed/` (`pnpm --filter @fuchine/db seed`/`seed:jmdict`;
+  fixture em `seeds/fixtures/`).
 - `packages/core` — serviço FSRS (`newCardState`, `reviewCard`,
-  `previewIntervals`) sobre `ts-fsrs`, mapeado 1:1 às colunas de cards/logs.
+  `previewIntervals`) sobre `ts-fsrs`, mapeado 1:1 às colunas de cards/logs;
+  também `freqTier` (`freq.ts`, compartilhado entre popup e dicionário).
 - `packages/nlp` — interfaces `Tokenizer`/`DictionaryProvider`, adapter `ja/`,
-  `getTokenizer`/`getDictionary` e `analyzeLine` (tokeniza + resolve dicionário).
-  `JaTokenizer` usa **kuromoji.js** (IPADIC) — surface/lemma/leitura/pos;
-  `JaDictionary` consulta `word_entries`; `resolveWordEntries` preenche
-  `wordEntryId`. Upgrade para SudachiPy fica atrás da mesma interface.
+  `getTokenizer`/`getDictionary`, `analyzeLine` e `analyzeLines` (lote: tokeniza
+  todas as linhas e resolve os lemas distintos do vídeo numa query só, via
+  `lookupMany`). `JaTokenizer` usa **kuromoji.js** (IPADIC) —
+  surface/lemma/leitura/pos; `JaDictionary` consulta `word_entries`;
+  `resolveWordEntries` preenche `wordEntryId`. Upgrade para SudachiPy fica atrás
+  da mesma interface.
 - `packages/llm` — contrato (`LlmProvider`, `SubtitleLineCtx`, `PROMPT_VERSION`
-  = 1), erros, cifragem BYOK (AES-256-GCM em `crypto.ts`), cache cache-first
-  (`explainLineCached`). Provider real **OpenAI-compatible** (`minimax` →
-  `api.minimax.io/v1`/`minimax-m3`, `openai`, `openai-compatible`) com
-  `translateBatch` (alinhamento 1:1, chunking, fallback) e `explainLine`
-  (JSON coerce, ≤4 pontos). `resolveUserProvider` decifra a chave BYOK de
-  `user_settings`. `echo` segue para dev sem chave.
+  = 2), erros, cifragem BYOK (AES-256-GCM em `crypto.ts`, ciphertext versionado
+  `v2:`; rotação com `pnpm --filter @fuchine/worker rotate:key`), cache
+  cache-first (`explainLineCached`, single-flight por advisory lock no miss).
+  Provider real **OpenAI-compatible** (`minimax` → `api.minimax.io/v1`/`minimax-m3`,
+  `openai`, `openai-compatible`) com `translateBatch` (alinhamento 1:1, chunking,
+  fallback) e `explainLine` (JSON coerce, ≤4 pontos); `deepl` para MT e
+  `FallbackProvider`. O usuário só escolhe `minimax`/`openai` em Settings.
+  `resolveUserProvider` decifra a chave BYOK de `user_settings`. Metering: cada
+  chamada grava em `llm_usage` (`usage.ts`/`usage-db.ts`, nunca chave nem
+  conteúdo). `echo` segue para dev sem chave.
 - `apps/web` — Next.js (App Router). Auth.js (NextAuth v5) em `auth.ts`: Google
   OAuth + e-mail (magic link, opcional via SMTP), adapter Drizzle sobre as
   tabelas próprias, sessões em banco, e um `createUser` próprio
@@ -126,7 +170,12 @@ Pacotes e seus pontos de entrada:
   `HOUSE_EXPLAIN_FALLBACK=false` = explicação nova só com BYOK (403
   `byok_required`); o Player mostra a mensagem do servidor. `/api/health` expõe
   `houseBudget`; CLI `pnpm --filter @fuchine/worker usage`. E2E: `e2e-house-budget.ts`.
-  Rotas: `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
+  Boot: `instrumentation.ts` aborta (fail-fast) se faltar env obrigatória
+  (`DATABASE_URL`, `AUTH_SECRET`, `FUCHINE_ENCRYPTION_KEY`, registro/teto
+  inválidos). Security headers + CSP em `next.config.ts`. Rate limits por
+  usuário/IP em Redis (`lib/rate-limit.ts`: explain miss/force, translate miss,
+  import novo, busca do dicionário, magic link, beacon, click).
+  Rotas (29): `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
   estudo (F1, completa): `GET /api/videos` (biblioteca), `GET /api/videos/[id]`
   (payload do player), `POST /api/cards` (minerar, dedup), `GET
   /api/review/queue` + `POST /api/review/[cardId]` (FSRS), `GET /api/dictionary`
@@ -134,7 +183,16 @@ Pacotes e seus pontos de entrada:
   BYOK) e álbuns (F2): `GET/POST /api/albums`, `PATCH/DELETE /api/albums/[id]`,
   `POST/DELETE /api/albums/[id]/videos` (list com contagem de vídeos, dedup por
   PK composta, ownership por usuário; na biblioteca, "Add to album" abre modal
-  com criação inline; E2E em `scripts/e2e-albums.ts`). Biblioteca e phrases são
+  com criação inline; E2E em `scripts/e2e-albums.ts`). Também: `GET
+  /api/phrases`, `PATCH /api/cards/[id]` (não há `DELETE` ainda — T2.2), flags por
+  usuário `POST/DELETE /api/videos/[id]/flags` (`saved`/`hidden`/
+  `not_interested` em `user_video_flags`), tradução lazy `POST
+  /api/videos/[id]/translate`, dicionário (`browse`, `collection`, `grammar`,
+  `saved`, `[id]/examples`, `[id]/saved` — palavras salvas em `saved_words`),
+  export Anki `GET /api/export/deck`
+  (TSV texto-só, clipe como deep link do YouTube — D2), `DELETE /api/account`
+  (cascade), `POST /api/onboarding`, `PATCH /api/settings` e `GET /api/health`
+  (`db`/`redis`/`workerAlive`/`houseBudget`). Biblioteca e phrases são
   cursor-paginated com **busca/filtro/sort server-side** (`q`/`category`|`status`/
   `sort` nas rotas paginadas; keyset por sort — valor do sort + id no cursor,
   `lib/list-query.ts` — e contadores reais: `total` da biblioteca e `counts` por
@@ -166,16 +224,28 @@ Pacotes e seus pontos de entrada:
   caindo para o LLM house; o Player traduz o vídeo inteiro em background ao
   abrir — com backoff exponencial + circuit breaker no pump: após 3 falhas
   seguidas para de martelar o provider e o toggle de tradução sinaliza; um fetch
-  focal com sucesso rearma); fila lazy em `lib/queue.ts`. UI: Tailwind v4 (`app/globals.css`
-  importa `@fuchine/ui/theme-map.css` + `@source` dos componentes); `/login`
-  (composição `Login`) e `/` (Home/Library: `AppShell` + `VideoCard` sobre
-  `listVideos`, com gate de auth → `/login`). Demais telas a integrar.
+  focal com sucesso rearma); fila lazy em `lib/queue.ts`; `lib/prewarm.ts`
+  enfileira no primeiro open do player o pre-warm do resto do vídeo. UI:
+  Tailwind v4 (`app/globals.css` importa `@fuchine/ui/theme-map.css` + `@source`
+  dos componentes). Telas integradas com dados reais: `/login`, `/onboarding`,
+  `/` (dashboard: revisões do dia, metas, "Continue watching"), `/library`,
+  `/import` (cola URL → bridge da extensão), `/videos/[id]` (player),
+  `/review` + `/summary` (sessão FSRS e resumo), `/phrases`, `/dictionary`,
+  `/albums`, `/stats`, `/settings`, `/extension` e `/kana`, mais
+  `error`/`global-error`/`not-found`. E2E em `apps/web/scripts/e2e-*.ts`
+  (runner `e2e-all.ts`; `e2e-restore-verify.ts` é o verificador manual do
+  ensaio de restore).
 - `apps/worker` — Worker BullMQ + pipeline de import. Enriquece as legendas
-  enviadas pela extensão: camada 0 (`analyzeLine` → tokens + dicionário).
-  Pós-import, enfileira **pre-warm de explicações** (fila `explain`): gera a
-  camada 2 do vídeo inteiro em background via provider house
+  enviadas pela extensão: camada 0 (`analyzeLines` em lote → tokens +
+  dicionário). Jobs com 3 tentativas e backoff exponencial (`@fuchine/jobs`);
+  no boot, `reconcileStuckImports` re-enfileira vídeos presos em `processing`;
+  a causa de falha vai para `videos.status_reason`. Pós-import, enfileira
+  **pre-warm de explicações** (fila `explain`): gera a camada 2 em background
+  via provider house — as primeiras `PREWARM_MAX_LINES` (default 150) no import,
+  o resto quando o player abre pela primeira vez (`scope: "full"`)
   (`prewarmVideoExplanations` em `@fuchine/llm` — cache-first, idempotente,
-  pool interno de 2; pulado se o provider for `echo`). O summary do job inclui
+  pool interno de 2; pulado se o provider for `echo` ou se o teto da casa
+  estourou). O summary do job inclui
   o **spend cumulativo do vídeo** (`getVideoExplainSpend`: soma
   `in_tokens`/`out_tokens`/calls de `llm_usage`, fn `explainLine`) e o worker
   o loga junto de generated/cached/failed. `backfill:explain`
@@ -188,24 +258,39 @@ Pacotes e seus pontos de entrada:
   próprio JMdict no seed (`mapper.ts` `nfRankFromTags` — bandas de 500,
   license-clean, sem lista externa); uma lista TSV opcional ainda sobrepõe se
   fornecida. O banco de dev precisa re-rodar o `seed` + `backfill:level` para
-  popular os ranks. Fetch server-side é só fallback (gated).
+  popular os ranks. Outros CLIs do worker: `rotate:key`, `invite`, `usage`.
+- `packages/jobs` — nomes das filas (`import`, `explain`), tipos dos jobs,
+  conexão Redis e `defaultJobOptions` (retry/backoff).
+- `packages/ui` — componentes React + Tailwind v4 documentados no Storybook
+  (`AppShell`, `VideoCard`, `Player`, `Login`, …); `src/lib/errors.ts` traduz
+  os códigos de erro do servidor (`house_budget`, `byok_required`) em texto de UI.
+- `extension/` — MV3 sem build (versão em `manifest.json`, hoje 0.0.7). A
+  ingestão primária: o spike de legendas (`tools/spike/`, em GitHub Actions)
+  provou que o conteúdo do `timedtext` é **gated** fora de uma sessão de browser
+  (exige PO token), então `inject.js` (mundo MAIN) intercepta a legenda que o
+  próprio player baixa — validado em browser real (55 linhas de uma faixa JP
+  manual; re-fetch pelo servidor deu 0 bytes). Dois caminhos: popup no YouTube
+  e bridge in-app (`bridge.js` + `background.js`: o app em `/import` pede, a
+  extensão abre a aba, liga o CC, captura, importa e responde). Instância
+  configurável no popup, permissão de origin em runtime. Falta: rodar contra
+  uma instância https ao vivo, token de API (T2.11), WXT + Web Store (T2.10).
+  Fetch server-side (T0.8) segue só como fallback.
 
-`docker-compose.yml` sobe Postgres + Redis. Comandos: `pnpm dev`,
-`pnpm typecheck`, `pnpm test` (turbo `test` — roda os testes de todos os pacotes;
-o CI usa este, não só o web), `pnpm db:generate`, `pnpm db:migrate`.
+**Operação.** `docker-compose.yml` sobe `postgres` e `redis` (sem porta no
+host, senhas por env), `migrate`, `web`, `worker`, `caddy` (TLS automático com
+`SITE_ADDRESS`, `Caddyfile`) e, no profile `backup`, `db-backup`
+(`scripts/pg-backup.sh`; restore com `scripts/pg-restore.sh`, ensaiado em
+2026-07-20). Imagens em `apps/web/Dockerfile` e `apps/worker/Dockerfile` (ao
+atualizar o repo, `docker compose up -d --build`). `TZ` fixa por instância,
+igual em web e worker (define o "hoje" dos streaks). Runbook em
+`docs/DEPLOY_CHECKLIST.md`.
 
-Progresso no roadmap: **T0.1–T0.7 e T0.9 prontos**. O spike de legendas
-(`tools/spike/`, automatizado em GitHub Actions) deu veredito **server-side
-gated** em IP de datacenter e residencial: os metadados da legenda aparecem mas
-o conteúdo (timedtext) exige sessão de browser/PO token. **Decisão: a extensão
-de browser é a ingestão primária** (sobe da F2 para a F0); ela captura a legenda
-no contexto autenticado do usuário e POSTa em `/api/import`. Fetch server-side
-fica como fallback.
+Comandos: `pnpm dev`, `pnpm typecheck`, `pnpm test` (turbo `test` — roda os
+testes de todos os pacotes; o CI usa este, não só o web), `pnpm build`,
+`pnpm db:generate`, `pnpm db:migrate`; E2E com
+`pnpm --filter @fuchine/web e2e:run` (precisa de Postgres).
 
-T0.7 (API de import) está pronto e testado E2E (validação, dedup/cache, fila,
-worker enriquecendo tokens+tradução). A **extensão** (`extension/`, MV3 sem
-build) está **validada em browser real**: re-buscar a legenda pelo servidor é
-gated (0 bytes), mas interceptar a requisição do próprio player (mundo MAIN,
-`inject.js`) capturou 55 linhas de uma faixa JP manual. Ela POSTa em
-`/api/import`. Falta o round-trip ao vivo (app rodando localmente) e a migração
-para WXT (F2). Próximo: UI de estudo (F1). T0.8 (fetch server-side) é fallback.
+**Lacunas conhecidas** (todas na fila do roadmap): sem `DELETE /api/cards/:id`
+nem ESLint no CI (T2.2); sem limite de tamanho de requisição nem
+`frame-ancestors` (T2.5); sem release/tag/imagem publicada (T2.9); sem admin
+nem denúncia de conteúdo, ver `backlog/catalog-visibility-decision.md` (T2.13).
