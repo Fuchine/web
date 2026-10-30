@@ -182,6 +182,8 @@ export interface FsrsService {
   replayMemory(history: readonly ReviewHistoryItem[]): MemoryState;
   /** Base interval in days the model gives a learned card at `retention` (workload estimate). */
   intervalDays(current: CardState, retention: number): number | null;
+  /** Probability of recall at `at` (0–1); null for a new card. */
+  retrievability(current: CardState, at: Date): number | null;
 }
 
 const SCHEDULER_OPTIONS = { enableFuzz: true } as const;
@@ -310,6 +312,19 @@ class Service implements FsrsService {
     return this.s7.model.nextInterval(
       { stability: current.stability, stabilityFast: current.stabilityFast, difficulty: current.difficulty },
       retention,
+    );
+  }
+
+  retrievability(current: CardState, at: Date): number | null {
+    if (current.state === 0 || current.stability <= 0 || !current.lastReview) return null;
+    const t = elapsedSince(current.lastReview, at);
+    if (current.model === "fsrs-5") {
+      return this.s5.model.forgettingCurve({ stability: current.stability, difficulty: current.difficulty }, t);
+    }
+    if (current.stabilityFast == null) return null;
+    return this.s7.model.forgettingCurve(
+      { stability: current.stability, stabilityFast: current.stabilityFast, difficulty: current.difficulty },
+      t,
     );
   }
 }

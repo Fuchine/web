@@ -177,6 +177,18 @@ describe("cards created under the old (ts-fsrs v4 / FSRS-5) state shape", () => 
   });
 });
 
+describe("retrievability", () => {
+  it("decays with time and is ~desired retention at the due date", async () => {
+    const { fsrs, card } = await walk("card-r", [3, 3, 3]);
+    const atDue = fsrs.retrievability(card, card.due)!;
+    const later = fsrs.retrievability(card, new Date(card.due.getTime() + 30 * DAY))!;
+    expect(atDue).toBeGreaterThan(0.8);
+    expect(atDue).toBeLessThan(0.97);
+    expect(later).toBeLessThan(atDue);
+    expect(fsrs.retrievability(newCardState(T0), T0)).toBeNull();
+  });
+});
+
 describe("workload approximation", () => {
   it("fewer reviews per day at lower retention", async () => {
     const cards: CardState[] = [];

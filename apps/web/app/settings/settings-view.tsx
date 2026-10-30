@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { signOut } from "next-auth/react";
 import { Button } from "@fuchine/ui";
 import { DEFAULT_NEW_CARDS_PER_DAY } from "@/lib/srs-defaults";
+import { FsrsRows } from "./fsrs-section";
 
 /** Starting values when the user turns on an optional limit. */
 const INITIAL_MAX_REVIEWS = 200;
@@ -355,7 +356,6 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
         <Row
           title="Review time budget"
           desc="Minutes a day you want to spend reviewing. The home screen warns when tomorrow's estimate goes over."
-          last
         >
           <OptionalStepper
             value={reviewMinutesPerDay}
@@ -372,6 +372,7 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
             }}
           />
         </Row>
+        <FsrsRows />
       </Group>
 
       {/* Data */}
