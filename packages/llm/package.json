@@ -10,7 +10,9 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval:explain": "node --experimental-transform-types --no-warnings --import ./scripts/ts-register.mjs eval/explain.ts",
+    "prompt:lock": "node --experimental-transform-types --no-warnings --import ./scripts/ts-register.mjs scripts/prompt-lock.ts"
   },
   "dependencies": {
     "@fuchine/db": "workspace:*",
