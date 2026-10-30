@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildDeckTsv, clipUrl, type DeckCard } from "./export";
+import { buildDeckTsv, cell, clipUrl, type DeckCard } from "./export";
 
 describe("clipUrl", () => {
   it("builds a YouTube deep link with a whole-second timestamp", () => {
@@ -47,6 +47,22 @@ describe("buildDeckTsv", () => {
     // notes is the 3rd column and must contain no raw tab/newline
     expect(row[2]).toBe("line1<br>line2 with tab");
     expect(row).toHaveLength(4);
+  });
+
+  it("HTML-escapes every text field (the deck is #html:true)", () => {
+    const evil = `<img src=x onerror="alert(1)">`;
+    const out = buildDeckTsv([{ ...card, text: evil, translation: `a & b`, notes: `"<b>"\nx` }]);
+    const row = out.trimEnd().split("\n").pop()!.split("\t");
+    expect(row[0]).toBe("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+    expect(row[1]).toBe("a &amp; b");
+    // Newlines still become a real <br> (added after escaping).
+    expect(row[2]).toBe("&quot;&lt;b&gt;&quot;<br>x");
+    expect(out).not.toContain("<img");
+  });
+
+  it("cell() escapes & < > \" and keeps <br> for newlines", () => {
+    expect(cell(`<script>&"\r\nok`)).toBe("&lt;script&gt;&amp;&quot;<br>ok");
+    expect(cell(null)).toBe("");
   });
 
   it("handles null translation and an empty deck", () => {
