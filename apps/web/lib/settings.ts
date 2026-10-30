@@ -21,10 +21,30 @@ const GOAL_LIMITS: Record<keyof DailyGoals, number> = {
   watchMinutesPerDay: 1440,
 };
 
+/** A partial goals update: a number sets the goal, null clears it. */
+export type DailyGoalsPatch = { [K in keyof DailyGoals]?: number | null };
+
+/** Merge a goals patch over the stored goals; null fields are removed. Pure. */
+export function mergeDailyGoals(
+  current: DailyGoals | null | undefined,
+  patch: DailyGoalsPatch,
+): DailyGoals {
+  const out: DailyGoals = { ...current };
+  for (const key of Object.keys(patch) as (keyof DailyGoals)[]) {
+    const v = patch[key];
+    if (v === null) delete out[key];
+    else if (v !== undefined) out[key] = v;
+  }
+  return out;
+}
+
 export type ParsedSettings = {
   llmProvider?: (typeof ALLOWED_PROVIDERS)[number];
   explanationLanguage?: (typeof ALLOWED_LANGUAGES)[number];
-  dailyGoals?: DailyGoals | null; // null clears; undefined leaves untouched
+  // null clears all goals; undefined leaves them untouched. Inside the patch a
+  // field set to null clears just that goal (back to its default: "use the
+  // default" for newCardsPerDay, "no limit"/"no budget" for the others).
+  dailyGoals?: DailyGoalsPatch | null;
   keyAction: "set" | "remove" | "keep";
   apiKey?: string; // present iff keyAction === "set"
 };
@@ -62,10 +82,14 @@ export function parseSettingsInput(body: unknown): ParseResult {
       return { ok: false, error: "dailyGoals must be an object or null" };
     } else {
       const raw = b.dailyGoals as Record<string, unknown>;
-      const goals: DailyGoals = {};
+      const goals: DailyGoalsPatch = {};
       for (const key of Object.keys(GOAL_LIMITS) as (keyof DailyGoals)[]) {
         const v = raw[key];
         if (v === undefined) continue;
+        if (v === null) {
+          goals[key] = null;
+          continue;
+        }
         if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > GOAL_LIMITS[key]) {
           return { ok: false, error: `${key} must be an integer between 1 and ${GOAL_LIMITS[key]}` };
         }
@@ -109,7 +133,7 @@ export async function updateSettings(
         .from(userSettings)
         .where(eq(userSettings.userId, userId))
         .limit(1);
-      set.dailyGoals = { ...current?.dailyGoals, ...v.dailyGoals };
+      set.dailyGoals = mergeDailyGoals(current?.dailyGoals, v.dailyGoals);
     }
   }
 
