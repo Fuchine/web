@@ -8,6 +8,13 @@ export { JaDictionary, groupHitsByLemma } from "./ja/dictionary";
 export { kataToHira, hiraToRomaji } from "./ja/kana";
 export { getTokenizer, getDictionary } from "./registry";
 export {
+  isCoverageToken,
+  countCoverageWords,
+  JA_EXCLUDED_POS,
+  JA_EXCLUDED_POS_DETAIL,
+  JA_EXCLUDED_ENTRY_POS,
+} from "./coverage";
+export {
   resolveWordEntries,
   analyzeLine,
   analyzeLines,
