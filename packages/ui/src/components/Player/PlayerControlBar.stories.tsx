@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
 import { PlayerControlBar, RATES, type PlaybackRate } from "./PlayerControlBar";
+import { LISTENING_MODES, nextInCycle, type ListeningMode } from "../../lib/listening";
 
 function fmt(ms: number): string {
   const total = Math.floor(ms / 1000);
@@ -9,12 +10,16 @@ function fmt(ms: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-function Demo({ initialPlaying = false, initialRate = 1.0 as PlaybackRate, loop = false, translation = true }: {
+function Demo({ initialPlaying = false, initialRate = 1.0 as PlaybackRate, loop = false, translation = true, mode = "normal", japanese = true }: {
   initialPlaying?: boolean;
   initialRate?: PlaybackRate;
   loop?: boolean;
   translation?: boolean;
+  mode?: ListeningMode;
+  japanese?: boolean;
 }) {
+  const [listeningMode, setMode] = useState<ListeningMode>(mode);
+  const [showJa, setShowJa] = useState(japanese);
   const [playing, setPlaying] = useState(initialPlaying);
   const [rate, setRate] = useState<PlaybackRate>(initialRate);
   const [loopLine, setLoop] = useState(loop);
@@ -37,6 +42,10 @@ function Demo({ initialPlaying = false, initialRate = 1.0 as PlaybackRate, loop 
         onToggleLoop={() => setLoop((l) => !l)}
         onToggleTranslation={() => setShowTr((t) => !t)}
         onToggleRomaji={() => setShowRm((r) => !r)}
+        listeningMode={listeningMode}
+        onCycleListeningMode={() => setMode((m) => nextInCycle(LISTENING_MODES, m))}
+        showJapanese={showJa}
+        onToggleJapanese={() => setShowJa((v) => !v)}
         onCycleRate={() => {
           const i = RATES.indexOf(rate);
           setRate(RATES[(i + 1) % RATES.length]!);
@@ -57,6 +66,8 @@ type Story = StoryObj<typeof PlayerControlBar>;
 export const Default: Story = { render: () => <Demo /> };
 export const Playing: Story = { render: () => <Demo initialPlaying /> };
 export const LoopAndTranslationOn: Story = { render: () => <Demo loop translation initialPlaying /> };
+/** Primed listening selected, Japanese subtitles hidden. */
+export const PrimedJapaneseHidden: Story = { render: () => <Demo mode="primed" japanese={false} initialPlaying /> };
 export const Dark: Story = {
   render: () => (
     <div data-theme="dark">

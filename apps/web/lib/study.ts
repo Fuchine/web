@@ -11,6 +11,7 @@ import {
 } from "@fuchine/db";
 import { decodeListCursor, encodeListCursor, escapeLike } from "./list-query";
 import { LEVEL } from "./library";
+import { knownWordSql, wordStatusFromStats, type WordStatus } from "./word-status";
 
 // Nulls sort last: videos without a duration on "shortest first", without a
 // level estimate on "level". The level bands mirror LEVEL in lib/library.ts.
@@ -153,9 +154,7 @@ export async function getLatestVideo(db: Database) {
   return row ?? null;
 }
 
-// "Known" heuristic v1: the user answered a review containing the word
-// correctly at least once, or has seen it in this many subtitle lines.
-const KNOWN_MIN_VIEWS = 5;
+// "Known" = the heuristic in ./word-status (shared with the player coloring).
 // Below this many distinct dictionary words the percentage is noise.
 const COMPREHENSION_MIN_WORDS = 10;
 
@@ -179,7 +178,7 @@ export async function getComprehensionByVideo(
     .select({
       videoId: wordExamples.videoId,
       total: sql<number>`count(distinct ${wordExamples.wordEntryId})::int`,
-      known: sql<number>`count(distinct ${wordExamples.wordEntryId}) filter (where ${userWordStats.reviewsOk} >= 1 or ${userWordStats.views} >= ${KNOWN_MIN_VIEWS})::int`,
+      known: sql<number>`count(distinct ${wordExamples.wordEntryId}) filter (where ${knownWordSql})::int`,
     })
     .from(wordExamples)
     .leftJoin(
@@ -199,6 +198,36 @@ export async function getComprehensionByVideo(
     }
   }
   return map;
+}
+
+/**
+ * Player known-word signals (T3.8): status per word for one user, over the
+ * word ids of the video being opened (one query on the user_word_stats PK).
+ * Only "seen"/"known" words are returned — absent means "unknown" — so the
+ * payload stays small for a beginner. Status rule: wordStatusFromStats.
+ */
+export async function getWordStatuses(
+  db: Database,
+  userId: string,
+  wordEntryIds: readonly string[],
+): Promise<Record<string, Exclude<WordStatus, "unknown">>> {
+  const ids = [...new Set(wordEntryIds)];
+  if (ids.length === 0) return {};
+  const rows = await db
+    .select({
+      wordEntryId: userWordStats.wordEntryId,
+      views: userWordStats.views,
+      clicks: userWordStats.clicks,
+      reviewsOk: userWordStats.reviewsOk,
+    })
+    .from(userWordStats)
+    .where(and(eq(userWordStats.userId, userId), inArray(userWordStats.wordEntryId, ids)));
+  const out: Record<string, Exclude<WordStatus, "unknown">> = {};
+  for (const r of rows) {
+    const status = wordStatusFromStats(r);
+    if (status !== "unknown") out[r.wordEntryId] = status;
+  }
+  return out;
 }
 
 /** Player payload: the video plus its ordered subtitle lines (tokens included). */

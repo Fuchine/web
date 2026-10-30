@@ -397,3 +397,67 @@
 .player-page .focal-btn:hover { color: var(--text); border-color: var(--border-strong); }
 .player-page .focal-btn.on { color: var(--link); background: var(--accent-soft-2); border-color: var(--accent-line); }
 .player-page .focal-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ---- Listening modes + known-word signals (T3.8) ---- */
+/* Hide JP / primed listening: the line keeps its space, masked. */
+.player-page .focal-ja-wrap { position: relative; }
+.player-page .focal-subs-ja.is-masked { visibility: hidden; }
+.player-page .focal-mask {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-size: 13px; font-weight: 550; letter-spacing: 0.04em;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+.player-page .focal-mask::before {
+  content: ''; position: absolute; left: 18%; right: 18%; top: 50%;
+  height: 3px; border-radius: 2px; background: var(--accent-line);
+  transform: translateY(14px);
+}
+.player-page .focal-phase {
+  align-self: center;
+  margin-bottom: 14px; padding: 3px 10px;
+  border-radius: 999px; border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  font-size: 12px; font-weight: 550; letter-spacing: 0.02em;
+  color: var(--link);
+}
+.player-page .c-mode { min-width: 74px; }
+.player-page .c-mode.on { color: var(--link); background: var(--accent-soft-2); border-color: var(--accent-line); }
+
+/* Known-word colors: subtle, on the word bar (focal) and underline (transcript). */
+.player-page .word.k-unknown::after { background: var(--link); }
+.player-page .word.k-seen::after { background: var(--caption-hi); }
+.player-page .word.k-known::after { background: var(--ok); }
+.player-page .word.active::after { background: var(--accent); }
+.player-page .tr-ja .k-unknown,
+.player-page .tr-ja .k-seen,
+.player-page .tr-ja .k-known {
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+.player-page .tr-ja .k-unknown { text-decoration-color: var(--link); }
+.player-page .tr-ja .k-seen { text-decoration-color: var(--caption-hi); }
+.player-page .tr-ja .k-known { text-decoration-color: var(--ok); }
+.player-page .tr-tool.partial { background: var(--accent-soft); }
+
+/* Legend tooltip on the coloring toggle. */
+.player-page .kw-toggle { position: relative; display: inline-flex; }
+.player-page .kw-legend {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 20;
+  display: none; flex-direction: column; gap: 6px;
+  min-width: 220px; padding: 10px 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 4px 24px -8px rgba(33,30,26,0.10), 0 1px 3px rgba(33,30,26,0.04);
+  font-size: 12px; color: var(--text-muted); text-align: left;
+}
+.player-page .kw-toggle:hover .kw-legend,
+.player-page .kw-toggle:focus-within .kw-legend { display: flex; }
+.player-page .kw-legend-title { font-weight: 600; color: var(--text); }
+.player-page .kw-legend-row { display: flex; align-items: center; gap: 8px; }
+.player-page .kw-swatch { width: 18px; height: 3px; border-radius: 2px; flex: none; }
+.player-page .kw-swatch.k-unknown { background: var(--link); }
+.player-page .kw-swatch.k-seen { background: var(--caption-hi); }
+.player-page .kw-swatch.k-known { background: var(--ok); }
+.player-page .tr-masked { filter: blur(6px); user-select: none; transition: filter 0.2s; }

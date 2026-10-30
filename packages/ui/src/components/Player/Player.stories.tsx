@@ -40,6 +40,11 @@ export const Rest: Story = {
   },
 };
 
+/** Known-word signals: 毎朝/います known, 歩いて seen (line c). */
+export const KnownWords: Story = {
+  args: { ...Rest.args, initialLineId: "c", wordStatuses: { w1: "known", w3: "seen", w4: "known" } },
+};
+
 export const Dark: Story = {
   args: Rest.args,
   decorators: [

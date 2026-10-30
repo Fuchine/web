@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react";
 import { cn } from "../../lib/cn";
+import { statusOf, type PrimedPhase, type WordStatus } from "../../lib/listening";
 
 const ROMAJI_MAP: Record<string, string> = {
   あ: "a", い: "i", う: "u", え: "e", お: "o",
@@ -65,6 +66,13 @@ export interface PlayerFocalSubtitlesProps {
   showTranslation: boolean;
   showFurigana: boolean;
   showRomaji: boolean;
+  /** Hide the Japanese line (Hide JP toggle, or a primed-listening phase). Default true. */
+  showJapanese?: boolean;
+  /** Primed-listening phase, for the small phase cue (idle/absent ⇒ none). */
+  primedPhase?: PrimedPhase;
+  /** Per-word knowledge status (absent ⇒ unknown). Colors tokens when colorKnown. */
+  wordStatuses?: Readonly<Record<string, WordStatus>>;
+  colorKnown?: boolean;
   activeWordId: string | null;
   onWordClick?: (wordId: string, surface: string) => void;
   onWordRef?: (wordId: string, el: HTMLElement | null) => void;
@@ -99,10 +107,17 @@ function PlusIcon() {
   );
 }
 
+const PHASE_CUE: Partial<Record<PrimedPhase, string>> = {
+  preview: "Primed · read the meaning",
+  listen: "Primed · listen",
+  reveal: "Primed · check what you heard",
+};
+
 function renderToken(
   t: FocalToken,
   i: number,
   showRomaji: boolean,
+  status: WordStatus | null,
   activeWordId: string | null,
   onWordClick?: (wordId: string, surface: string) => void,
   onWordRef?: (wordId: string, el: HTMLElement | null) => void,
@@ -117,6 +132,7 @@ function renderToken(
   if (isPunct) wordClass += " punct";
   if (isParticle) wordClass += " particle";
   if (isActive) wordClass += " active";
+  if (status && isClickable) wordClass += ` k-${status}`;
 
   if (isPunct) {
     return (
@@ -155,6 +171,10 @@ export function PlayerFocalSubtitles({
   showTranslation,
   showFurigana,
   showRomaji,
+  showJapanese = true,
+  primedPhase,
+  wordStatuses,
+  colorKnown = false,
   activeWordId,
   onWordClick,
   onWordRef,
@@ -163,6 +183,7 @@ export function PlayerFocalSubtitles({
   isMining = false,
   className,
 }: PlayerFocalSubtitlesProps) {
+  const cue = primedPhase ? PHASE_CUE[primedPhase] : undefined;
   const isSfx = line.textOriginal.trimStart().startsWith("♪");
   const tokens = line.tokens.length > 0
     ? line.tokens
@@ -177,9 +198,19 @@ export function PlayerFocalSubtitles({
 
   return (
     <div className={cn("focal-subs", className)}>
-      <div className={cn("focal-subs-ja jp", showRomaji && "has-romaji")} aria-label="Original subtitle">
-        {isSfx && <span className="sfx-mark" aria-hidden="true">♪</span>}
-        {tokens.map((t, i) => renderToken(t, i, showRomaji, activeWordId, onWordClick, onWordRef))}
+      {cue && <div className={cn("focal-phase", `is-${primedPhase}`)}>{cue}</div>}
+      <div className="focal-ja-wrap">
+        <div
+          className={cn("focal-subs-ja jp", showRomaji && "has-romaji", !showJapanese && "is-masked")}
+          aria-label="Original subtitle"
+          aria-hidden={showJapanese ? undefined : true}
+        >
+          {isSfx && <span className="sfx-mark" aria-hidden="true">♪</span>}
+          {tokens.map((t, i) =>
+            renderToken(t, i, showRomaji, colorKnown ? statusOf(wordStatuses, t.wordEntryId) : null, activeWordId, onWordClick, onWordRef),
+          )}
+        </div>
+        {!showJapanese && <div className="focal-mask">Japanese hidden</div>}
       </div>
       {showTranslation && line.textTranslation && (
         <div className="focal-subs-en">{line.textTranslation}</div>
