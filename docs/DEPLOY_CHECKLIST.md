@@ -108,6 +108,9 @@ correspondentes foram removidos ao fechar (PR #21); o histórico fica no git.
 3. `pnpm --filter @fuchine/db seed:jmdict [frequency.tsv]` — ~298k entries;
    rodar **antes** de abrir tráfego (o dicionário vazio parece bug —
    histórico: assim nasceu o falso "#9" do backlog)
+   - em seguida `pnpm --filter @fuchine/db seed:pitch` — pitch accent do
+     Kanjium (~124k linhas em `word_pitch`, idempotente); anotar o
+     "word_entries with pitch: X/Y" que o seed imprime (taxa de match real)
 4. `pnpm --filter @fuchine/worker backfill:level` (se houver vídeos migrados)
 5. Subir web + worker; conferir logs de boot limpos
 6. Congelar um **backup imediato pós-seed** (restore barato do estado zero)

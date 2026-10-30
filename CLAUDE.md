@@ -44,7 +44,7 @@ UI é em inglês.
 - `screens.md` — guia para gerar telas (handoff para IA): sistema visual,
   fluxo component-first, tokens/utilitários, componentes prontos em
   `@fuchine/ui` e os shapes de API por tela.
-- `packages/db/src/schema.ts` — schema Drizzle: 21 tabelas (18 do app + 3 do
+- `packages/db/src/schema.ts` — schema Drizzle: 22 tabelas (19 do app + 3 do
   adapter Auth.js).
 
 ## Decisões que NÃO podem ser violadas
@@ -148,9 +148,9 @@ lint, test, build), `e2e.yml` (migrate + suítes E2E contra Postgres real), `dco
 
 Pacotes e seus pontos de entrada:
 
-- `packages/db` — schema Drizzle com 21 tabelas: 18 do app (`users`,
+- `packages/db` — schema Drizzle com 22 tabelas: 19 do app (`users`,
   `user_settings`, `invites`, `videos`, `subtitle_lines`,
-  `subtitle_translation_chunks`, `word_entries`, `word_examples`,
+  `subtitle_translation_chunks`, `word_entries`, `word_pitch`, `word_examples`,
   `sentence_cards`, `review_logs`, `ai_explanations`, `albums`, `album_videos`,
   `user_video_flags`, `user_word_stats`, `saved_words`, `user_daily_stats`,
   `llm_usage`) + 3 do adapter Auth.js (`accounts`, `sessions`,

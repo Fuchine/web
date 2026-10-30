@@ -43,5 +43,22 @@ pnpm --filter @fuchine/db seed:jmdict freq.tsv   # with an optional frequency li
 The seed is **idempotent**: it upserts on `(language, lemma, reading)`, so
 re-running refreshes definitions without duplicating rows or touching user data.
 
+## Pitch accent (Kanjium)
+
+Populates `word_pitch` (T3.2) from [Kanjium](https://github.com/mifunetoshiro/kanjium)'s
+`accents.txt` (CC BY-SA 4.0). Run after the JMdict seed (order doesn't matter
+for correctness; the match report is only meaningful once `word_entries` is
+seeded):
+
+```bash
+pnpm --filter @fuchine/db seed:pitch                 # downloads a pinned revision into seeds/data/
+pnpm --filter @fuchine/db seed:pitch my-accents.txt  # a local file
+pnpm --filter @fuchine/db seed:pitch:fixture         # the committed 15-line excerpt
+```
+
+Idempotent (upserts on `(language, lemma, reading, source)`); prints how many
+`word_entries` have pitch. `KANJIUM_REF` overrides the pinned commit.
+
 > Attribution: JMdict/EDICT is the property of the [EDRDG](https://www.edrdg.org/)
-> and used under licence. Record the licence in `NOTICE` at release (T1.10).
+> and used under licence; Kanjium is by Uros O., CC BY-SA 4.0. Both are
+> recorded in `NOTICE`.
