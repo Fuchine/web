@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Player, type PlayerProps } from "@fuchine/ui";
+import { Player, UserFacingError, type PlayerProps } from "@fuchine/ui";
 import type { Explanation } from "@fuchine/db";
 
 export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "onFetchChunk" | "onFetchExplanation" | "onSaveWord" | "onProgress">) {
@@ -55,7 +55,15 @@ export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "o
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ force: opts?.force === true }),
       });
-      if (!res.ok) throw new Error(`explain failed: ${res.status}`);
+      if (!res.ok) {
+        // Instance-wide refusals (daily house budget spent, no BYOK key) carry
+        // a message meant for the user; anything else stays generic.
+        const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+        if ((body.code === "house_budget" || body.code === "byok_required") && body.error) {
+          throw new UserFacingError(body.error, true);
+        }
+        throw new Error(`explain failed: ${res.status}`);
+      }
       const data = (await res.json()) as { explanation: Explanation };
       return data.explanation;
     },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { UserFacingError } from "../../lib/errors";
 import { cn } from "../../lib/cn";
 import { pickPrefetchTarget } from "../../lib/prefetch";
 import { AppShell } from "../AppShell/AppShell";
@@ -159,6 +160,9 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   // Lines whose explanation failed. Not retried automatically (that would spin
   // the prefetch pump); a manual regenerate clears the mark. Resets on reload.
   const failedExplainRef = useRef<Set<string>>(new Set());
+  // Set when the server says explanations are blocked for every line (daily
+  // budget spent, no key): stop asking until a manual regenerate (T2.4).
+  const explainBlockedRef = useRef<UserFacingError | null>(null);
   const prefetchRunningRef = useRef(false);
   const explanationsRef = useRef(explanations);
   explanationsRef.current = explanations;
@@ -498,6 +502,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       if (cached) return Promise.resolve(cached);
       // A line that already failed is not retried automatically — re-firing
       // would spin the prefetch pump. Manual regenerate clears the mark.
+      if (explainBlockedRef.current) return Promise.reject(explainBlockedRef.current);
       if (failedExplainRef.current.has(lineId)) {
         return Promise.reject(new Error("explanation previously failed"));
       }
@@ -516,6 +521,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
         .catch((err) => {
           // Latch the failure so the pump and focal effect stop re-firing it.
           failedExplainRef.current.add(lineId);
+          if (err instanceof UserFacingError && err.blocking) explainBlockedRef.current = err;
           throw err;
         })
         .finally(() => {
@@ -537,8 +543,10 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       setExplainError(null);
       try {
         await p;
-      } catch {
-        setExplainError("Could not generate an explanation right now.");
+      } catch (err) {
+        setExplainError(
+          err instanceof UserFacingError ? err.message : "Could not generate an explanation right now.",
+        );
       } finally {
         setExplainLoading(false);
       }
@@ -552,13 +560,16 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       if (!onFetchExplanation) return;
       // Manual retry: clear any prior failure latch so it can be re-attempted.
       failedExplainRef.current.delete(lineId);
+      explainBlockedRef.current = null;
       setExplainLoading(true);
       setExplainError(null);
       try {
         const ex = await onFetchExplanation(lineId, { force: true });
         setExplanations((prev) => new Map(prev).set(lineId, ex));
-      } catch {
-        setExplainError("Could not generate an explanation right now.");
+      } catch (err) {
+        setExplainError(
+          err instanceof UserFacingError ? err.message : "Could not generate an explanation right now.",
+        );
       } finally {
         setExplainLoading(false);
       }
