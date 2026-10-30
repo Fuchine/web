@@ -74,12 +74,26 @@ cp .env.example .env
 # Edit .env — at minimum:
 #   AUTH_SECRET, FUCHINE_ENCRYPTION_KEY   (openssl rand -base64 32 each)
 #   a sign-in method: AUTH_GOOGLE_ID/SECRET or EMAIL_SERVER
+#   AUTH_ALLOWED_EMAILS=you@example.com   (production is invite-only by default)
 #   SITE_ADDRESS=your.domain.com          (Caddy gets a Let's Encrypt cert)
 #   change the Postgres password in docker-compose.yml for a real deploy
 
 docker compose up -d --build            # migrate → web + worker → caddy
 docker compose run --rm migrate pnpm --filter @fuchine/db seed:jmdict   # one-time
 ```
+
+**Who can sign up.** A production instance is **invite-only by default**
+(`REGISTRATION=invite`): existing users, the addresses/domains in
+`AUTH_ALLOWED_EMAILS`/`AUTH_ALLOWED_DOMAINS`, and e-mails you invite. Every new
+account can spend your house LLM key, so keep public instances off `open`.
+
+```bash
+docker compose run --rm worker pnpm --filter @fuchine/worker invite add friend@example.com --days 14
+docker compose run --rm worker pnpm --filter @fuchine/worker invite list
+docker compose run --rm worker pnpm --filter @fuchine/worker invite revoke friend@example.com
+```
+
+Set `REGISTRATION=closed` to stop new sign-ups entirely (existing users keep working).
 
 The `migrate` service applies pending migrations automatically before web/worker
 boot. `web` publishes no host port — Caddy is the only ingress. Health:

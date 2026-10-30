@@ -34,6 +34,10 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
 - [ ] `LLM_PROVIDER`/`LLM_API_KEY` reais (echo em produção = IA silenciosamente
       desligada) · `MT_PROVIDER=deepl` se aplicável
 - [ ] `DEPLOYMENT_MODE=self-host`
+- [ ] `REGISTRATION` decidido (`invite` é o default de produção; nunca `open`
+      numa instância pública) e `AUTH_ALLOWED_EMAILS` com o seu e-mail — sem
+      isso ninguém cria a primeira conta. Convites:
+      `docker compose run --rm worker pnpm --filter @fuchine/worker invite add <email>`
 
 ## 3. Autenticação (as pegadinhas de produção)
 
@@ -77,6 +81,9 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
 ## 6. Smoke test — o loop inteiro, no domínio real
 
 - [ ] Login por **Google** e por **magic link** (recebido fora do spam)
+- [ ] Uma conta Google **fora** da allowlist e sem convite é recusada em
+      `/login` ("invite-only"), e um magic link para um e-mail não convidado
+      mostra "check your e-mail" **sem** enviar nada
 - [ ] Extensão apontada para `https://<domínio>` importa um vídeo real
       (🔒 exige [extension-hardcoded-origin.md](../backlog/extension-hardcoded-origin.md))
 - [ ] Import processa: status sai de Processing, tokens aparecem

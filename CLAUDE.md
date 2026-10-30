@@ -111,7 +111,14 @@ Pacotes e seus pontos de entrada:
   `user_settings`. `echo` segue para dev sem chave.
 - `apps/web` — Next.js (App Router). Auth.js (NextAuth v5) em `auth.ts`: Google
   OAuth + e-mail (magic link, opcional via SMTP), adapter Drizzle sobre as
-  tabelas próprias, sessões em banco, e `createUser` provisiona `user_settings`.
+  tabelas próprias, sessões em banco, e um `createUser` próprio
+  (`lib/auth-registration.ts`) consome o convite e provisiona `user_settings` na
+  mesma transação. **Registro controlado** (T2.3): `REGISTRATION=open|invite|closed`
+  (default `invite` em produção), allowlists `AUTH_ALLOWED_EMAILS`/
+  `AUTH_ALLOWED_DOMAINS`, convites vinculados a e-mail na tabela `invites` (CLI
+  `pnpm --filter @fuchine/worker invite add|list|revoke`); política pura em
+  `lib/registration.ts`; negação sem enumeração (magic link negado responde
+  igual ao sucesso, sem enviar). E2E: `e2e-registration.ts`.
   Rotas: `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
   estudo (F1, completa): `GET /api/videos` (biblioteca), `GET /api/videos/[id]`
   (payload do player), `POST /api/cards` (minerar, dedup), `GET
