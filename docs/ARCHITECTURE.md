@@ -168,7 +168,8 @@ Every step is idempotent: re-running a job does not duplicate data.
 | `ai_explanations` | **Layer-2 cache**, unique on `(subtitle_line_id, kind, explanation_language, prompt_version)`. |
 | `albums`, `album_videos` | User collections. |
 | `user_video_flags` | Per-user saved / hidden / not-interested flags on the shared catalog. |
-| `user_word_stats`, `saved_words`, `user_daily_stats` | Per-word stats, saved words, daily activity (streaks, charts). |
+| `video_word_counts` | Running-word frequency per video (T3.9): occurrences of each dictionary word over coverage tokens (no proper nouns, interjections, numerals, symbols). Written at import; the base of token-weighted coverage. |
+| `user_word_stats`, `saved_words`, `user_daily_stats` | Per-word stats (incl. the known-word tier signals: last lookup, last review outcome, first-review snapshot for calibration), saved words with the manual known/learning/new override, daily activity (streaks, charts). |
 | `llm_usage` | One row per LLM call: function, provider, model, tokens, latency, `key_source` (`house`/`byok`). Never the key or the content. |
 
 ## 7. AI layers and the shared cache
