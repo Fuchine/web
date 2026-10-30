@@ -36,6 +36,9 @@ export default function Error({
         >
           Try again
         </button>
+        {/* A full page load on purpose: it leaves the errored client tree
+            behind instead of soft-navigating inside it. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a className="err-btn" href="/">
           Back to library
         </a>

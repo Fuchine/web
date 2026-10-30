@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "bash scripts/e2e.sh",
@@ -30,11 +30,15 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@next/eslint-plugin-next": "^15.5.28",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/react": "^19.0.4",
     "@types/react-dom": "^19.0.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "tailwindcss": "^4.0.0",
     "tsx": "^4.19.2",
+    "typescript-eslint": "^8.72.1",
     "vitest": "^4.1.11"
   }
 }

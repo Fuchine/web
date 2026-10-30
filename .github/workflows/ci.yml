@@ -1,7 +1,7 @@
 name: CI
 
-# Fast checks with no database: typecheck the whole monorepo, run the unit
-# tests, and build the web app. Runs on every push to main and on PRs. The
+# Fast checks with no database: typecheck the whole monorepo, lint, run the
+# unit tests, and build the web app. Runs on every push to main and on PRs. The
 # Postgres-backed end-to-end suites live in e2e.yml.
 on:
   push:
@@ -27,6 +27,9 @@ jobs:
 
       - name: Typecheck (all packages)
         run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
 
       - name: Unit tests (all packages)
         run: pnpm test

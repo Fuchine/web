@@ -41,11 +41,6 @@ function dur(s: number | null): string | undefined {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
 }
 
-function hrs(s: number): string {
-  const h = s / 3600;
-  return h >= 10 ? h.toFixed(1) : h.toFixed(1);
-}
-
 const STATUS: Record<string, { variant: "neutral" | "warning" | "error"; label: string } | null> = {
   done: null,
   pending: { variant: "neutral", label: "Queued" },
@@ -685,7 +680,8 @@ export function LibraryView({
       const willSave = !saved.has(v.id);
       setSaved((s) => {
         const n = new Set(s);
-        willSave ? n.add(v.id) : n.delete(v.id);
+        if (willSave) n.add(v.id);
+        else n.delete(v.id);
         return n;
       });
       persistFlag(v.id, "saved", willSave);
