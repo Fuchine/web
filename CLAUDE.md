@@ -123,7 +123,11 @@ cores por status de palavra — regra única em `lib/word-status.ts`), T3.6 (fil
 = curado sem nota; "Rewatch ×2"; minerar com **M**; badge de revisão conta só o
 que a fila serve hoje), T3.11
 (modos de revisão Listen first / Cloze / Shadow sobre o clipe, gravação só em
-memória) e T3.12 (harness `pnpm --filter @fuchine/llm eval:explain`, gold set
+memória) T3.13 (PWA de revisão: `app/manifest.ts` abre em
+`/review`, service worker escrito à mão em `public/sw.js` — nunca cacheia
+`/api` nem HTML; bump manual de `VERSION` ao mudar —, layout de celular, wake
+lock, botão "Install app"; `htmlLimitedBots` no `next.config.ts` para o link do
+manifest ficar no `<head>`) e T3.12 (harness `pnpm --filter @fuchine/llm eval:explain`, gold set
 semente de 36 itens **não revisado**, trava `prompt-version.lock.json` que
 exige bump de `PROMPT_VERSION` ao mudar `prompts.ts`, rótulo "AI-generated ·
 prompt vN"). Próximo: T2.7 (deploy do mantenedor) e a onda 2 da Fase 3.
