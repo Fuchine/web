@@ -46,7 +46,12 @@ describe("buildReviewQueuePayload", () => {
       [row()],
       [{ id: "w1", reading: null, lemma: "猫", pos: null, definitions: [] }],
     );
-    expect(wordEntries.w1).toMatchObject({ reading: "", pos: "" });
+    expect(wordEntries.w1).toMatchObject({ reading: "", pos: "", frequencyRank: null });
+  });
+
+  it("carries the frequency rank so the cloze mode can blank the rarest word", () => {
+    const { wordEntries } = buildReviewQueuePayload([row()], [{ ...entry("w1"), frequencyRank: 3500 }]);
+    expect(wordEntries.w1!.frequencyRank).toBe(3500);
   });
 
   it("tolerates rows with null tokens", () => {

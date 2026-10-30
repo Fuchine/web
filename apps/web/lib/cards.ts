@@ -187,7 +187,10 @@ export async function getReviewQueue(db: Database, userId: string, limit = 20) {
   const entries =
     uniqueIds.length > 0
       ? await db
-          .select({ id: wordEntries.id, reading: wordEntries.reading, lemma: wordEntries.lemma, definitions: wordEntries.definitions, pos: wordEntries.pos })
+          .select({
+            id: wordEntries.id, reading: wordEntries.reading, lemma: wordEntries.lemma,
+            definitions: wordEntries.definitions, pos: wordEntries.pos, frequencyRank: wordEntries.frequencyRank,
+          })
           .from(wordEntries)
           .where(inArray(wordEntries.id, uniqueIds as string[]))
       : [];
@@ -195,7 +198,10 @@ export async function getReviewQueue(db: Database, userId: string, limit = 20) {
   return buildReviewQueuePayload(rows, entries);
 }
 
-export type WordEntryData = { reading: string; lemma: string; definitions: Definition[]; pos: string };
+// frequencyRank lets the cloze review mode (T3.11) blank the line's rarest word.
+export type WordEntryData = {
+  reading: string; lemma: string; definitions: Definition[]; pos: string; frequencyRank: number | null;
+};
 
 /** The joined sentence_cards ⋈ subtitle_lines ⋈ videos row (QUEUE_COLUMNS). */
 export type ReviewQueueRow = {
@@ -208,6 +214,7 @@ export type ReviewQueueRow = {
 
 export type WordEntryRow = {
   id: string; reading: string | null; lemma: string; definitions: Definition[]; pos: string | null;
+  frequencyRank?: number | null;
 };
 
 export type ReviewQueueCard = Omit<
@@ -238,7 +245,10 @@ export function buildReviewQueuePayload(
 ): ReviewQueuePayload {
   const wordEntries: Record<string, WordEntryData> = {};
   for (const e of entries) {
-    wordEntries[e.id] = { reading: e.reading ?? "", lemma: e.lemma, definitions: e.definitions, pos: e.pos ?? "" };
+    wordEntries[e.id] = {
+      reading: e.reading ?? "", lemma: e.lemma, definitions: e.definitions, pos: e.pos ?? "",
+      frequencyRank: e.frequencyRank ?? null,
+    };
   }
 
   const cards = rows.map((r): ReviewQueueCard => ({
