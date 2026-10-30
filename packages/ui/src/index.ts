@@ -55,6 +55,9 @@ export type { PlaybackRate, PlayerControlBarProps } from "./components/Player/Pl
 // T3.8 — listening modes + known-word signals
 export { PRIMED_PREVIEW_MS, PRIMED_REVEAL_MS } from "./lib/listening";
 export type { ListeningMode, FuriganaMode, WordStatus } from "./lib/listening";
+// T3.9 — token-weighted coverage + confidence band
+export { COVERAGE_ZONES, coverageZone, coverageTooltip, formatCoverage, formatCoverageBand } from "./lib/coverage";
+export type { CoverageInfo } from "./lib/coverage";
 
 // T1.4 — dict popup + T1.6 — sentence mining
 export { DictPopup } from "./components/DictPopup/DictPopup";

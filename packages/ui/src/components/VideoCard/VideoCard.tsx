@@ -1,5 +1,6 @@
 import { cn } from "../../lib/cn";
 import { Skeleton } from "../Skeleton/Skeleton";
+import { coverageTooltip, formatCoverageBand } from "../../lib/coverage";
 
 export interface VideoCardProps {
   title: string;
@@ -8,8 +9,13 @@ export interface VideoCardProps {
   durationLabel?: string;
   /** estimated level, shown as "LVL n" */
   level?: number;
-  /** 0–100 comprehension estimate */
+  /** 0–100 comprehension estimate (token-weighted coverage headline) */
   comprehension?: number;
+  /**
+   * Confidence band of the estimate (T3.9): confirmed-only … confirmed + likely.
+   * Shown as "93% (89–95)" with a tooltip explaining tiers and thresholds.
+   */
+  comprehensionBand?: { low: number; high: number; unique?: number };
   /** 0–100 watch progress; shows a bar on the thumbnail */
   progress?: number;
   thumbnailUrl?: string;
@@ -61,7 +67,7 @@ const DotsIcon = () => (
 
 /** A calm video tile: thumbnail, level, title, channel, comprehension. */
 export function VideoCard({
-  title, channel, durationLabel, level, comprehension, progress,
+  title, channel, durationLabel, level, comprehension, comprehensionBand, progress,
   thumbnailUrl, thumbnailLoading, tone = 1, comprehensionStyle = "ring", onPlay, onOverflow, className,
 }: VideoCardProps) {
   return (
@@ -81,7 +87,9 @@ export function VideoCard({
             <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" />
           ) : null}
           {level != null && (
-            <span className="absolute left-[7px] top-[7px] z-[1] rounded-md border border-white/15 bg-[rgba(12,20,38,0.55)] px-[7px] py-[2px] text-[10.5px] font-[600] tracking-[0.03em] text-[#EAF0FA] backdrop-blur-[2px]">
+            <span className="absolute left-[7px] top-[7px] z-[1] rounded-md border border-white/15 bg-[rgba(12,20,38,0.55)] px-[7px] py-[2px] text-[10.5px] font-[600] tracking-[0.03em] text-[#EAF0FA] backdrop-blur-[2px]"
+              title="Estimated level, from how common the video's words are"
+            >
               LVL {level}
             </span>
           )}
@@ -109,11 +117,19 @@ export function VideoCard({
       {(comprehension != null || onOverflow) && (
         <div className="mt-[11px] flex items-center gap-[10px]">
           {comprehension != null && (
-            <span className="inline-flex items-center gap-2">
+            <span
+              className="inline-flex items-center gap-2"
+              title={comprehensionBand ? coverageTooltip({ headline: comprehension, ...comprehensionBand }) : undefined}
+            >
               {comprehensionStyle === "ring" && <Ring pct={comprehension} />}
               <span className="text-[12px] tabular-nums text-muted">
                 {comprehensionStyle === "text" ? "Comprehension " : ""}
                 <b className="font-[600] text-fg">{comprehension}%</b>
+                {comprehensionBand && formatCoverageBand({ headline: comprehension, ...comprehensionBand }) && (
+                  <span className="ml-[4px] text-faint">
+                    ({formatCoverageBand({ headline: comprehension, ...comprehensionBand })})
+                  </span>
+                )}
               </span>
             </span>
           )}

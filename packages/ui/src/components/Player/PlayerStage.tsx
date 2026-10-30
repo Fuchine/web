@@ -64,6 +64,9 @@ export interface PlayerStageProps {
   onDictFix?: () => void;
   dictCorrected?: boolean;
   dictFixEditor?: ReactNode;
+  /** "Mark as unknown" (T3.9). */
+  onDictMarkUnknown?: () => void;
+  dictMarkedUnknown?: boolean;
   onDictExplain?: () => void;
   onDictSaveWord?: () => void;
   onDictClose?: () => void;
@@ -115,6 +118,8 @@ export function PlayerStage({
   onDictFix,
   dictCorrected,
   dictFixEditor,
+  onDictMarkUnknown,
+  dictMarkedUnknown,
   onDictExplain,
   onDictSaveWord,
   onDictClose,
@@ -175,6 +180,8 @@ export function PlayerStage({
           onSaveWord={onDictSaveWord ?? (() => {})}
           onClose={onDictClose ?? (() => {})}
           onFix={onDictFix}
+          onMarkUnknown={onDictMarkUnknown}
+          markedUnknown={dictMarkedUnknown}
           corrected={dictCorrected}
           fixEditor={dictFixEditor}
         />

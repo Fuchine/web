@@ -24,6 +24,13 @@ export type DictPopupProps = {
   onExplain: () => void;
   onSaveWord: () => void;
   onClose: () => void;
+  /**
+   * One-click "Mark as unknown" (T3.9): writes the manual override that keeps
+   * the word out of the known tiers. Absent = no button. With `markedUnknown`
+   * the button undoes it.
+   */
+  onMarkUnknown?: () => void;
+  markedUnknown?: boolean;
   /** Open the per-user token correction editor (T3.7). Absent = no "Fix". */
   onFix?: () => void;
   /** The token is a correction saved by this user ("Corrected by you"). */
@@ -155,6 +162,8 @@ export function DictPopup({
   onSaveWord,
   onClose,
   onFix,
+  onMarkUnknown,
+  markedUnknown = false,
   corrected = false,
   fixEditor,
   className,
@@ -263,6 +272,19 @@ export function DictPopup({
                 {saved ? <BookmarkFillIcon /> : <BookmarkIcon />}{" "}
                 {saved ? "Saved" : "Save word"}
               </button>
+              {onMarkUnknown && (
+                <button
+                  type="button"
+                  className={cn("dp-action unknown", markedUnknown && "on")}
+                  onClick={onMarkUnknown}
+                  aria-pressed={markedUnknown}
+                  title={markedUnknown
+                    ? "Marked unknown: it doesn't count as known in your coverage. Click to undo"
+                    : "Don't count this word as known in your coverage (also saves it)"}
+                >
+                  {markedUnknown ? "Marked unknown" : "Mark as unknown"}
+                </button>
+              )}
               {onFix && (
                 <button
                   type="button"

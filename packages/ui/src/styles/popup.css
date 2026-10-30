@@ -118,6 +118,11 @@
 .dp-action.fix { flex: none; padding: 0 12px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); }
 .dp-action.fix:hover { border-color: var(--text-faint); }
 .dp-error .dp-action.fix { height: 32px; }
+/* T3.9 — one-click "Mark as unknown" (manual override for the coverage model) */
+.dp-foot { flex-wrap: wrap; }
+.dp-action.unknown { flex: none; padding: 0 12px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-muted); }
+.dp-action.unknown:hover { border-color: var(--text-faint); color: var(--text); }
+.dp-action.unknown.on { color: var(--link); border-color: var(--accent-line); background: var(--accent-soft-2); }
 .dp-corrected {
   font-size: 11px; font-weight: 600; color: var(--link);
   background: var(--accent-soft); border-radius: 999px; padding: 2px 8px;
