@@ -225,7 +225,7 @@ describe("Lapis notes", () => {
       FreqSort: "2500",
       MiscInfo: 'The cat eats<br>my &lt;note&gt;<br><a href="https://www.youtube.com/watch?v=abc&t=61s">Cats &amp; Dogs</a> · Pets',
     });
-    expect(n.tags).toEqual(["fuchine", "fuchine::video::Cats_&_Dogs"]);
+    expect(n.tags).toEqual(["fuchine", "fuchine::video::Cats_Dogs"]);
     expect(Object.keys(n.fields)).toEqual([...LAPIS_FIELDS]);
   });
 

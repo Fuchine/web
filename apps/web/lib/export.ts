@@ -302,9 +302,12 @@ export function fsrsTags(f: ExportFsrs): string[] {
   return tags;
 }
 
-/** A tag-safe piece of text (Anki tags are space-separated). */
-function tagPart(s: string, max = 60): string {
-  return [...s.trim().replace(/[\s"]+/g, "_")].slice(0, max).join("");
+/**
+ * A tag-safe piece of text: Anki tags are space-separated, and the note type
+ * may render {{Tags}}, so HTML-special characters go too.
+ */
+export function tagPart(s: string, max = 60): string {
+  return [...s.replace(/[\s"'<>&]+/g, "_").replace(/^_+|_+$/g, "")].slice(0, max).join("");
 }
 
 /* ------------------------------------------------------------------ */
