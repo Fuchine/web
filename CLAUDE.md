@@ -102,7 +102,7 @@ UI é em inglês.
 **Fase:** F0 (Fundação) e F1 (MVP usável) concluídas; F2 (Alcance, na
 numeração da ARQUITETURA §10) ~80% construída — extensão funcional (popup +
 bridge in-app), álbuns, dicionário/busca, lista de frases, stats, biblioteca
-compartilhada com flags por usuário, export Anki (TSV), exclusão de conta,
+compartilhada com flags por usuário, export Anki (TSV; preset Lapis + histórico FSRS desde T3.3), exclusão de conta,
 `/api/health`, backups, compose + Caddy/TLS, rate limits e metering em
 `llm_usage`. **Portão 1 de produção (self-host, 1 usuário) fechado** pelo PR #19
 + ensaio backup → restore de 2026-07-20 (PASS 8/8). Nunca houve release, tag,
@@ -206,7 +206,7 @@ Pacotes e seus pontos de entrada:
   inválidos). Security headers + CSP em `next.config.ts`. Rate limits por
   usuário/IP em Redis (`lib/rate-limit.ts`: explain miss/force, translate miss,
   import novo, busca do dicionário, magic link, beacon, click).
-  Rotas (29): `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
+  Rotas (33): `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
   estudo (F1, completa): `GET /api/videos` (biblioteca), `GET /api/videos/[id]`
   (payload do player), `POST /api/cards` (minerar, dedup), `GET
   /api/review/queue` + `POST /api/review/[cardId]` (FSRS), `GET /api/dictionary`
@@ -220,8 +220,18 @@ Pacotes e seus pontos de entrada:
   `not_interested` em `user_video_flags`), tradução lazy `POST
   /api/videos/[id]/translate`, dicionário (`browse`, `collection`, `grammar`,
   `saved`, `[id]/examples`, `[id]/saved` — palavras salvas em `saved_words`),
-  export Anki `GET /api/export/deck`
-  (TSV texto-só, clipe como deep link do YouTube — D2), `DELETE /api/account`
+  export Anki `GET /api/export/deck` (T3.3; TSV texto-só, clipe como deep link
+  do YouTube — D2): preset **Lapis** (default; os 22 campos do note type
+  donkuri/lapis + colunas Tags e GUID `fuchine-<card id>`, headers
+  `#notetype:Lapis`/`#deck:`; palavra-alvo = `pickClozeTarget` de
+  `@fuchine/ui/answer`, a mesma regra do Cloze; furigana Anki, glosas JMdict,
+  pitch Kanjium, FreqSort) ou `basic` (4 colunas antigas); `filter=curated`
+  pula a fila de curadoria, `history=1` põe o estado FSRS em tags
+  `fuchine::due::AAAA-MM-DD`/`state`/`stability`/`difficulty`/`reps`/`lapses`,
+  `format=json` alimenta o "Send to Anki" (AnkiConnect em 127.0.0.1:8765, do
+  browser, só adiciona; `lib/anki-connect.ts`); `GET /api/export/history` =
+  `fuchine-review-history.csv` (revlog do otimizador, mesmo writer de
+  `lib/fsrs.ts`). UI em Settings → Data; E2E `e2e-export.ts`. `DELETE /api/account`
   (cascade), `POST /api/onboarding`, `PATCH /api/settings` e `GET /api/health`
   (`db`/`redis`/`workerAlive`/`houseBudget`). Biblioteca e phrases são
   cursor-paginated com **busca/filtro/sort server-side** (`q`/`category`|`status`/

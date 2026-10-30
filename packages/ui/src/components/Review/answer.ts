@@ -1,4 +1,6 @@
 // Cloze target choice + tolerant answer comparison (T3.11). Pure.
+// pickClozeTarget is also the Anki export's "target word" rule (T3.3) — the
+// web app imports it through the `@fuchine/ui/answer` subpath (no React).
 //
 // The learner types the blanked word. Japanese has several valid spellings for
 // the same word, so we accept the surface as written, its dictionary form, and
@@ -31,6 +33,10 @@ export interface ClozeTarget {
   /** Dictionary reading of the lemma. */
   lemmaReading: string;
   meanings: string[];
+  /** Index of the chosen token in the line's tokens (set by pickClozeTarget). */
+  tokenIndex?: number;
+  /** Dictionary entry of the chosen token, when it resolved to one. */
+  wordEntryId?: string | null;
 }
 
 const PUNCT = /[\s　。、，．,.!?！？「」『』（）()［］[\]・〜~…‥:：;；"'“”‘’]/g;
@@ -95,5 +101,7 @@ export function pickClozeTarget(
     lemma: best.entry?.lemma || best.t.lemma || best.t.surface,
     lemmaReading,
     meanings: best.entry ? best.entry.definitions.flatMap((d) => d.glosses) : [],
+    tokenIndex: best.idx,
+    wordEntryId: best.entry ? best.t.wordEntryId : null,
   };
 }
