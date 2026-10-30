@@ -9,14 +9,22 @@ import {
   subtitleLines,
   subtitleTranslationChunks,
 } from "@fuchine/db";
-import { type LlmProvider } from "@fuchine/llm";
+import { HOUSE_BUDGET_MESSAGE, type HouseBudget, type LlmProvider } from "@fuchine/llm";
+import { houseBudget, secondsUntilLocalMidnight } from "./house-budget";
 import { houseMtProvider } from "./house-provider";
 import { lineRangeForChunk } from "@fuchine/core";
 
 export type ChunkLine = { id: string; textTranslation: string | null };
 export type Result = {
   status: number;
-  body: { lines?: ChunkLine[]; cached?: boolean; pending?: boolean; error?: string; retryAfterSeconds?: number };
+  body: {
+    lines?: ChunkLine[];
+    cached?: boolean;
+    pending?: boolean;
+    error?: string;
+    code?: string;
+    retryAfterSeconds?: number;
+  };
 };
 
 // How long the client should wait before re-fetching a chunk another request is
@@ -82,6 +90,8 @@ export async function translateChunk(
     provider?: LlmProvider;
     /** Called only on a cache miss (about to spend tokens); return a non-ok verdict to deny. */
     checkRateLimit?: () => Promise<{ ok: boolean; retryAfterSeconds: number }>;
+    /** House budget checker (default: the process-wide one; T2.4). */
+    houseBudget?: HouseBudget;
   } = {},
 ): Promise<Result> {
   const [video] = await db
@@ -160,6 +170,15 @@ export async function translateChunk(
         },
       };
     }
+  }
+
+  // Translation always runs on the house key: stop at the daily ceiling (T2.4).
+  // Cached chunks above stay free and keep serving.
+  if ((await (deps.houseBudget ?? houseBudget()).state()) === "exhausted") {
+    return {
+      status: 429,
+      body: { error: HOUSE_BUDGET_MESSAGE, code: "house_budget", retryAfterSeconds: secondsUntilLocalMidnight() },
+    };
   }
 
   // Claim the chunk: insert a 'pending' marker as a lock. Concurrent requests

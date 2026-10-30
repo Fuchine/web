@@ -39,6 +39,11 @@ export async function register() {
   const registration = parseRegistrationEnv(process.env, process.env.NODE_ENV);
   if (!registration.ok) missing.push(registration.error);
 
+  // House-key budget (T2.4): invalid values are a hard error.
+  const { parseHouseBudgetEnv } = await import("@fuchine/llm");
+  const budget = parseHouseBudgetEnv(process.env);
+  if (!budget.ok) missing.push(budget.error);
+
   if (missing.length > 0) {
     // Exit, don't just throw: Next logs a thrown error from register() but keeps
     // the process alive serving 500s, so `restart: unless-stopped` never restarts
@@ -66,6 +71,13 @@ export async function register() {
       `[fuchine] REGISTRATION=${registration.mode} with no AUTH_ALLOWED_EMAILS / AUTH_ALLOWED_DOMAINS — ` +
         "only existing users and invited e-mails can sign in. On a new instance, set " +
         "AUTH_ALLOWED_EMAILS to your address or run `pnpm --filter @fuchine/worker invite add <email>`.",
+    );
+  }
+
+  if (budget.ok && budget.dailyTokens === null && (process.env.LLM_PROVIDER ?? "echo") !== "echo") {
+    console.warn(
+      "[fuchine] HOUSE_DAILY_TOKEN_BUDGET is unset — house-key AI spend has no daily ceiling. " +
+        "Set it (e.g. 2000000) before opening the instance to other people.",
     );
   }
 
