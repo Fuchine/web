@@ -47,6 +47,16 @@ export const Loaded: Story = {
   render: () => <Demo explanation={EXPLANATION} />,
 };
 
+/** T3.12: provenance label (prompt version comes from the explain API) + dictionary check. */
+export const WithProvenance: Story = {
+  render: () => <Demo explanation={EXPLANATION} promptVersion={2} dictionaryHref={(s) => `#dictionary?q=${encodeURIComponent(s)}`} />,
+};
+
+/** Version unknown (older client/server): the label degrades to "AI-generated". */
+export const ProvenanceWithoutVersion: Story = {
+  render: () => <Demo explanation={EXPLANATION} promptVersion={null} />,
+};
+
 export const Loading: Story = {
   render: () => <Demo loading />,
 };

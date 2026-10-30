@@ -28,7 +28,19 @@ export interface PlayerExplainProps {
   error: string | null;
   onRegenerate: () => void;
   onSaveNote?: () => void;
+  /** PROMPT_VERSION the explanation was generated with (from the API, not hardcoded). */
+  promptVersion?: number | null;
+  /** Where "Check in dictionary" leads for a surface. Default: the dictionary page search. */
+  dictionaryHref?: (surface: string) => string;
   className?: string;
+}
+
+const defaultDictionaryHref = (surface: string) => `/dictionary?q=${encodeURIComponent(surface)}`;
+
+/** The span a learner should verify first: the accented part, else the first one. */
+function checkSurface(explanation: Explanation): string | null {
+  const part = explanation.breakdown.find((p) => p.accent) ?? explanation.breakdown[0];
+  return part?.surface.replace(/[\s\u3000]+/g, "") || null;
 }
 
 function SparkIcon() {
@@ -100,8 +112,11 @@ export function PlayerExplain({
   error,
   onRegenerate,
   onSaveNote,
+  promptVersion,
+  dictionaryHref = defaultDictionaryHref,
   className,
 }: PlayerExplainProps): ReactNode {
+  const verifySurface = explanation ? checkSurface(explanation) : null;
   return (
     <div className={cn("explain", className)}>
       <div className="ex-scroll">
@@ -153,6 +168,18 @@ export function PlayerExplain({
                 <p>{explanation.plainTerms}</p>
               </div>
             )}
+
+            {/* Provenance (T3.12): label AI output and point at a non-AI source. */}
+            <div className="ex-prov">
+              <span>
+                AI-generated{typeof promptVersion === "number" ? ` · prompt v${promptVersion}` : ""}
+              </span>
+              {verifySurface && (
+                <a className="ex-prov-link" href={dictionaryHref(verifySurface)}>
+                  Check in dictionary
+                </a>
+              )}
+            </div>
           </>
         )}
       </div>

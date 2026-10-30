@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Player, UserFacingError, type PlayerProps } from "@fuchine/ui";
 import type { Explanation } from "@fuchine/db";
 
-export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "onFetchChunk" | "onFetchExplanation" | "onSaveWord" | "onProgress">) {
+export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "onFetchChunk" | "onFetchExplanation" | "explanationPromptVersion" | "onSaveWord" | "onProgress">) {
   const router = useRouter();
   const videoId = props.video.id;
+  // Prompt version the server reports with each explanation (T3.12 label).
+  const [promptVersion, setPromptVersion] = useState<number | null>(null);
 
   const onProgress = useCallback((p: { msWatched: number; lineIds: string[] }) => {
     // keepalive lets the final flush survive tab close / navigation.
@@ -64,7 +66,8 @@ export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "o
         }
         throw new Error(`explain failed: ${res.status}`);
       }
-      const data = (await res.json()) as { explanation: Explanation };
+      const data = (await res.json()) as { explanation: Explanation; promptVersion?: number };
+      if (typeof data.promptVersion === "number") setPromptVersion(data.promptVersion);
       return data.explanation;
     },
     [],
@@ -82,6 +85,7 @@ export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "o
       {...props}
       onFetchChunk={onFetchChunk}
       onFetchExplanation={onFetchExplanation}
+      explanationPromptVersion={promptVersion}
       onSaveWord={onSaveWord}
       onProgress={onProgress}
       onBack={() => router.push("/")}

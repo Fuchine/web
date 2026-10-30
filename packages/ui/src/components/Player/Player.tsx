@@ -77,6 +77,8 @@ export interface PlayerProps {
   onFetchChunk?: (chunkIdx: number) => Promise<{ id: string; textTranslation: string | null }[]>;
   /** Fetch (and cache) the layer-2 explanation for a line. force = regenerate. */
   onFetchExplanation?: (lineId: string, opts?: { force?: boolean }) => Promise<Explanation>;
+  /** PROMPT_VERSION reported by the explain API, shown in the Explain panel label (T3.12). */
+  explanationPromptVersion?: number | null;
   onBack: () => void;
   onNavigate?: (key: string) => void;
   /** Deep-link: focus + seek to this line on load (from the dictionary). */
@@ -165,7 +167,7 @@ function toExplainFocal(focal: FocalLine): ExplainFocal {
   return { textOriginal: focal.textOriginal, textTranslation: focal.textTranslation, focusSurface: null };
 }
 
-export function Player({ video, lines, account, translatedChunks, onFetchChunk, onFetchExplanation, onBack, onNavigate, className, initialLineId, savedWordIds, onSaveWord, onProgress, wordStatuses }: PlayerProps) {
+export function Player({ video, lines, account, translatedChunks, onFetchChunk, onFetchExplanation, explanationPromptVersion, onBack, onNavigate, className, initialLineId, savedWordIds, onSaveWord, onProgress, wordStatuses }: PlayerProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMs, setCurrentMs] = useState(0);
@@ -1164,6 +1166,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
                 loading={explainLoading}
                 error={explainError}
                 onRegenerate={() => currentLine && void regenerateExplanation(currentLine.id)}
+                promptVersion={explanationPromptVersion}
               />
             </div>
           </aside>
