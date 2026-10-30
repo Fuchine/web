@@ -33,6 +33,12 @@ export async function register() {
     );
   }
 
+  // Registration control (T2.3). An unknown mode is a hard error; an instance
+  // nobody can join, or one anyone can join, is a loud warning.
+  const { parseRegistrationEnv } = await import("@/lib/registration");
+  const registration = parseRegistrationEnv(process.env, process.env.NODE_ENV);
+  if (!registration.ok) missing.push(registration.error);
+
   if (missing.length > 0) {
     // Exit, don't just throw: Next logs a thrown error from register() but keeps
     // the process alive serving 500s, so `restart: unless-stopped` never restarts
@@ -44,6 +50,23 @@ export async function register() {
         "\nSee .env.example for every variable.",
     );
     process.exit(1);
+  }
+
+  if (registration.ok && registration.mode === "open") {
+    console.warn(
+      "[fuchine] REGISTRATION=open — any Google account (or any e-mail, with SMTP) can " +
+        "create an account and spend the house LLM key. Use invite or closed for a public instance.",
+    );
+  } else if (
+    registration.ok &&
+    registration.allowEmails.length === 0 &&
+    registration.allowDomains.length === 0
+  ) {
+    console.warn(
+      `[fuchine] REGISTRATION=${registration.mode} with no AUTH_ALLOWED_EMAILS / AUTH_ALLOWED_DOMAINS — ` +
+        "only existing users and invited e-mails can sign in. On a new instance, set " +
+        "AUTH_ALLOWED_EMAILS to your address or run `pnpm --filter @fuchine/worker invite add <email>`.",
+    );
   }
 
   // Soft warning: `echo` is the dev default that leaves AI silently off. In
