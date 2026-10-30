@@ -4,10 +4,12 @@
 
 Modelo de custo unitário do Fuchine para fundamentar a precificação da cloud
 (F3). Os números vêm dos prompts e contratos reais do código (auditoria de
-2026-07-06), **não de medição em produção** — o repositório ainda não registra
-`usage` de nenhuma chamada ([llm-usage-metering.md](../backlog/llm-usage-metering.md)
-é pré-requisito para validar tudo aqui antes de travar preço). Tratar cada
-número como ordem de grandeza com ±50%.
+2026-07-06), **não de medição em produção** — na época o repositório não
+registrava `usage` de nenhuma chamada. Desde 2026-07-13 cada chamada de
+provider grava tokens/chars em `llm_usage` (metering, commit `b98ee94`; resumo com
+`pnpm --filter @fuchine/worker usage`), que é o pré-requisito para validar
+tudo aqui antes de travar preço. Tratar cada número como ordem de grandeza
+com ±50%.
 
 **Regra de leitura:** no self-host o custo de IA é do usuário (BYOK) — este
 documento existe para o modo cloud, onde a house key paga.
@@ -29,7 +31,9 @@ documento existe para o modo cloud, onde a house key paga.
 Consequência estrutural importante: **um vídeo importado e nunca assistido
 custa hoje a camada mais cara (pre-warm completo) e não custa a barata
 (tradução lazy)** — é o inverso do desejável e o que o cap de pre-warm
-([prewarm-cost-per-import.md](../backlog/prewarm-cost-per-import.md)) corrige.
+corrige. *(Atualização: o cap foi implementado — `PREWARM_MAX_LINES`, default
+150, no PR #20; o resto do vídeo aquece no primeiro open do player, commit `60a8c3d`. A
+tabela de premissas acima descreve a política de 2026-07-06.)*
 
 ## 2. Custo por unidade
 
@@ -98,17 +102,28 @@ abaixo.
 
 | Alavanca | Efeito | Item |
 |---|---|---|
-| Cap do pre-warm (150 linhas + resto no 1º open) | −60–70% no custo por import | [prewarm-cost-per-import.md](../backlog/prewarm-cost-per-import.md) |
+| Cap do pre-warm (150 linhas + resto no 1º open) | −60–70% no custo por import | feito — PR #20 (cap) e commit `60a8c3d` (tail no 1º open) |
 | Tier do provider house | 8× entre econômico e premium | config (D5) |
 | MT: LLM em vez de DeepL na cloud | −~90% na tradução por vídeo | config (D5) |
 | Cache hit rate | −50–70% com escala | estrutural (D3) |
-| Single-flight no explain | elimina gasto duplicado prefetch×prewarm | [explain-double-generation.md](../backlog/explain-double-generation.md) |
-| Rate limit + quotas | teto de abuso da house key | [ai-endpoints-no-rate-limit.md](../backlog/ai-endpoints-no-rate-limit.md) |
-| **Medição de usage** | transforma este doc de estimativa em fato | [llm-usage-metering.md](../backlog/llm-usage-metering.md) |
+| Single-flight no explain | elimina gasto duplicado prefetch×prewarm | feito — PR #20 (advisory lock no miss) |
+| Rate limit + quotas | teto de abuso da house key | rate limits feitos (5 superfícies autenticadas em 2026-07-07 + magic link em 2026-07-10); teto diário da chave da casa (T2.4, `HOUSE_DAILY_TOKEN_BUDGET`); quotas por usuário em dinheiro → `ROADMAP_ENGENHARIA.md` T2.14 |
+| **Medição de usage** | transforma este doc de estimativa em fato | feito — tabela `llm_usage` (commit `b98ee94`, migration 0015) |
 
 ## 6. Moldura de precificação (direcional — NÃO travar ainda)
 
-Âncora do mercado: HayaiLearn ~US$ 10/mês (ARQUITETURA §2.3). **Foco
+Âncora do mercado (ARQUITETURA §2.3): HayaiLearn **Pro US$ 7/mês cobrado
+anualmente (US$ 84/ano)** e **Platinum US$ 14/mês (US$ 168/ano)**, sem tier
+gratuito, trial só no anual *(fonte: snippet da página oficial
+hayailearn.com/pricing, 2026-10-29, não verificado na página primária — ver
+`docs/PESQUISA_MERCADO-2026-10-29.md` §1)*. Os "~US$ 10/mês" desta v0.1
+eram o preço antigo e sobrevivem só em diretórios desatualizados. Na mesma
+faixa: Language Reactor ~US$ 5,95/mês e Migaku ~US$ 10/mês (ambos de
+terceiros, não verificados). **Consequência:** o Pro a US$ 8 não tem vantagem
+de preço contra a referência; a tese deixa de ser "abaixo da âncora" e passa a
+ser **"mesma faixa, com laço fechado, código aberto e tier em real"**
+(PESQUISA_MERCADO §6). Os racionais abaixo que comparam com "a âncora de
+US$ 10" são da v0.1 e ficam para revisão no T3.14. **Foco
 comercial definido em 2026-07-06: clientes pagantes em dólar** — preço único
 em US$ no lançamento da cloud. O preço regional em real (citado como
 diferencial no §2.3) vira alavanca de expansão posterior, quando houver base
@@ -127,7 +142,7 @@ BR que justifique operação local (Pix, imposto, suporte).
 | | US$ (mercado-alvo) |
 |---|---|
 | Corredor | 8–9,99/mês |
-| Racional | abaixo/na âncora de US$ 10; o pesado worst-case (US$ 6,20, cache frio) é coberto **individualmente** — sem dependência de mix; margem bruta ≥65% |
+| Racional | v0.1: abaixo/na âncora de US$ 10 (hoje a referência é US$ 7–14 — ver acima); o pesado worst-case (US$ 6,20, cache frio) é coberto **individualmente** — sem dependência de mix; margem bruta ≥65% |
 
 O corredor regional em R$ (24,90–29,90) da v0.1 fica registrado como opção de
 expansão futura, fora do escopo de lançamento.
@@ -158,7 +173,9 @@ Racional do US$ 8:
 - Margem bruta ponderada (mix ~60/30/10 leve/médio/pesado, custo ≈ US$ 2,50):
   **~66% no lançamento → ~80% com cache aquecido**. Break-even da infra fixa:
   ~5–8 assinantes.
-- 20% abaixo da âncora (US$ 10): o desconto + a confiança do open source são a
+- *(v0.1 — premissa superada: com o HayaiLearn Pro a US$ 7 anual, o US$ 8
+  fica na mesma faixa, não abaixo; ver o início do §6.)* 20% abaixo da âncora
+  (US$ 10): o desconto + a confiança do open source são a
   cunha de conversão prevista na arquitetura. **US$ 9,99** (paridade com a
   âncora) é a alternativa de receita máxima — a recomendação fica no 8 pela
   cunha; subir depois é mais fácil com grandfathering do que baixar.
@@ -175,10 +192,11 @@ sem Pix/boleto/imposto local; e o produto já é English-first (UI e
 **Condições para travar o preço** (o gate do §2.3 continua valendo — só
 precificar com sinais de demanda):
 
-1. 1–2 meses de medição real ([llm-usage-metering.md]) validando: tokens/vídeo
-   efetivos, distribuição de linhas/vídeo, % de vídeos importados que são
-   assistidos, explains on-demand por usuário.
-2. Cap de pre-warm implementado (sem ele, o pesado é deficitário no tier médio).
+1. 1–2 meses de medição real (tabela `llm_usage`, já gravando desde 2026-07-13)
+   validando: tokens/vídeo efetivos, distribuição de linhas/vídeo, % de vídeos
+   importados que são assistidos, explains on-demand por usuário.
+2. Cap de pre-warm implementado (sem ele, o pesado é deficitário no tier
+   médio) — **feito** (PR #20 + commit `60a8c3d`).
 3. Hit rate do cache observado com os primeiros usuários reais do OSS.
 
 ---
