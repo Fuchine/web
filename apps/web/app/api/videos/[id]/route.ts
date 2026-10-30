@@ -16,7 +16,7 @@ export async function GET(
   }
   const { id } = await ctx.params;
   if (!isUuid(id)) return NextResponse.json({ error: "video not found" }, { status: 404 });
-  const result = await getVideoWithLines(db, id);
+  const result = await getVideoWithLines(db, id, { userId: session.user.id });
   if (!result) {
     return NextResponse.json({ error: "video not found" }, { status: 404 });
   }

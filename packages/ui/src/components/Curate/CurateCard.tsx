@@ -1,14 +1,17 @@
 "use client";
 
 import { type ReactNode, type Ref, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { freqTier } from "@fuchine/core";
+import { freqTier, type TokenSpan } from "@fuchine/core";
 import { cn } from "../../lib/cn";
 import { DictPopup } from "../DictPopup/DictPopup";
+import { TokenFixEditor, type FixEntryHit, type TokenFixOverride } from "../TokenFix/TokenFixEditor";
 
 /** A token of the mined line (same shape as subtitle_lines.tokens). */
 export type CurateToken = {
   surface: string;
+  lemma?: string;
   reading: string | null;
+  pos?: string | null;
   wordEntryId: string | null;
 };
 
@@ -55,6 +58,15 @@ export type CurateCardProps = {
   /** Saved-word state + toggle for the dictionary popup (optional). */
   savedWordIds?: ReadonlySet<string>;
   onSaveWord?: (wordEntryId: string, save: boolean) => void;
+  /** Origin spans of the user's token corrections (T3.7); absent = uncorrected. */
+  tokenSpans?: TokenSpan[] | null;
+  /**
+   * Save a per-user token correction (T3.7); rejects with an Error whose
+   * message is shown. When set, every word is clickable and the popup has "Fix".
+   */
+  onSaveTokens?: (override: TokenFixOverride) => Promise<void>;
+  onResetTokens?: (span: { startIdx: number; endIdx: number }) => Promise<void>;
+  onSearchEntries?: (q: string) => Promise<FixEntryHit[]>;
   notesRef?: Ref<HTMLTextAreaElement>;
   className?: string;
 };
@@ -115,6 +127,10 @@ export function CurateCard({
   onDone,
   savedWordIds,
   onSaveWord,
+  tokenSpans,
+  onSaveTokens,
+  onResetTokens,
+  onSearchEntries,
   notesRef,
   className,
 }: CurateCardProps) {
@@ -124,6 +140,9 @@ export function CurateCard({
   const [popPos, setPopPos] = useState<{ left: number; bottom: number; arrowLeft: number; w: number } | null>(null);
   const [showExplain, setShowExplain] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [fixing, setFixing] = useState(false);
+  const [fixBusy, setFixBusy] = useState(false);
+  const [fixError, setFixError] = useState<string | null>(null);
   const busy = status === "saving" || status === "deleting";
 
   useEffect(() => {
@@ -138,6 +157,8 @@ export function CurateCard({
   }, [confirmDelete]);
 
   useLayoutEffect(() => {
+    setFixing(false);
+    setFixError(null);
     if (openIdx == null) { setPopPos(null); return; }
     const compute = () => {
       const root = rootRef.current;
@@ -169,6 +190,21 @@ export function CurateCard({
       }
     : null;
   const openSaved = !!(openToken?.wordEntryId && savedWordIds?.has(openToken.wordEntryId));
+  const openCorrected = openIdx != null && Boolean(tokenSpans?.[openIdx]?.corrected);
+  const fixable = Boolean(onSaveTokens);
+
+  const runFix = async (op: () => Promise<void>) => {
+    setFixBusy(true);
+    setFixError(null);
+    try {
+      await op();
+      setOpenIdx(null); // token indices moved; the popup would point at the wrong word
+    } catch (err) {
+      setFixError(err instanceof Error && err.message ? err.message : "Could not save the correction.");
+    } finally {
+      setFixBusy(false);
+    }
+  };
 
   const over = notes.length > maxNotes;
 
@@ -188,14 +224,15 @@ export function CurateCard({
         <p className="jp m-0 text-[20px] leading-[1.7] text-fg" lang="ja">
           {tokens.length > 0
             ? tokens.map((t, i) =>
-                t.wordEntryId ? (
+                t.wordEntryId || (fixable && !/^[\s\p{P}\p{S}]+$/u.test(t.surface)) ? (
                   <button
                     key={i}
                     type="button"
                     ref={(el) => { if (el) tokenRefs.current.set(i, el); else tokenRefs.current.delete(i); }}
                     className={cn(
                       "cursor-pointer rounded-[4px] border-0 bg-transparent p-0 font-[inherit] text-[inherit] text-fg",
-                      "underline decoration-border-strong decoration-1 underline-offset-[5px] hover:bg-accent-soft",
+                      "underline decoration-1 underline-offset-[5px] hover:bg-accent-soft",
+                      t.wordEntryId ? "decoration-border-strong" : "decoration-dotted decoration-border",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
                       openIdx === i && "bg-accent-soft",
                     )}
@@ -315,6 +352,22 @@ export function CurateCard({
           onExplain={() => { setOpenIdx(null); if (explanation) setShowExplain(true); }}
           onSaveWord={() => { if (openToken?.wordEntryId) onSaveWord?.(openToken.wordEntryId, !openSaved); }}
           onClose={() => setOpenIdx(null)}
+          onFix={fixable ? () => setFixing(true) : undefined}
+          corrected={openCorrected}
+          fixEditor={fixing && onSaveTokens ? (
+            <TokenFixEditor
+              key={openIdx}
+              tokens={tokens}
+              spans={tokenSpans}
+              index={openIdx}
+              onSave={(o) => runFix(() => onSaveTokens(o))}
+              onReset={(span) => runFix(() => (onResetTokens ? onResetTokens(span) : Promise.resolve()))}
+              onSearch={onSearchEntries}
+              onCancel={() => setFixing(false)}
+              error={fixError}
+              busy={fixBusy}
+            />
+          ) : undefined}
         />
       )}
     </article>

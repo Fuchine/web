@@ -76,6 +76,15 @@ export interface PlayerFocalSubtitlesProps {
   activeWordId: string | null;
   onWordClick?: (wordId: string, surface: string) => void;
   onWordRef?: (wordId: string, el: HTMLElement | null) => void;
+  /**
+   * Token-index click (T3.7): when set, every word token is clickable —
+   * including ones without a dictionary entry, so they can be fixed — and
+   * keyboard-focusable. Takes precedence over onWordClick.
+   */
+  onTokenClick?: (index: number, wordId: string | null, surface: string) => void;
+  onTokenRef?: (index: number, el: HTMLElement | null) => void;
+  /** The token whose popup is open (with onTokenClick). */
+  activeTokenIdx?: number | null;
   onExplain?: () => void;
   onMine?: () => void;
   isMining?: boolean;
@@ -113,17 +122,30 @@ const PHASE_CUE: Partial<Record<PrimedPhase, string>> = {
   reveal: "Primed · check what you heard",
 };
 
+type TokenHandlers = {
+  activeWordId: string | null;
+  onWordClick?: (wordId: string, surface: string) => void;
+  onWordRef?: (wordId: string, el: HTMLElement | null) => void;
+  onTokenClick?: (index: number, wordId: string | null, surface: string) => void;
+  onTokenRef?: (index: number, el: HTMLElement | null) => void;
+  activeTokenIdx?: number | null;
+};
+
+const PUNCT_RE = /^[\s\p{P}\p{S}]+$/u;
+
 function renderToken(
   t: FocalToken,
   i: number,
   showRomaji: boolean,
   status: WordStatus | null,
-  activeWordId: string | null,
-  onWordClick?: (wordId: string, surface: string) => void,
-  onWordRef?: (wordId: string, el: HTMLElement | null) => void,
+  h: TokenHandlers,
 ): ReactNode {
-  const isClickable = Boolean(t.wordEntryId && t.pos !== "Particle" && t.pos !== "Punct");
-  const isActive = isClickable && activeWordId === t.wordEntryId;
+  const { activeWordId, onWordClick, onWordRef, onTokenClick, onTokenRef, activeTokenIdx } = h;
+  const byIndex = Boolean(onTokenClick);
+  const isClickable = byIndex
+    ? t.pos !== "Particle" && t.pos !== "Punct" && !PUNCT_RE.test(t.surface)
+    : Boolean(t.wordEntryId && t.pos !== "Particle" && t.pos !== "Punct");
+  const isActive = isClickable && (byIndex ? activeTokenIdx === i : activeWordId === t.wordEntryId);
   const isPunct = t.pos === "Punct";
   const isParticle = t.pos === "Particle";
   const romaji = t.romaji ?? (t.reading ? readingToRomaji(t.reading) : "");
@@ -148,6 +170,28 @@ function renderToken(
       <span key={i} className={wordClass}>
         {showRomaji && <span className="w-romaji">{romaji}</span>}
         <span className="w-kanji">{t.surface}</span>
+      </span>
+    );
+  }
+
+  if (byIndex) {
+    const activate = () => onTokenClick!(i, t.wordEntryId, t.surface);
+    return (
+      <span key={i} className={wordClass}>
+        {showRomaji && <span className="w-romaji">{romaji}</span>}
+        <span
+          ref={onTokenRef ? (el) => onTokenRef(i, el as HTMLElement | null) : undefined}
+          className="w-kanji"
+          role={isClickable ? "button" : undefined}
+          tabIndex={isClickable ? 0 : undefined}
+          aria-expanded={isClickable ? isActive : undefined}
+          onClick={isClickable ? activate : undefined}
+          onKeyDown={isClickable ? (e) => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(); }
+          } : undefined}
+        >
+          {t.surface}
+        </span>
       </span>
     );
   }
@@ -178,6 +222,9 @@ export function PlayerFocalSubtitles({
   activeWordId,
   onWordClick,
   onWordRef,
+  onTokenClick,
+  onTokenRef,
+  activeTokenIdx,
   onExplain,
   onMine,
   isMining = false,
@@ -207,7 +254,12 @@ export function PlayerFocalSubtitles({
         >
           {isSfx && <span className="sfx-mark" aria-hidden="true">♪</span>}
           {tokens.map((t, i) =>
-            renderToken(t, i, showRomaji, colorKnown ? statusOf(wordStatuses, t.wordEntryId) : null, activeWordId, onWordClick, onWordRef),
+            renderToken(t, i, showRomaji, colorKnown ? statusOf(wordStatuses, t.wordEntryId) : null, {
+              activeWordId, onWordClick, onWordRef,
+              // Index-addressed clicks only make sense on real tokens.
+              onTokenClick: line.tokens.length > 0 ? onTokenClick : undefined,
+              onTokenRef, activeTokenIdx,
+            }),
           )}
         </div>
         {!showJapanese && <div className="focal-mask">Japanese hidden</div>}

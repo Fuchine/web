@@ -6,6 +6,7 @@ import { newCardState, type FsrsService, type ReviewGrade } from "@fuchine/core"
 import { cardStateOf, loadUserFsrs, rebuildMemory } from "./fsrs";
 import { bumpDailyStats, bumpWordReviews } from "./progress";
 import { effectiveNewCardsPerDay } from "./srs-defaults";
+import { loadTokenOverrides, withTokenOverrides, correctLine } from "./token-overrides";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
@@ -151,6 +152,7 @@ const QUEUE_COLUMNS = {
   textOriginal: subtitleLines.textOriginal, textTranslation: subtitleLines.textTranslation,
   tStartMs: subtitleLines.tStartMs, tEndMs: subtitleLines.tEndMs,
   source: videos.source, sourceId: videos.sourceId,
+  lineId: sentenceCards.subtitleLineId,
   tokens: subtitleLines.tokens,
 } as const;
 
@@ -240,7 +242,9 @@ export async function getReviewQueue(db: Database, userId: string, limit = 20) {
     : [];
 
   // Reviews first, then the day's allowed new cards; cap the session to `limit`.
-  const rows = [...reviewRows, ...newRows].slice(0, limit);
+  // The user's token corrections (T3.7) replace the shared tokens before the
+  // word entries are collected, so a fixed word brings its corrected entry.
+  const rows = await withTokenOverrides(db, userId, [...reviewRows, ...newRows].slice(0, limit), (r) => r.lineId);
 
   const allTokenRows: Token[] = rows
     .map((r) => (r.tokens as Token[]) ?? [])
@@ -274,6 +278,8 @@ export type ReviewQueueRow = {
   learningStep: number; fsrsModel: string;
   textOriginal: string; textTranslation: string | null; tStartMs: number; tEndMs: number;
   source: string; sourceId: string; tokens: Token[] | null;
+  /** The card's subtitle line (for the user's token corrections). */
+  lineId?: string;
 };
 
 export type WordEntryRow = {
@@ -285,6 +291,7 @@ export type ReviewQueueCard = Omit<
   ReviewQueueRow,
   "stability" | "stabilityFast" | "difficulty" | "lastReview" | "reps" | "lapses" | "elapsedDays"
     | "scheduledDays" | "learningStep" | "fsrsModel" | "textOriginal" | "textTranslation" | "tStartMs" | "tEndMs" | "source" | "sourceId"
+    | "lineId"
 > & {
   clip: { source: string; sourceId: string; startMs: number; endMs: number };
   sentence: { text: string; translation: string | null };
@@ -367,7 +374,10 @@ export async function reviewCardById(
 
   const now = new Date();
   const { card: next, log } = fsrs.review(cardId, cardStateOf(card), grade as ReviewGrade, now);
-  const wordIds = ((row.tokens as Token[]) ?? [])
+  // Stats go to the words as this user sees them (T3.7): corrected entries from
+  // now on; past stats are not rewritten.
+  const overrides = await loadTokenOverrides(db, userId, [card.subtitleLineId]);
+  const wordIds = correctLine(row.tokens as Token[] | null, overrides.get(card.subtitleLineId)).tokens
     .map((t) => t.wordEntryId)
     .filter((id): id is string => !!id);
 

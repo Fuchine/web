@@ -148,7 +148,7 @@ Every step is idempotent: re-running a job does not duplicate data.
 
 ## 6. Data model (summary)
 
-22 tables (19 app + 3 Auth.js adapter); full schema in
+23 tables (20 app + 3 Auth.js adapter); full schema in
 [`packages/db/src/schema.ts`](../packages/db/src/schema.ts).
 
 | Table | Purpose |
@@ -161,6 +161,7 @@ Every step is idempotent: re-running a job does not duplicate data.
 | `subtitle_translation_chunks` | Which translation chunks of a video are done. |
 | `word_entries` | JMdict entries: **`language`**, lemma, reading, POS, definitions (jsonb), frequency rank. |
 | `word_pitch` | Pitch accent per (lemma, reading) from an attributed source (Kanjium, CC BY-SA 4.0): every downstep position, joined to `word_entries` by the natural key. |
+| `token_overrides` | A user's correction of a line's tokenization (T3.7): the original tokens `[start_idx, end_idx]` replaced by corrected `tokens` (merge/split/reading/entry). Applied for that user only — player, review queue, curation, Lapis export and word stats from then on; the shared tokens and the AI cache are untouched. The corrected surfaces must spell the original text. |
 | `word_examples` | Word ↔ line ↔ video; powers "examples in video". |
 | `sentence_cards` | Mined cards with the clip window and their own FSRS state. |
 | `review_logs` | Complete review history (lets FSRS be re-optimized later). |

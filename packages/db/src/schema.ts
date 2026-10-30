@@ -16,6 +16,7 @@ import {
   primaryKey,
   index,
   uniqueIndex,
+  check,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import type { Token, Explanation, Definition, DailyGoals } from "./types";
@@ -469,6 +470,42 @@ export const userVideoFlags = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/* Per-user token corrections (T3.7)                                   */
+/* ------------------------------------------------------------------ */
+
+// A user's correction of a subtitle line's tokenization: the original tokens
+// [start_idx, end_idx] (inclusive, indices into subtitle_lines.tokens) are
+// replaced — for this user only — by `tokens`. Spans make merges (マー|ク →
+// マーク) and splits expressible; the corrected surfaces must concatenate to the
+// original span's surfaces, so the line text never changes (enforced by
+// validateTokenOverride in @fuchine/core on write, re-checked on read). The
+// shared line row and the AI cache stay untouched.
+// See docs/plans/2026-10-30-token-overrides-spec.md.
+export const tokenOverrides = pgTable(
+  "token_overrides",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    subtitleLineId: uuid("subtitle_line_id")
+      .notNull()
+      .references(() => subtitleLines.id, { onDelete: "cascade" }),
+    startIdx: integer("start_idx").notNull(),
+    endIdx: integer("end_idx").notNull(), // inclusive
+    tokens: jsonb("tokens").$type<Token[]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // One correction per (user, line, start); its prefix serves "this user's
+    // corrections for these lines" (one query per payload).
+    primaryKey({ columns: [t.userId, t.subtitleLineId, t.startIdx] }),
+    index("token_overrides_line_idx").on(t.subtitleLineId), // cascade from line delete
+    check("token_overrides_span_ck", sql`${t.startIdx} >= 0 and ${t.endIdx} >= ${t.startIdx}`),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
 /* Stats                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -688,3 +725,4 @@ export type ReviewLog = typeof reviewLogs.$inferSelect;
 export type AiExplanation = typeof aiExplanations.$inferSelect;
 export type Album = typeof albums.$inferSelect;
 export type Invite = typeof invites.$inferSelect;
+export type TokenOverrideRow = typeof tokenOverrides.$inferSelect;

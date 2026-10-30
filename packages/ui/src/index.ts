@@ -43,6 +43,7 @@ export type {
   PlayerProps,
   PlayerVideo as PlayerVideoData,
   PlayerSubtitleLine,
+  LineTokensUpdate,
 } from "./components/Player/Player";
 export { PlayerExplain } from "./components/Player/PlayerExplain";
 export type {
@@ -61,6 +62,11 @@ export { DictPopup } from "./components/DictPopup/DictPopup";
 export { PitchAccent, PitchPatternMarks, pitchSourceLabel } from "./components/PitchAccent/PitchAccent";
 export type { PitchInfo, PitchAccentProps } from "./components/PitchAccent/PitchAccent";
 export { MinedCard } from "./components/MinedCard/MinedCard";
+// T3.7 — per-user token correction (the popup's "Fix")
+export { TokenFixEditor } from "./components/TokenFix/TokenFixEditor";
+export type {
+  TokenFixEditorProps, TokenFixOverride, TokenFixInput, FixToken, FixEntryHit,
+} from "./components/TokenFix/TokenFixEditor";
 
 // T3.6 — mine now, curate later
 export { CurateCard } from "./components/Curate/CurateCard";

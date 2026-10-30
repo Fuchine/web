@@ -112,7 +112,16 @@
 .dp-action.save { background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); }
 .dp-action.save:hover { border-color: var(--text-faint); }
 .dp-action.save.saved { color: var(--link); border-color: var(--accent-line); background: var(--accent-soft-2); }
-.dp-error { padding: 8px 0; font-size: 13.5px; color: var(--text-muted); }
+.dp-error { padding: 8px 0; font-size: 13.5px; color: var(--text-muted); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dp-error > span:first-child { flex: 1; }
+/* T3.7 — per-user token correction */
+.dp-action.fix { flex: none; padding: 0 12px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); }
+.dp-action.fix:hover { border-color: var(--text-faint); }
+.dp-error .dp-action.fix { height: 32px; }
+.dp-corrected {
+  font-size: 11px; font-weight: 600; color: var(--link);
+  background: var(--accent-soft); border-radius: 999px; padding: 2px 8px;
+}
 .dp-skeleton { display: flex; flex-direction: column; gap: 14px; }
 .dp-sk-head { display: flex; justify-content: space-between; }
 .dp-sk-tags { display: flex; gap: 8px; }

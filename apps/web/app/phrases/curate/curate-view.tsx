@@ -7,6 +7,7 @@ import type { UncuratedCard, UncuratedPage } from "@/lib/phrases";
 import type { WordEntryData } from "@/lib/cards";
 import { curatedNotes, groupByVideo, nextActiveAfter } from "@/lib/curate";
 import { usePaginatedList } from "@/lib/use-paginated-list";
+import { resetLineTokens, saveLineTokens, searchEntries, type LineTokensResponse } from "@/lib/token-fix-client";
 
 function fmtMs(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -55,6 +56,13 @@ export function CurateView({
     fetchPage,
   });
 
+  // Token corrections saved this session (T3.7), by line: they replace the
+  // page's tokens and bring the entries the corrected words point to.
+  const [tokenPatches, setTokenPatches] = useState<Record<string, Pick<LineTokensResponse, "tokens" | "tokenSpans">>>({});
+  const applyTokens = useCallback((r: LineTokensResponse) => {
+    setEntries((cur) => ({ ...cur, ...r.wordEntries }));
+    setTokenPatches((cur) => ({ ...cur, [r.lineId]: { tokens: r.tokens, tokenSpans: r.tokenSpans } }));
+  }, []);
   const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set());
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [ui, setUi] = useState<Record<string, CardUi>>({});
@@ -215,11 +223,16 @@ export function CurateView({
                 {g.items.map((c) => {
                   const state = ui[c.cardId] ?? { status: "idle" as const, error: null };
                   const mounted = playingId === c.cardId;
+                  const patch = tokenPatches[c.lineId];
                   return (
                     <CurateCard
                       key={c.cardId}
                       sentence={{ text: c.textOriginal, translation: c.textTranslation }}
-                      tokens={c.tokens}
+                      tokens={patch?.tokens ?? c.tokens}
+                      tokenSpans={patch ? patch.tokenSpans : c.tokenSpans}
+                      onSaveTokens={async (o) => applyTokens(await saveLineTokens(c.lineId, o))}
+                      onResetTokens={async (span) => applyTokens(await resetLineTokens(c.lineId, span))}
+                      onSearchEntries={searchEntries}
                       wordEntries={entries}
                       explanation={c.explanation}
                       time={fmtMs(c.tStartMs)}

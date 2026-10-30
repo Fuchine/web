@@ -4,8 +4,16 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Player, UserFacingError, type PlayerProps } from "@fuchine/ui";
 import type { Explanation } from "@fuchine/db";
+import { hiraToRomaji } from "@fuchine/nlp/client";
+import { resetLineTokens, saveLineTokens, searchEntries, type LineTokensResponse } from "@/lib/token-fix-client";
 
-export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "onFetchChunk" | "onFetchExplanation" | "explanationPromptVersion" | "onSaveWord" | "onProgress">) {
+// The player renders romaji from the token; corrected tokens may lack it.
+const toPlayerTokens = (r: LineTokensResponse) => ({
+  tokens: r.tokens.map((t) => ({ ...t, romaji: t.romaji ?? (t.reading ? hiraToRomaji(t.reading) : null) })),
+  tokenSpans: r.tokenSpans,
+});
+
+export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "onFetchChunk" | "onFetchExplanation" | "explanationPromptVersion" | "onSaveWord" | "onProgress" | "onSaveTokens" | "onResetTokens" | "onSearchEntries">) {
   const router = useRouter();
   const videoId = props.video.id;
   // Prompt version the server reports with each explanation (T3.12 label).
@@ -88,6 +96,9 @@ export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "o
       explanationPromptVersion={promptVersion}
       onSaveWord={onSaveWord}
       onProgress={onProgress}
+      onSaveTokens={async (lineId, o) => toPlayerTokens(await saveLineTokens(lineId, o))}
+      onResetTokens={async (lineId, span) => toPlayerTokens(await resetLineTokens(lineId, span))}
+      onSearchEntries={searchEntries}
       onBack={() => router.push("/")}
       onNavigate={(key) => router.push(key === "home" ? "/" : `/${key}`)}
     />

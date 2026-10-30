@@ -8,11 +8,13 @@ import {
   subtitleTranslationChunks,
   wordExamples,
   userWordStats,
+  type Token,
 } from "@fuchine/db";
 import { decodeListCursor, encodeListCursor, escapeLike } from "./list-query";
 import { isUuid } from "./ids";
 import { LEVEL } from "./library";
 import { knownWordSql, wordStatusFromStats, type WordStatus } from "./word-status";
+import { withTokenOverrides, type TokenSpan } from "./token-overrides";
 
 // Nulls sort last: videos without a duration on "shortest first", without a
 // level estimate on "level". The level bands mirror LEVEL in lib/library.ts.
@@ -231,8 +233,12 @@ export async function getWordStatuses(
   return out;
 }
 
-/** Player payload: the video plus its ordered subtitle lines (tokens included). */
-export async function getVideoWithLines(db: Database, videoId: string) {
+/**
+ * Player payload: the video plus its ordered subtitle lines (tokens included).
+ * With `userId`, the user's token corrections (T3.7) are applied and corrected
+ * lines carry `tokenSpans`; other users and the shared row are untouched.
+ */
+export async function getVideoWithLines(db: Database, videoId: string, opts: { userId?: string } = {}) {
   const [video] = await db
     .select()
     .from(videos)
@@ -240,7 +246,7 @@ export async function getVideoWithLines(db: Database, videoId: string) {
     .limit(1);
   if (!video) return null;
 
-  const lines = await db
+  const sharedLines = await db
     .select({
       id: subtitleLines.id,
       idx: subtitleLines.idx,
@@ -253,6 +259,9 @@ export async function getVideoWithLines(db: Database, videoId: string) {
     .from(subtitleLines)
     .where(eq(subtitleLines.videoId, videoId))
     .orderBy(asc(subtitleLines.idx));
+  const lines: (Omit<(typeof sharedLines)[number], "tokens"> & { tokens: Token[]; tokenSpans?: TokenSpan[] })[] = opts.userId
+    ? await withTokenOverrides(db, opts.userId, sharedLines, (l) => l.id)
+    : sharedLines.map((l) => ({ ...l, tokens: l.tokens ?? [] }));
 
   const chunks = await db
     .select({ chunkIdx: subtitleTranslationChunks.chunkIdx })

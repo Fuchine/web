@@ -139,6 +139,40 @@ export const PitchOdaka: Story = { args: withPitch("橋", "はし", "bridge", 2)
 /** Several accents for one reading — all listed. */
 export const PitchMultiple: Story = { args: withPitch("二つ", "ふたつ", "two (things)", 0, 3) };
 
+// T3.7 — per-user token correction: the "Fix" action and its badge.
+export const WithFix: Story = {
+  args: {
+    position: POSITION,
+    entry: ENTRY,
+    loading: false,
+    error: null,
+    saved: false,
+    onExplain: () => {},
+    onSaveWord: () => {},
+    onClose: () => {},
+    onFix: () => {},
+  } as DictPopupProps,
+};
+
+export const CorrectedByYou: Story = {
+  args: { ...(WithFix.args as DictPopupProps), corrected: true },
+};
+
+/** A token without an entry (a name, a split word) can still be fixed. */
+export const NoEntryFixable: Story = {
+  args: {
+    position: POSITION,
+    entry: null,
+    loading: false,
+    error: "No dictionary entry.",
+    saved: false,
+    onExplain: () => {},
+    onSaveWord: () => {},
+    onClose: () => {},
+    onFix: () => {},
+  } as DictPopupProps,
+};
+
 export const Dark: Story = {
   decorators: [
     (Story) => (

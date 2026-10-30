@@ -14,6 +14,7 @@ import {
 } from "@fuchine/db";
 import type { Token } from "@fuchine/db";
 import { computeStreaks, dayKey } from "./stats";
+import { withTokenOverrides } from "./token-overrides";
 
 const DAY_MS = 86_400_000;
 const SESSION_GAP_MS = 30 * 60 * 1000; // reviews >30 min apart start a new session
@@ -140,8 +141,8 @@ export async function getSessionSummary(
   }
 
   // --- Words matured: cards that reached Review state during this session. ---
-  const maturedCards = await db
-    .select({ tokens: subtitleLines.tokens })
+  const maturedShared = await db
+    .select({ lineId: sentenceCards.subtitleLineId, tokens: subtitleLines.tokens })
     .from(sentenceCards)
     .innerJoin(subtitleLines, eq(subtitleLines.id, sentenceCards.subtitleLineId))
     .where(
@@ -152,6 +153,7 @@ export async function getSessionSummary(
       ),
     )
     .limit(MATURED_LIMIT * 2);
+  const maturedCards = await withTokenOverrides(db, userId, maturedShared, (c) => c.lineId);
 
   const targets = maturedCards
     .map((c) => targetToken(c.tokens))
