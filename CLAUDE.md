@@ -44,7 +44,7 @@ UI é em inglês.
 - `screens.md` — guia para gerar telas (handoff para IA): sistema visual,
   fluxo component-first, tokens/utilitários, componentes prontos em
   `@fuchine/ui` e os shapes de API por tela.
-- `packages/db/src/schema.ts` — schema Drizzle: 22 tabelas (19 do app + 3 do
+- `packages/db/src/schema.ts` — schema Drizzle: 23 tabelas (20 do app + 3 do
   adapter Auth.js).
 
 ## Decisões que NÃO podem ser violadas
@@ -124,7 +124,16 @@ otimizador WASM no browser em Settings → Review, mínimo 400 reviews; `lib/fsr
 `GET /api/review/logs/export`, `GET/PUT /api/settings/fsrs`; spec em
 `docs/plans/2026-10-30-fsrs7-spec.md`), T3.5 (default **10** cards novos/dia aplicado na leitura —
 `dailyGoals` sem o campo = 10, nunca gravado; `lib/srs-defaults.ts`; projeção
-"amanhã" em `lib/goals.ts`), T3.8 (modo de escuta Primed, ocultar JP/tradução,
+"amanhã" em `lib/goals.ts`), T3.7 (correção de token/leitura **por usuário**:
+tabela `token_overrides`, migration 0020 — span de índices `[start, end]` →
+`Token[]` corrigido, superfícies precisam soletrar o texto original;
+`applyTokenOverrides` puro em `@fuchine/core`; `PUT/DELETE
+/api/lines/[id]/tokens`; um helper `withTokenOverrides` em
+`lib/token-overrides.ts` aplica no player, fila/stats de revisão, curadoria,
+export Lapis, beacon de views e resumo — só para o dono, stats passadas não
+são reescritas, comprehension/`word_examples` e cache de IA seguem
+compartilhados; "Fix" no popup com `TokenFixEditor`; spec em
+`docs/plans/2026-10-30-token-overrides-spec.md`), T3.8 (modo de escuta Primed, ocultar JP/tradução,
 cores por status de palavra — regra única em `lib/word-status.ts`), T3.6 (fila "curar depois":
 `/phrases/curate` lista cards com `notes IS NULL` e nunca revisados — `notes = ""`
 = curado sem nota; "Rewatch ×2"; minerar com **M**; badge de revisão conta só o
@@ -148,18 +157,18 @@ lint, test, build), `e2e.yml` (migrate + suítes E2E contra Postgres real), `dco
 
 Pacotes e seus pontos de entrada:
 
-- `packages/db` — schema Drizzle com 22 tabelas: 19 do app (`users`,
+- `packages/db` — schema Drizzle com 23 tabelas: 20 do app (`users`,
   `user_settings`, `invites`, `videos`, `subtitle_lines`,
   `subtitle_translation_chunks`, `word_entries`, `word_pitch`, `word_examples`,
   `sentence_cards`, `review_logs`, `ai_explanations`, `albums`, `album_videos`,
   `user_video_flags`, `user_word_stats`, `saved_words`, `user_daily_stats`,
-  `llm_usage`) + 3 do adapter Auth.js (`accounts`, `sessions`,
+  `token_overrides`, `llm_usage`) + 3 do adapter Auth.js (`accounts`, `sessions`,
   `verification_tokens`). Tipos jsonb (`Token`, `Explanation`, `Definition`,
   `DailyGoals`) + `createDb()` (pool configurável, `DB_POOL_MAX`) +
   `ensureUserSettings` + helpers de convite (`invites.ts`) e `normalizeEmail`.
   Exporta também `Transaction`/`DbOrTx` (handle de transação do Drizzle) para
   helpers que rodam tanto standalone quanto dentro de `db.transaction(...)`.
-  Migrations em `drizzle/` de `0000_init` a `0019` com meta journal
+  Migrations em `drizzle/` de `0000_init` a `0020` com meta journal
   (`pnpm db:migrate`; a `0013` cria a extensão `pg_trgm`). Seed JMdict +
   frequência em `src/seed/` (`pnpm --filter @fuchine/db seed`/`seed:jmdict`;
   fixture em `seeds/fixtures/`).
@@ -205,12 +214,13 @@ Pacotes e seus pontos de entrada:
   (`DATABASE_URL`, `AUTH_SECRET`, `FUCHINE_ENCRYPTION_KEY`, registro/teto
   inválidos). Security headers + CSP em `next.config.ts`. Rate limits por
   usuário/IP em Redis (`lib/rate-limit.ts`: explain miss/force, translate miss,
-  import novo, busca do dicionário, magic link, beacon, click).
-  Rotas (33): `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
+  import novo, busca do dicionário, magic link, beacon, click, correção de token).
+  Rotas (34): `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
   estudo (F1, completa): `GET /api/videos` (biblioteca), `GET /api/videos/[id]`
   (payload do player), `POST /api/cards` (minerar, dedup), `GET
   /api/review/queue` + `POST /api/review/[cardId]` (FSRS), `GET /api/dictionary`
-  (por id ou busca), `POST /api/lines/[id]/explain` (camada 2, cache-first +
+  (por id ou busca), `PUT/DELETE /api/lines/[id]/tokens` (correção por usuário, T3.7),
+  `POST /api/lines/[id]/explain` (camada 2, cache-first +
   BYOK) e álbuns (F2): `GET/POST /api/albums`, `PATCH/DELETE /api/albums/[id]`,
   `POST/DELETE /api/albums/[id]/videos` (list com contagem de vídeos, dedup por
   PK composta, ownership por usuário; na biblioteca, "Add to album" abre modal
