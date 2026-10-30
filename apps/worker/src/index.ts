@@ -15,7 +15,10 @@ import {
 import {
   getExplainQueue,
   getImportQueue,
+  getMaintenanceQueue,
   EXPLAIN_QUEUE,
+  MAINTENANCE_QUEUE,
+  type MaintenanceJob,
   WORKER_HEARTBEAT_KEY,
   WORKER_HEARTBEAT_TTL,
   type ExplainJob,
@@ -24,6 +27,7 @@ import { IMPORT_QUEUE, connection, bullConn, type ImportJob } from "./queue";
 import { importVideo } from "./pipeline";
 import { houseProvider, hasHouseLlm } from "./provider";
 import { env } from "./env";
+import { handleMaintenance, scheduleCalibration } from "./maintenance";
 
 // The worker runs at concurrency 2 (import) + 1 (explain), so a small pool is
 // plenty; keep it lean to leave connection budget for web. Overridable via
@@ -40,6 +44,7 @@ const withinBudget = async () => (await budget.state()) !== "exhausted";
 
 const explainQueue = getExplainQueue(connection);
 const importQueue = getImportQueue(connection);
+const maintenanceQueue = getMaintenanceQueue(connection);
 
 const importWorker = new Worker<ImportJob>(
   IMPORT_QUEUE,
@@ -96,6 +101,20 @@ const explainWorker = new Worker<ExplainJob>(
   // flight, and the free-tier provider throttles beyond that.
   { connection: bullConn, concurrency: 1 },
 );
+
+// Maintenance (T3.10): daily known-word calibration + per-user Explore
+// coverage refreshes. One at a time — each is a single aggregate.
+const maintenanceWorker = new Worker<MaintenanceJob>(
+  MAINTENANCE_QUEUE,
+  async (job) => {
+    console.log(`[maintenance] ${await handleMaintenance(db, job.data)}`);
+  },
+  { connection: bullConn, concurrency: 1 },
+);
+maintenanceWorker.on("failed", (job, err) => {
+  console.error(`[maintenance] failed: ${job?.data.kind}`, err);
+});
+scheduleCalibration(maintenanceQueue).catch((err) => console.error("[maintenance] schedule failed", err));
 
 importWorker.on("completed", (job) => {
   console.log(`[import] done: ${job.data.videoId}`);
@@ -160,13 +179,15 @@ async function reconcileStuckImports() {
 }
 void reconcileStuckImports();
 
-console.log(`[worker] listening on "${IMPORT_QUEUE}" and "${EXPLAIN_QUEUE}" queues`);
+console.log(`[worker] listening on "${IMPORT_QUEUE}", "${EXPLAIN_QUEUE}" and "${MAINTENANCE_QUEUE}" queues`);
 
 async function shutdown() {
   clearInterval(heartbeat);
   await importWorker.close();
   await explainWorker.close();
+  await maintenanceWorker.close();
   await explainQueue.close();
+  await maintenanceQueue.close();
   await importQueue.close();
   await connection.del(WORKER_HEARTBEAT_KEY).catch(() => {});
   await connection.quit();
