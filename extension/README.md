@@ -1,44 +1,71 @@
 # Fuchine Importer (browser extension)
 
-The primary ingestion path (the captions spike showed server-side caption
-content is gated — see `tools/spike`). The extension runs in your logged-in
-browser, where the YouTube player downloads captions normally, and submits them
-to the Fuchine import API.
+The primary ingestion path. The captions spike (`tools/spike`) showed that
+YouTube gates caption content server-side: the `timedtext` endpoint returns
+0 bytes without the PO token the player generates in a real browser session.
+The extension runs in your logged-in browser, captures the captions the YouTube
+player itself downloads, and submits them to the Fuchine import API.
 
-This is an MV3 skeleton with **no build step** — load it directly. When it grows
-(Phase 2) we'll migrate to WXT, as the architecture plans.
+MV3 with **no build step** — load the folder directly. The version shown in the
+popup is read from `manifest.json`. Migrating to WXT and publishing to the Chrome
+Web Store is roadmap task T2.10 (`docs/ROADMAP_ENGENHARIA.md`).
 
 ## Load it (Chrome / Edge)
 
 1. `chrome://extensions` → enable **Developer mode**.
 2. **Load unpacked** → select this `extension/` folder.
 3. Run the Fuchine web app (`pnpm dev`) and **sign in** at `http://localhost:3000`.
-4. Open a YouTube video that has Japanese captions, click the Fuchine icon,
-   then **Import to Fuchine**.
+4. Import a video in either of the two ways below.
 
 Set a different instance URL in the popup's "Fuchine URL" field (defaults to
 `http://localhost:3000`). For a non-localhost instance the extension asks for
 permission to reach that origin the first time you import — no manual
-`manifest.json` edit. Granting it also enables the in-app "import" bridge on
-that instance.
+`manifest.json` edit. Granting it also enables the in-app bridge on that
+instance.
+
+## Two ways to import
+
+**From YouTube (popup).** Open a video with Japanese captions, turn CC on so the
+player fetches the track, click the Fuchine icon, then **Import to Fuchine**.
+
+**From the app (bridge).** On the app's import screen, paste a YouTube URL. The
+app detects the extension (`bridge.js` marks the page), sends the request to the
+extension, and the extension opens the video in a background tab, turns the
+Japanese captions on, captures them, imports, closes the tab and reports back so
+the app can open the player.
 
 ## How it works
 
-- `popup.js` injects `extractCaptions` into the page's **MAIN world**, reads
-  `ytInitialPlayerResponse`, picks the Japanese track (manual preferred over
-  auto), downloads it as `json3` with the page's credentials, and builds
+- `inject.js` runs in the YouTube page's **MAIN world** at `document_start` and
+  hooks `fetch`/XHR. When the player downloads a `timedtext` track (with its PO
+  token), the response is stored on `window.__fuchine`.
+- `capture.js` (shared by the popup and the service worker) reads the current
+  video from the player API, which stays correct across YouTube's in-app
+  navigation, and picks the captured Japanese track for **that** video id
+  (manual preferred over auto/ASR). Re-fetching the track's `baseUrl` from
+  `ytInitialPlayerResponse` is only a fallback, used when that response belongs
+  to the current video, and is usually gated. It builds
   `{ url, title, channel, durationS, language, captions[] }`.
-- It POSTs that to `POST /api/import` with `credentials: "include"` so the
-  Auth.js session cookie authenticates the user.
+- `popup.js` POSTs that to `POST /api/import` with `credentials: "include"`, so
+  the Auth.js session cookie authenticates the user.
+- `bridge.js` runs on the Fuchine app origin (ISOLATED world) and relays
+  `IMPORT` / `IMPORT_RESULT` messages between the page and `background.js`, the
+  service worker that drives the background-tab import. It only accepts bare
+  11-character YouTube video ids.
+
+Capture was validated in a real browser: re-fetching the track from the server
+returned 0 bytes, while intercepting the player's own request captured all 55
+lines of a manual Japanese track.
 
 ## Known limitations / TODO
 
 - **Auth cookie:** cross-origin `credentials: "include"` relies on the Auth.js
-  session cookie being sent from the extension to the instance. On localhost
-  this generally works; for production a token-based auth may be needed (verify
-  SameSite behavior).
-- **Caption source:** reads `window.ytInitialPlayerResponse`. On SPA navigations
-  this can be stale; a more robust version intercepts the player's own caption
-  request. Manual JP captions are preferred; falls back to auto (ASR).
-- Not yet tested end-to-end in a browser (needs a real Chrome + a signed-in
-  instance). The web side (`/api/import`) is covered by integration tests.
+  session cookie being sent from the extension to the instance. It works on
+  localhost; a per-user API token (`Authorization: Bearer`) is planned in T2.11
+  so the extension stops depending on `SameSite` behavior.
+- **Live https instance:** the full loop (extension → `https://<domain>`) is
+  still to be run against a live instance; it is in the smoke test of
+  `docs/DEPLOY_CHECKLIST.md` §6.
+- **Platform breakage:** interception depends on how the YouTube player fetches
+  captions. If YouTube changes that, capture breaks. A status page for known
+  breakages is part of T2.10.

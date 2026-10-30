@@ -50,13 +50,17 @@ O **cache compartilhado é o fosso estrutural da cloud:** cada vídeo processado
 
 1. Lançar como **open source puro com BYOK** ao fim da Fase 1. Zero energia em billing.
 2. Construir a cloud paga **apenas quando os sinais aparecerem**: issues pedindo versão hospedada, self-hosters reclamando de manutenção, crescimento de stars/tráfego. Cada sinal é validação gratuita de demanda.
-3. Âncora de preço quando chegar a hora: HayaiLearn cobra ~US$ 10/mês. Posicionar próximo ou abaixo, com a vantagem de confiança do código aberto e **preço regional em real** — algo que nenhum concorrente estrangeiro faz bem.
+3. Âncora de preço quando chegar a hora: HayaiLearn — **Pro US$ 7/mês cobrado anualmente (US$ 84/ano)** e **Platinum US$ 14/mês (US$ 168/ano)**, sem tier gratuito *(fonte: snippet da página oficial hayailearn.com/pricing, 2026-10-29, não verificado; o "~US$ 10/mês" da v0.1 era o preço antigo)*. Posicionar **na mesma faixa, com laço fechado, código aberto e tier em real** — não abaixo: a US$ 8 o Fuchine não tem vantagem de preço contra a referência nem contra o Language Reactor (~US$ 5,95/mês, dado de terceiro). A diferença é o laço de imersão fechado sobre o YouTube, a confiança do código aberto e o **preço regional em real** — algo que nenhum concorrente estrangeiro faz bem. Detalhe em `docs/PESQUISA_MERCADO-2026-10-29.md` §1 e §6.
 
 > **Atualização 2026-07-06:** foco comercial definido em **clientes pagantes
 > em dólar** — preço único em US$ no lançamento da cloud; o preço regional em
 > real passa a alavanca de expansão posterior. Números, cenários e racional em
 > `docs/ANALISE_CUSTOS.md` (§6.1: Pro US$ 8/mês · US$ 79/ano, a lápis até
 > haver medição de uso real).
+>
+> **Atualização 2026-10-30 (T2.1):** âncora revista com a pesquisa de mercado
+> de 2026-10-29 (item 3 acima). Preço e tiers definitivos ficam para o T3.14
+> do `docs/ROADMAP_ENGENHARIA.md`, com preços confirmados em página oficial.
 
 ---
 
@@ -273,6 +277,14 @@ As fases são contrato contra scope creep: nada da F2 começa antes do loop da F
 ## 12. Melhorias deliberadas sobre o HayaiLearn
 
 Para não perder o fio do "quase idêntico, porém melhor": código aberto com self-host real; custo de IA em camadas com cache compartilhado (vídeos populares ficam gratuitos de processar); FSRS no lugar de SM-2; BYOK para quem quer controle total; preço regional em real; arquitetura multilíngue desde a primeira migration; e, no futuro, Whisper para estudar **qualquer** vídeo — não só os que já têm legenda.
+
+> **Atualização 2026-10-30:** "melhor" não inclui "mais barato". O HayaiLearn
+> hoje cobra US$ 7/mês (Pro, anual) e US$ 14/mês (Platinum) *(snippet da página
+> oficial, 2026-10-29, não verificado)* e ampliou o escopo (import de Netflix,
+> apps iOS/Android, shadowing). A diferença do Fuchine é o laço fechado
+> (assistir → modelo de palavras conhecidas → cards que tocam o clipe original
+> → FSRS), o código aberto e o tier em real, na mesma faixa de preço — ver
+> `docs/PESQUISA_MERCADO-2026-10-29.md`.
 
 ---
 

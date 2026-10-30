@@ -16,14 +16,14 @@ deploy" não forem resolvidos.
 
 ## Conjunto mínimo antes de subir (bloqueiam o deploy)
 
-- [x] **A1** — Rate limit do magic link →
-      [ai-endpoints-no-rate-limit.md](ai-endpoints-no-rate-limit.md) (resolvido 2026-07-10)
+- [x] **A1** — Rate limit do magic link → `ai-endpoints-no-rate-limit`
+      (resolvido 2026-07-10, commit `aba2918`)
 - [x] **M1** — Explain degrada em vez de dar 500 para provider não implementado →
-      [explain-provider-errors-500.md](explain-provider-errors-500.md) (resolvido 2026-07-10, fecha M2 junto)
+      `explain-provider-errors-500` (resolvido 2026-07-10, commit `e60b399`, fecha M2 junto)
 - [x] **OPS-1** — Mover `pnpm.overrides` para `pnpm-workspace.yaml` →
-      [pnpm-overrides-not-applied.md](pnpm-overrides-not-applied.md) (resolvido 2026-07-10)
+      `pnpm-overrides-not-applied` (resolvido 2026-07-10, commit `e9a453c`)
 - [x] **OPS-2** — Fechar as portas de Postgres/Redis no host + trocar senha default →
-      [compose-ports-exposed.md](compose-ports-exposed.md) (resolvido 2026-07-10)
+      `compose-ports-exposed` (resolvido 2026-07-10, commit `d161bfb`)
 - [x] **OPS-4** — Ensaiar backup → restore (com a chave de cifragem junto) →
       ensaio executado 2026-07-20, **PASS 8/8** (registro no Apêndice A do
       [DEPLOY_CHECKLIST.md](../docs/DEPLOY_CHECKLIST.md); arquivo de backlog
@@ -35,19 +35,21 @@ Os demais são hardening/reliability e podem ir logo depois.
 
 Todos os claims de código foram verificados contra o repositório em
 2026-07-10 (o OPS-1 empiricamente — o warning do pnpm reproduz e o lockfile
-ainda resolve nodemailer 9.0.1). Itens acionáveis viraram arquivos próprios:
+ainda resolve nodemailer 9.0.1). Itens acionáveis viraram arquivos próprios.
+Todos fecharam e os arquivos foram removidos do backlog (commits `ef9f70d`,
+`aea91f6` e `1c46474`); a coluna "Resolução" aponta o commit da correção.
 
-| Item | Backlog | Nota da verificação |
-|---|---|---|
-| A1 | [ai-endpoints-no-rate-limit.md](ai-endpoints-no-rate-limit.md) | Já era pendência conhecida (item 5); elevado a bloqueador lá. |
-| M1 + M2 | [explain-provider-errors-500.md](explain-provider-errors-500.md) | Pior que o descrito: `local` nem existe em `ProviderName`. Fix = as duas metades (restringir + degradar). |
-| B1 | [import-url-channel-unbounded.md](import-url-channel-unbounded.md) | Confirmado; normalizar a URL também limpa variantes. |
-| B2 | [word-views-no-daily-cap.md](word-views-no-daily-cap.md) | Confirmado; aceitar como não-problema é resolução válida. |
-| B3–B5 | — (sem correção; a anotação vive neste arquivo) | Avaliações razoáveis; nada a fazer no launch. |
-| OPS-1 | [pnpm-overrides-not-applied.md](pnpm-overrides-not-applied.md) | Confirmado empiricamente. |
-| OPS-2 | [compose-ports-exposed.md](compose-ports-exposed.md) | Confirmado; agravante: ports do Docker furam o ufw. |
-| OPS-3 | [catalog-visibility-decision.md](catalog-visibility-decision.md) + ressalva da extensão em [PRODUCAO-2026-07-06.md](PRODUCAO-2026-07-06.md) | Já rastreados; sem arquivo novo. |
-| OPS-4 | [backup-restore-rehearsal.md](backup-restore-rehearsal.md) | Processo, não código. |
+| Item | Backlog (removido) | Resolução | Nota da verificação |
+|---|---|---|---|
+| A1 | `ai-endpoints-no-rate-limit` | `aba2918` (2026-07-10) | Já era pendência conhecida (item 5); elevado a bloqueador lá. |
+| M1 + M2 | `explain-provider-errors-500` | `e60b399` (2026-07-10) | Pior que o descrito: `local` nem existe em `ProviderName`. Fix = as duas metades (restringir + degradar). |
+| B1 | `import-url-channel-unbounded` | `aba2918` (2026-07-10) | Confirmado; normalizar a URL também limpa variantes. |
+| B2 | `word-views-no-daily-cap` | aceito como não-problema (2026-07-10) | Confirmado; aceitar como não-problema é resolução válida. |
+| B3–B5 | — (sem correção; a anotação vive neste arquivo) | — | Avaliações razoáveis; nada a fazer no launch. |
+| OPS-1 | `pnpm-overrides-not-applied` | `e9a453c` (2026-07-10) | Confirmado empiricamente. |
+| OPS-2 | `compose-ports-exposed` | `d161bfb` (2026-07-10) | Confirmado; agravante: ports do Docker furam o ufw. |
+| OPS-3 | [catalog-visibility-decision.md](catalog-visibility-decision.md) + ressalva da extensão em [PRODUCAO-2026-07-06.md](PRODUCAO-2026-07-06.md) | decisão declarada em `8f7bd09`; moderação → `ROADMAP_ENGENHARIA.md` T2.13 | Já rastreados; sem arquivo novo. |
+| OPS-4 | `backup-restore-rehearsal` | `1c46474` (ensaio 2026-07-20, PASS 8/8) | Processo, não código. |
 
 ---
 
@@ -201,11 +203,15 @@ por env; setar `requirepass` no Redis.
 ---
 
 ### OPS-3 · Bloqueio de produto/processo · Itens de backlog ainda abertos
-- **`extension-hardcoded-origin`** (🔒) — extensão não validada contra instância
-  https ao vivo; o smoke test do loop inteiro depende disso.
-- **`catalog-visibility-decision`** — decisão de produto (todos veem os vídeos de
-  todos, correto por D3, mas precisa virar decisão declarada antes de instância
-  compartilhada). Não bloqueia self-host de 1 usuário.
+- **`extension-hardcoded-origin`** — origin configurável resolvido em código
+  no PR #19 (servidor no popup + permissão em runtime) e captura validada em
+  browser real; ainda falta rodar contra uma instância https ao vivo (item do
+  smoke test em `docs/DEPLOY_CHECKLIST.md` §6).
+- **[`catalog-visibility-decision`](catalog-visibility-decision.md)** — decisão
+  de produto (todos veem os vídeos de todos, correto por D3). Declarada em
+  2026-07-10 (`8f7bd09`); o que falta antes de instância compartilhada
+  (denúncia, remoção pelo admin) está no arquivo e no T2.13. Não bloqueia
+  self-host de 1 usuário.
 
 ---
 

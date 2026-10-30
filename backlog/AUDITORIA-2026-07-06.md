@@ -36,8 +36,8 @@ violá-las.
 >   onboarding); removido.
 > - `unpaginated-lists` — fechou (queries/rotas cursor-paginated + `GET /api/phrases`
 >   novo + infinite scroll `usePaginatedList`); restou só a limitação de escopo
->   da busca, filada em [list-search-covers-loaded-only.md](list-search-covers-loaded-only.md)
->   (baixa, F2).
+>   da busca, filada como `list-search-covers-loaded-only` (baixa, F2) —
+>   resolvida depois no PR #23 (busca/filtro/sort server-side) e removida.
 > - `dictionary-screen-state` §8 — já estava resolvido (índice trgm + `glosses_text`,
 >   migration 0013); sem bug acionável.
 > - `prewarm-cost-per-import` — item 2 (tail no primeiro open) fechou; sobra o item 3.
