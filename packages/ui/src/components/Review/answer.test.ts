@@ -74,6 +74,14 @@ describe("pickClozeTarget", () => {
     expect(splitSentence(sentence, t!).filter((p) => p.isTarget).map((p) => p.text)).toEqual(["日本語"]);
   });
 
+  test("reports the chosen token's index and dictionary entry (Anki export target word)", () => {
+    const t = pickClozeTarget(sentence, tokens, entries);
+    expect(t?.tokenIndex).toBe(2);
+    expect(t?.wordEntryId).toBe("nihongo");
+    const bare = pickClozeTarget("ラーメンだ", [tok("ラーメン", "名詞", null, "ラーメン", "ラーメン")], {});
+    expect(bare).toMatchObject({ tokenIndex: 0, wordEntryId: null });
+  });
+
   test("an unranked entry counts as rarer than any ranked one", () => {
     const t = pickClozeTarget(sentence, tokens, { ...entries, benkyou: { ...entries.benkyou, frequencyRank: null } });
     expect(t?.surface).toBe("勉強");
