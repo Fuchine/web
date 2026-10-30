@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { cn } from "../../lib/cn";
 import { Avatar } from "../Avatar/Avatar";
 
@@ -56,6 +56,19 @@ export function AppShell({
 }: AppShellProps) {
   const [internal, setInternal] = useState(defaultCollapsed);
   const collapsed = controlledCollapsed ?? internal;
+
+  // On a phone the expanded 252px sidebar would leave almost no room for the
+  // page (e.g. the review PWA's start screen, T3.13): start collapsed there.
+  useEffect(() => {
+    if (controlledCollapsed !== undefined) return;
+    try {
+      if (window.matchMedia?.("(max-width: 640px)").matches) setInternal(true);
+    } catch {
+      // no matchMedia: keep the default
+    }
+    // Only on mount: after that the learner's toggle wins.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const toggle = () => {
     const next = !collapsed;
     onCollapsedChange?.(next);

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, ReviewSession, type ReviewSessionProps, type ReviewItem } from "@fuchine/ui";
+import { Button, InstallAppButton, ReviewSession, type ReviewSessionProps, type ReviewItem } from "@fuchine/ui";
 import type { ReviewQueueCard, WordEntryData } from "@/lib/cards";
 
 function youtubeThumbnail(sourceId: string) {
@@ -51,18 +51,28 @@ export function ReviewView({
   };
 
   if (mode === "session") {
-    return <ReviewSession queue={queue as ReviewSessionProps["queue"]} onComplete={finishSession} />;
+    // .rev-screen goes full-screen on a phone (covers the sidebar shell), T3.13.
+    return (
+      <div className="rev-screen">
+        <ReviewSession
+          queue={queue as ReviewSessionProps["queue"]}
+          onComplete={finishSession}
+          topBarActions={<InstallAppButton compact allowIosHint={false} />}
+        />
+      </div>
+    );
   }
 
   return (
-    <div className="px-8 py-9">
-      <div className="mb-7 flex items-center gap-4">
+    <div className="px-4 py-6 sm:px-8 sm:py-9">
+      <div className="mb-5 flex flex-wrap items-center gap-3 sm:mb-7 sm:gap-4">
         <h1 className="m-0 flex-1 text-[22px] font-[600] -tracking-[0.01em] text-fg">Review</h1>
+        <InstallAppButton />
       </div>
 
       {/* Hero */}
       <div
-        className="mb-10 flex items-center justify-between gap-7 rounded-[22px] px-9 py-8"
+        className="mb-8 flex flex-col items-stretch justify-between gap-5 rounded-[22px] px-5 py-6 sm:mb-10 sm:flex-row sm:items-center sm:gap-7 sm:px-9 sm:py-8"
         style={{
           background: calm ? "var(--bg-2)" : "var(--accent-soft)",
           border: `1px solid ${calm ? "var(--border)" : "var(--accent-line)"}`,
@@ -95,7 +105,7 @@ export function ReviewView({
         </div>
 
         {!calm && (
-          <Button variant="primary" icon={<PlayIcon />} onClick={startSession}>
+          <Button variant="primary" icon={<PlayIcon />} onClick={startSession} className="w-full sm:w-auto">
             Review now
           </Button>
         )}
@@ -111,9 +121,9 @@ export function ReviewView({
         <div className="space-y-4">
           <h2 className="text-[13px] font-[600] uppercase tracking-[0.04em] text-muted">Your cards</h2>
           {queue.map((card) => (
-            <div key={card.cardId} className="flex items-center gap-4 rounded-[16px] border border-border bg-surface p-4 shadow-[var(--shadow-sm)]">
+            <div key={card.cardId} className="flex items-center gap-3 rounded-[16px] border border-border bg-surface p-3 shadow-[var(--shadow-sm)] sm:gap-4 sm:p-4">
               <div
-                className="h-20 w-36 flex-none overflow-hidden rounded-[11px] bg-cover bg-center"
+                className="h-14 w-24 flex-none overflow-hidden rounded-[11px] bg-cover bg-center sm:h-20 sm:w-36"
                 style={{
                   backgroundImage: `url(${youtubeThumbnail(card.clip.sourceId)})`,
                 }}
@@ -127,7 +137,7 @@ export function ReviewView({
                   Due {card.due.toLocaleDateString()} · {card.cardType}
                 </p>
               </div>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="max-sm:hidden!">
                 Study
               </Button>
             </div>
