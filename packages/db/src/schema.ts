@@ -19,7 +19,7 @@ import {
   check,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
-import type { Token, Explanation, Definition, DailyGoals } from "./types";
+import type { Token, Explanation, Definition, DailyGoals, KnownWordCalibration } from "./types";
 
 /* ------------------------------------------------------------------ */
 /* Enums — the genuine state machines only. Everything else is text.   */
@@ -123,6 +123,17 @@ export const userSettings = pgTable("user_settings", {
   desiredRetention: real("desired_retention"),
   // Null = onboarding never finished; set on first completion.
   onboardingCompletedAt: timestamp("onboarding_completed_at", { withTimezone: true }),
+  // Known-word parameters measured on THIS user's own reviews (T3.10, 0022);
+  // null = not enough data of their own → instance_settings, then constants.
+  knownWordParams: jsonb("known_word_params").$type<KnownWordCalibration>(),
+});
+
+// Small instance-wide key/value settings written by jobs (T3.10, 0022). Today
+// one key: "known_words" → KnownWordCalibration (the daily calibration job).
+export const instanceSettings = pgTable("instance_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // Registration invites (T2.3). E-mail-bound, single use, expiring. Checked in
@@ -169,11 +180,17 @@ export const videos = pgTable(
     // Coarse content category (heuristic at import); null = uncategorized.
     category: text("category"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // When the metadata above (title, channel, duration) was last captured by
+    // the extension (T3.10, 0022; backfilled from created_at). Never the Data
+    // API: re-imports refresh it, `refresh:metadata` lists rows older than 30
+    // days for re-capture/expiry. See ARQUITETURA.md §5 (metadata freshness).
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     // Shared-cache key (D1/D3): one row per source video, reused across users.
     uniqueIndex("videos_source_source_id_uq").on(t.source, t.sourceId),
     index("videos_status_idx").on(t.status), // worker picks up pending/processing
+    index("videos_fetched_at_idx").on(t.fetchedAt), // refresh:metadata (stale first)
   ],
 );
 
@@ -562,6 +579,63 @@ export const videoWordCounts = pgTable(
   (t) => [
     primaryKey({ columns: [t.videoId, t.wordEntryId] }), // serves the per-page aggregate
     index("video_word_counts_word_idx").on(t.wordEntryId), // cascade from word delete
+  ],
+);
+
+// Per-user watch progress per video (T3.10, 0022), written by the player
+// beacon next to user_daily_stats. Feeds Explore's narrow-viewing boost
+// ("same channel as a video you watched recently") and its "already watched"
+// exclusion. One row per (user, video).
+export const userVideoProgress = pgTable(
+  "user_video_progress",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    videoId: uuid("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+    msWatched: integer("ms_watched").notNull().default(0),
+    linesSeen: integer("lines_seen").notNull().default(0),
+    lastWatchedAt: timestamp("last_watched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.videoId] }),
+    index("user_video_progress_recent_idx").on(t.userId, t.lastWatchedAt), // recent channels
+    index("user_video_progress_video_idx").on(t.videoId), // cascade from video delete
+  ],
+);
+
+// Explore's per-user candidate pre-filter (T3.10, 0022): the tier sums of the
+// token-weighted coverage of every catalog video for one user, materialized
+// by refreshUserVideoCoverage (one INSERT … SELECT over video_word_counts) and
+// refreshed stale-while-revalidate by the worker, so an Explore request reads
+// one row per catalog video instead of re-aggregating ~1k word rows per video.
+// The likely weight is applied on read (it is calibrated, T3.10). Token
+// corrections are NOT applied here — the exact coverage of the shown page is
+// recomputed with them. See docs/plans/2026-10-30-explore-spec.md.
+export const userVideoCoverage = pgTable(
+  "user_video_coverage",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    videoId: uuid("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+    tokens: integer("tokens").notNull(),
+    words: integer("words").notNull(),
+    confirmedTokens: integer("confirmed_tokens").notNull(),
+    likelyTokens: integer("likely_tokens").notNull(),
+    confirmedWords: integer("confirmed_words").notNull(),
+    likelyWords: integer("likely_words").notNull(),
+    // Distinct unknown words with frequency_rank ≤ NOVELTY_MAX_RANK (novelty).
+    newCommonWords: integer("new_common_words").notNull(),
+    computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.videoId] }),
+    index("user_video_coverage_video_idx").on(t.videoId), // cascade from video delete
   ],
 );
 
