@@ -85,6 +85,19 @@ docker compose up -d --build            # migrate → web + worker → caddy
 docker compose run --rm migrate pnpm --filter @fuchine/db seed:jmdict   # one-time
 ```
 
+**Prebuilt images.** Releases publish `ghcr.io/fuchine/fuchine-web` and
+`ghcr.io/fuchine/fuchine-worker` (amd64 + arm64, SBOM + provenance). To run them
+instead of building, set `FUCHINE_VERSION=v0.1.0` in `.env` and:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.release.yml pull
+docker compose -f docker-compose.yml -f docker-compose.release.yml up -d
+```
+
+Pin by digest with `FUCHINE_WEB_IMAGE` / `FUCHINE_WORKER_IMAGE`. The worker
+runs as the unprivileged `node` user. See [`CHANGELOG.md`](CHANGELOG.md) for
+upgrade notes — production now defaults to `REGISTRATION=invite`.
+
 **Who can sign up.** A production instance is **invite-only by default**
 (`REGISTRATION=invite`): existing users, the addresses/domains in
 `AUTH_ALLOWED_EMAILS`/`AUTH_ALLOWED_DOMAINS`, and e-mails you invite. Every new

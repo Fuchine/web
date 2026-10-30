@@ -281,16 +281,22 @@ Pacotes e seus pontos de entrada:
 - `packages/ui` — componentes React + Tailwind v4 documentados no Storybook
   (`AppShell`, `VideoCard`, `Player`, `Login`, …); `src/lib/errors.ts` traduz
   os códigos de erro do servidor (`house_budget`, `byok_required`) em texto de UI.
-- `extension/` — MV3 sem build (versão em `manifest.json`, hoje 0.0.7). A
+- `extension/` — MV3 em **WXT + TypeScript** (T2.10), fora do workspace pnpm
+  (`package.json`/`package-lock.json` próprios; `npm ci && npm run build` →
+  `.output/chrome-mv3`, `npm run zip` → zip de release; CI em
+  `.github/workflows/extension.yml`; versão 0.1.0; nome "Fuchine Importer", sem
+  "YouTube"; sem a permissão `tabs`). Entradas em `entrypoints/`
+  (`inject.content.ts`, `bridge.content.ts`, `background.ts`, `popup/`), captura
+  em `lib/capture.ts`; quebras conhecidas em `docs/EXTENSION_STATUS.md`. A
   ingestão primária: o spike de legendas (`tools/spike/`, em GitHub Actions)
   provou que o conteúdo do `timedtext` é **gated** fora de uma sessão de browser
-  (exige PO token), então `inject.js` (mundo MAIN) intercepta a legenda que o
+  (exige PO token), então o content script `inject` (mundo MAIN) intercepta a legenda que o
   próprio player baixa — validado em browser real (55 linhas de uma faixa JP
   manual; re-fetch pelo servidor deu 0 bytes). Dois caminhos: popup no YouTube
-  e bridge in-app (`bridge.js` + `background.js`: o app em `/import` pede, a
+  e bridge in-app (`bridge` + `background`: o app em `/import` pede, a
   extensão abre a aba, liga o CC, captura, importa e responde). Instância
   configurável no popup, permissão de origin em runtime. Falta: rodar contra
-  uma instância https ao vivo, token de API (T2.11), WXT + Web Store (T2.10).
+  uma instância https ao vivo, token de API (T2.11), ícones + envio à Web Store (T2.10, mantenedor).
   Fetch server-side (T0.8) segue só como fallback.
 
 **Operação.** `docker-compose.yml` sobe `postgres` e `redis` (sem porta no
