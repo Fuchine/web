@@ -25,6 +25,10 @@ const securityHeaders = [
       "base-uri 'self'",
       "frame-ancestors 'none'",
       "form-action 'self' https://accounts.google.com",
+      // PWA (T3.13): only our own /sw.js and /manifest.webmanifest. Without a
+      // default-src these would otherwise be unrestricted.
+      "worker-src 'self'",
+      "manifest-src 'self'",
     ].join("; "),
   },
   { key: "X-Frame-Options", value: "DENY" },
@@ -59,7 +63,18 @@ const nextConfig: NextConfig = {
   // kuromoji loads its dictionary from disk at runtime — never bundle it.
   serverExternalPackages: ["kuromoji"],
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // The service worker must be revalidated on every check, or a fixed
+      // worker can sit behind an HTTP cache after a deploy.
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+        ],
+      },
+    ];
   },
 };
 

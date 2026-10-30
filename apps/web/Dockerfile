@@ -25,6 +25,8 @@ RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 # bundle lays out as apps/web/server.js + node_modules + packages under /app.
 COPY --from=build --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+# public/ (PWA icons, offline page, service worker) is not part of the standalone trace.
+COPY --from=build --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 USER nextjs
 EXPOSE 3000
 # The web runtime never tokenizes (that's the worker), so kuromoji's dictionary
