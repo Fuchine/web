@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isUuid } from "@/lib/ids";
 import { db } from "@/lib/db";
 import { deleteCard, updateCardNotes } from "@/lib/cards";
 
@@ -14,6 +15,8 @@ export async function PATCH(
   }
 
   const { id } = await params;
+
+  if (!isUuid(id)) return NextResponse.json({ error: "card not found" }, { status: 404 });
   const body = (await req.json().catch(() => null)) ?? {};
   const result = await updateCardNotes(db, session.user.id, id, body);
   return NextResponse.json(result.body, { status: result.status });
@@ -31,6 +34,7 @@ export async function DELETE(
   }
 
   const { id } = await params;
+  if (!isUuid(id)) return NextResponse.json({ error: "card not found" }, { status: 404 });
   const result = await deleteCard(db, session.user.id, id);
   return NextResponse.json(result.body, { status: result.status });
 }

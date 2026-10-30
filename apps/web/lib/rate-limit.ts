@@ -4,7 +4,8 @@
 // generous — a real student never reaches them; they cap abuse and cache
 // poisoning. The core is a pure function over an injectable store so it's unit
 // tested without Redis; the request path fails OPEN (a limiter blip must never
-// take an endpoint down).
+// take an endpoint down) — except the actions in FAIL_CLOSED, where an
+// unchecked request costs more than a refused one.
 
 import { createRequestRedis } from "@fuchine/jobs";
 
@@ -27,6 +28,15 @@ export const RATE_LIMITS = {
 
 export type RateAction = keyof typeof RATE_LIMITS;
 
+/**
+ * Actions that fail CLOSED when the store is unavailable (B5). The magic link is
+ * pre-auth and sends real e-mail: with Redis down, failing open would allow
+ * unlimited sends (e-mail bombing, SMTP cost, sender reputation). Refusing a
+ * sign-in e-mail during a Redis outage is the cheaper failure. Everything else
+ * is authenticated and fails open.
+ */
+export const FAIL_CLOSED: ReadonlySet<RateAction> = new Set<RateAction>(["magicLink"]);
+
 export type RateVerdict = { ok: boolean; remaining: number; retryAfterSeconds: number };
 
 export interface RateStore {
@@ -38,22 +48,31 @@ export function rateKey(action: RateAction, id: string): string {
   return `rl:${action}:${id}`;
 }
 
+/** Retry hint when a fail-closed action is refused because the store is down. */
+export const STORE_DOWN_RETRY_SECONDS = 60;
+
 /**
- * Fixed-window check against an injectable store. Pure and testable. Fails OPEN:
- * if the store throws (Redis down/slow), the request is allowed — rate limiting
- * is a cost guard, not a correctness guard, and must not become an outage.
+ * Fixed-window check against an injectable store. Pure and testable. If the
+ * store throws (Redis down/slow) the request is allowed (fails OPEN) — rate
+ * limiting is a cost guard, not a correctness guard, and must not become an
+ * outage — unless the action is in FAIL_CLOSED (or `opts.failClosed` says so),
+ * in which case it is denied.
  */
 export async function checkRateLimit(
   store: RateStore,
   action: RateAction,
   id: string,
+  opts: { failClosed?: boolean } = {},
 ): Promise<RateVerdict> {
   const { limit, windowSeconds } = RATE_LIMITS[action];
   let count: number;
   try {
     count = await store.incr(rateKey(action, id), windowSeconds);
   } catch {
-    return { ok: true, remaining: limit, retryAfterSeconds: 0 };
+    const failClosed = opts.failClosed ?? FAIL_CLOSED.has(action);
+    return failClosed
+      ? { ok: false, remaining: 0, retryAfterSeconds: STORE_DOWN_RETRY_SECONDS }
+      : { ok: true, remaining: limit, retryAfterSeconds: 0 };
   }
   const ok = count <= limit;
   return {
@@ -72,7 +91,7 @@ class RedisRateStore implements RateStore {
 
   async incr(key: string, windowSeconds: number): Promise<number> {
     // Bound the wait so a slow/hung Redis can't stall the request; on timeout we
-    // reject and the caller fails open.
+    // reject and the caller fails open (or closed, for FAIL_CLOSED actions).
     const run = (async () => {
       const count = await this.redis.incr(key);
       if (count === 1) await this.redis.expire(key, windowSeconds);
@@ -96,9 +115,16 @@ function getRateStore(): RateStore {
   return store;
 }
 
-/** Enforce a limit for `action` scoped to `id` (userId, email, or IP). */
-export async function enforceRateLimit(action: RateAction, id: string): Promise<RateVerdict> {
-  return checkRateLimit(getRateStore(), action, id);
+/**
+ * Enforce a limit for `action` scoped to `id` (userId, email, or IP). Fails open
+ * on a store error, except FAIL_CLOSED actions (or `opts.failClosed: true`).
+ */
+export async function enforceRateLimit(
+  action: RateAction,
+  id: string,
+  opts: { failClosed?: boolean } = {},
+): Promise<RateVerdict> {
+  return checkRateLimit(getRateStore(), action, id, opts);
 }
 
 /** Standard 429 payload for a denied request. */

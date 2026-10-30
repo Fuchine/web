@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isUuid } from "@/lib/ids";
 import { db } from "@/lib/db";
 import { addVideoToAlbum, removeVideoFromAlbum } from "@/lib/albums";
 
@@ -13,6 +14,7 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
+  if (!isUuid(id)) return NextResponse.json({ error: "album not found" }, { status: 404 });
   const body = (await req.json().catch(() => null)) ?? {};
   const result = await addVideoToAlbum(db, session.user.id, id, body.videoId);
   return NextResponse.json(result.body, { status: result.status });
@@ -28,6 +30,7 @@ export async function DELETE(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
+  if (!isUuid(id)) return NextResponse.json({ error: "album not found" }, { status: 404 });
   const videoId = new URL(req.url).searchParams.get("videoId");
   const result = await removeVideoFromAlbum(db, session.user.id, id, videoId ?? undefined);
   return NextResponse.json(result.body, { status: result.status });

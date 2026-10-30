@@ -10,6 +10,7 @@ import {
 } from "@fuchine/db";
 import { db } from "./lib/db";
 import { enforceRateLimit } from "./lib/rate-limit";
+import { escapeHtml } from "./lib/html";
 import { parseRegistrationEnv } from "./lib/registration";
 import { registrationSignIn, withInviteCreateUser } from "./lib/auth-registration";
 
@@ -37,12 +38,15 @@ if (process.env.EMAIL_SERVER) {
       // Rate-limit magic-link sends: per target email AND per client IP.
       // A denial throws → Auth.js renders an error page (no email sent).
       // This is the only pre-auth surface (A1 in CORRECOES-PRE-DEPLOY).
+      // Fail CLOSED (B5): if Redis is down, refuse to send rather than allow
+      // unlimited e-mail. The IP is the first X-Forwarded-For value — only
+      // trustworthy because the proxy overwrites XFF (see DEPLOY_CHECKLIST).
       async sendVerificationRequest(params) {
         const { identifier, request } = params;
         const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
         const [byEmail, byIp] = await Promise.all([
-          enforceRateLimit("magicLink", `email:${identifier}`),
-          enforceRateLimit("magicLink", `ip:${ip}`),
+          enforceRateLimit("magicLink", `email:${identifier}`, { failClosed: true }),
+          enforceRateLimit("magicLink", `ip:${ip}`, { failClosed: true }),
         ]);
         if (!byEmail.ok || !byIp.ok) {
           throw new Error("Too many sign-in attempts. Please try again later.");
@@ -57,7 +61,8 @@ if (process.env.EMAIL_SERVER) {
           from: params.provider.from,
           subject: `Sign in to ${new URL(verifyUrl).host}`,
           text: `Sign in: ${verifyUrl}`,
-          html: `<p>Click <a href="${verifyUrl}">here</a> to sign in.</p>`,
+          // Escaped (C4): the URL's host comes from the request (trustHost).
+          html: `<p>Click <a href="${escapeHtml(verifyUrl)}">here</a> to sign in.</p>`,
         });
       },
     }),

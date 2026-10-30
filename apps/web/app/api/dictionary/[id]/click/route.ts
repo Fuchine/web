@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isUuid } from "@/lib/ids";
 import { db } from "@/lib/db";
 import { recordWordClick } from "@/lib/progress";
 import { enforceRateLimit } from "@/lib/rate-limit";
@@ -14,6 +15,7 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
+  if (!isUuid(id)) return NextResponse.json({ error: "word not found" }, { status: 404 });
 
   // At most 1 click/60s per (user, word): repeated opens of the same popup aren't
   // a study signal. Denied = 200 + discard, never a 429.

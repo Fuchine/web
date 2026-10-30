@@ -9,6 +9,12 @@ config({ path: "../../.env" });
 // images / objects for now — the YouTube IFrame player and thumbnails must keep
 // working, and a strict script-src in Next needs per-request nonces (a later,
 // Report-Only-first hardening pass). See backlog: tls-and-security-headers.
+//
+// Anti-clickjacking (B2): nothing may frame the app — `frame-ancestors 'none'`
+// plus the legacy `X-Frame-Options: DENY` for old browsers. `form-action`
+// limits where a form may submit; Google is listed because the Auth.js
+// built-in sign-in page POSTs to /api/auth/signin/google and is redirected to
+// accounts.google.com (Chrome checks form-action on the redirect too).
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
@@ -17,7 +23,25 @@ const securityHeaders = [
       "img-src 'self' https://img.youtube.com https://i.ytimg.com data:",
       "object-src 'none'",
       "base-uri 'self'",
+      "frame-ancestors 'none'",
+      "form-action 'self' https://accounts.google.com",
     ].join("; "),
+  },
+  { key: "X-Frame-Options", value: "DENY" },
+  // Powerful features off by default. The microphone stays allowed for our own
+  // origin (in-browser shadowing records the learner's voice). Features the
+  // YouTube iframe delegates (autoplay, fullscreen, encrypted-media,
+  // picture-in-picture) are left at their browser defaults on purpose.
+  {
+    key: "Permissions-Policy",
+    value: [
+      "camera=()",
+      "geolocation=()",
+      "payment=()",
+      "usb=()",
+      "browsing-topics=()",
+      "microphone=(self)",
+    ].join(", "),
   },
   // HSTS is safe to send always; browsers only honor it over https.
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },

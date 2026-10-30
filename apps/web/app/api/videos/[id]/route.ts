@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isUuid } from "@/lib/ids";
 import { db } from "@/lib/db";
 import { getVideoWithLines } from "@/lib/study";
 import { requestTailPrewarm } from "@/lib/prewarm";
@@ -14,6 +15,7 @@ export async function GET(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await ctx.params;
+  if (!isUuid(id)) return NextResponse.json({ error: "video not found" }, { status: 404 });
   const result = await getVideoWithLines(db, id);
   if (!result) {
     return NextResponse.json({ error: "video not found" }, { status: 404 });

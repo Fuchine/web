@@ -10,6 +10,7 @@ import {
   userWordStats,
 } from "@fuchine/db";
 import { decodeListCursor, encodeListCursor, escapeLike } from "./list-query";
+import { isUuid } from "./ids";
 import { LEVEL } from "./library";
 import { knownWordSql, wordStatusFromStats, type WordStatus } from "./word-status";
 
@@ -63,7 +64,7 @@ export async function listVideos(
       const parts = opts.cursor.split(":");
       const ts = parseInt(parts[1] ?? "", 10);
       const id = parts.slice(2).join(":");
-      if (!isNaN(ts) && id) {
+      if (!isNaN(ts) && isUuid(id)) {
         pageConditions.push(
           or(
             lt(videos.createdAt, new Date(ts)),
@@ -75,7 +76,7 @@ export async function listVideos(
       const cur = decodeListCursor(opts.cursor);
       const v = typeof cur?.[0] === "number" ? cur[0] : null;
       const id = typeof cur?.[1] === "string" ? cur[1] : null;
-      if (v !== null && id) {
+      if (v !== null && isUuid(id)) {
         pageConditions.push(
           or(sql`${sortKey} > ${v}`, and(sql`${sortKey} = ${v}`, lt(videos.id, id)))!,
         );

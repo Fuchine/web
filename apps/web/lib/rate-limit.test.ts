@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { checkRateLimit, RATE_LIMITS, type RateStore } from "./rate-limit";
+import {
+  checkRateLimit,
+  FAIL_CLOSED,
+  RATE_LIMITS,
+  STORE_DOWN_RETRY_SECONDS,
+  type RateStore,
+} from "./rate-limit";
 
 class MemStore implements RateStore {
   counts = new Map<string, number>();
@@ -45,5 +51,35 @@ describe("checkRateLimit", () => {
     };
     const v = await checkRateLimit(boom, "explainMiss", "u");
     expect(v.ok).toBe(true);
+  });
+
+  const boom: RateStore = {
+    async incr() {
+      throw new Error("redis down");
+    },
+  };
+
+  it("fails CLOSED for the magic link — Redis down never means unlimited e-mail", async () => {
+    expect(FAIL_CLOSED.has("magicLink")).toBe(true);
+    const v = await checkRateLimit(boom, "magicLink", "email:a@b.c");
+    expect(v).toEqual({ ok: false, remaining: 0, retryAfterSeconds: STORE_DOWN_RETRY_SECONDS });
+  });
+
+  it("only the magic link fails closed by default", async () => {
+    expect([...FAIL_CLOSED]).toEqual(["magicLink"]);
+    for (const action of Object.keys(RATE_LIMITS) as (keyof typeof RATE_LIMITS)[]) {
+      if (action === "magicLink") continue;
+      expect((await checkRateLimit(boom, action, "u")).ok).toBe(true);
+    }
+  });
+
+  it("lets a caller override the failure mode per call", async () => {
+    expect((await checkRateLimit(boom, "explainMiss", "u", { failClosed: true })).ok).toBe(false);
+    expect((await checkRateLimit(boom, "magicLink", "u", { failClosed: false })).ok).toBe(true);
+  });
+
+  it("a healthy store still counts normally for a fail-closed action", async () => {
+    const store = new MemStore();
+    expect((await checkRateLimit(store, "magicLink", "x")).ok).toBe(true);
   });
 });

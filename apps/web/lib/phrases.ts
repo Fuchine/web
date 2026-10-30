@@ -3,6 +3,7 @@
 import { and, asc, count, desc, eq, gt, ilike, lt, or, sql, type SQL } from "drizzle-orm";
 import { type Database, sentenceCards, subtitleLines, videos } from "@fuchine/db";
 import { decodeListCursor, encodeListCursor, escapeLike } from "./list-query";
+import { isUuid } from "./ids";
 
 export type PhraseRow = {
   cardId: string;
@@ -92,7 +93,7 @@ export async function listPhrases(
       const parts = opts.cursor.split(":");
       const ts = parseInt(parts[1] ?? "", 10);
       const id = parts.slice(2).join(":");
-      if (!isNaN(ts) && id) {
+      if (!isNaN(ts) && isUuid(id)) {
         conditions.push(
           or(
             lt(sentenceCards.createdAt, new Date(ts)),
@@ -103,7 +104,7 @@ export async function listPhrases(
     } else if (sort === "oldest") {
       const ts = typeof decoded?.[0] === "number" ? decoded[0] : null;
       const id = typeof decoded?.[1] === "string" ? decoded[1] : null;
-      if (ts !== null && id) {
+      if (ts !== null && isUuid(id)) {
         conditions.push(
           or(
             gt(sentenceCards.createdAt, new Date(ts)),
@@ -114,7 +115,7 @@ export async function listPhrases(
     } else if (sort === "az") {
       const text = typeof decoded?.[0] === "string" ? decoded[0] : null;
       const id = typeof decoded?.[1] === "string" ? decoded[1] : null;
-      if (text !== null && id) {
+      if (text !== null && isUuid(id)) {
         conditions.push(
           or(
             sql`${subtitleLines.textOriginal} > ${text}`,
@@ -126,7 +127,7 @@ export async function listPhrases(
       const r = typeof decoded?.[0] === "number" ? decoded[0] : null;
       const ts = typeof decoded?.[1] === "number" ? decoded[1] : null;
       const id = typeof decoded?.[2] === "string" ? decoded[2] : null;
-      if (r !== null && ts !== null && id) {
+      if (r !== null && ts !== null && isUuid(id)) {
         conditions.push(
           or(
             sql`${rank} > ${r}`,

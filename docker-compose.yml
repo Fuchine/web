@@ -118,7 +118,11 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
-    env_file: .env
+    # No env_file (B3): the proxy needs only its address. Secrets (AUTH_SECRET,
+    # FUCHINE_ENCRYPTION_KEY, LLM keys, DB/Redis passwords) stay on
+    # web/worker/migrate, out of the internet-facing container's environment.
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
     ports:
       - "80:80"
       - "443:443"

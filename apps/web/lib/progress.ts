@@ -13,6 +13,7 @@ import {
   wordEntries,
 } from "@fuchine/db";
 import { dayKey } from "./stats";
+import { isUuid } from "./ids";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
@@ -50,8 +51,8 @@ export function parseProgressInput(
 
   let lineIds: string[] = [];
   if (b.lineIds !== undefined) {
-    if (!Array.isArray(b.lineIds) || b.lineIds.some((id) => typeof id !== "string" || !id)) {
-      return { ok: false, error: "lineIds must be an array of ids" };
+    if (!Array.isArray(b.lineIds) || b.lineIds.some((id) => !isUuid(id))) {
+      return { ok: false, error: "lineIds must be an array of uuids" };
     }
     if (b.lineIds.length > LINE_IDS_MAX) {
       return { ok: false, error: `lineIds must have at most ${LINE_IDS_MAX} entries` };

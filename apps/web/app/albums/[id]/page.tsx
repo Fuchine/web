@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getAlbumDetail, listAlbumsForView } from "@/lib/albums";
+import { isUuid } from "@/lib/ids";
 import { getComprehensionByVideo } from "@/lib/study";
 import { countDueCards } from "@/lib/cards";
 import { AlbumDetailView, type AlbumDetailData } from "./album-detail-view";
@@ -12,6 +13,7 @@ export default async function AlbumDetailPage({ params }: { params: Promise<{ id
   const userId = session.user.id;
   const { id } = await params;
 
+  if (!isUuid(id)) notFound();
   const detail = await getAlbumDetail(db, userId, id);
   if (!detail) notFound();
 

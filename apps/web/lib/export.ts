@@ -5,6 +5,7 @@
 
 import { asc, eq } from "drizzle-orm";
 import { type Database, sentenceCards, subtitleLines, videos } from "@fuchine/db";
+import { escapeHtml } from "./html";
 
 export type DeckCard = {
   text: string; // JP sentence (front)
@@ -24,9 +25,13 @@ export function clipUrl(source: string, sourceId: string, startMs: number): stri
   return "";
 }
 
-/** Flatten a field for TSV: tabs → spaces, newlines → <br> (Anki renders HTML). */
-function cell(v: string | null | undefined): string {
-  return (v ?? "").replace(/\t/g, " ").replace(/\r?\n/g, "<br>");
+/**
+ * Flatten a field for TSV: HTML-escape it (the deck declares `#html:true`, so a
+ * subtitle like `<img onerror=…>` imported by one user would otherwise run in
+ * another user's Anki webview — C1), then tabs → spaces, newlines → <br>.
+ */
+export function cell(v: string | null | undefined): string {
+  return escapeHtml(v ?? "").replace(/\t/g, " ").replace(/\r?\n/g, "<br>");
 }
 
 /**
