@@ -10,7 +10,8 @@ import type { PrimedPhase, WordStatus } from "../../lib/listening";
 import { MinedCard } from "../MinedCard/MinedCard";
 
 export type DictPopupState = {
-  wordId: string;
+  /** The entry shown; null for a token without one (it can still be fixed). */
+  wordId: string | null;
   surface: string;
   position: { left: number; bottom: number; arrowLeft: number; w: number };
 };
@@ -55,6 +56,14 @@ export interface PlayerStageProps {
   controlBar: Omit<PlayerControlBarProps, "showTranslation" | "showRomaji" | "className">;
   onWordClick?: (wordId: string, surface: string) => void;
   onWordRef?: (wordId: string, el: HTMLElement | null) => void;
+  /** Index-addressed token clicks (T3.7); see PlayerFocalSubtitles. */
+  onTokenClick?: (index: number, wordId: string | null, surface: string) => void;
+  onTokenRef?: (index: number, el: HTMLElement | null) => void;
+  activeTokenIdx?: number | null;
+  /** Token correction (T3.7): "Fix" action, "Corrected by you", editor body. */
+  onDictFix?: () => void;
+  dictCorrected?: boolean;
+  dictFixEditor?: ReactNode;
   onDictExplain?: () => void;
   onDictSaveWord?: () => void;
   onDictClose?: () => void;
@@ -100,6 +109,12 @@ export function PlayerStage({
   controlBar,
   onWordClick,
   onWordRef,
+  onTokenClick,
+  onTokenRef,
+  activeTokenIdx,
+  onDictFix,
+  dictCorrected,
+  dictFixEditor,
   onDictExplain,
   onDictSaveWord,
   onDictClose,
@@ -137,6 +152,9 @@ export function PlayerStage({
           activeWordId={activeWordId}
           onWordClick={onWordClick}
           onWordRef={onWordRef}
+          onTokenClick={onTokenClick}
+          onTokenRef={onTokenRef}
+          activeTokenIdx={activeTokenIdx}
           onExplain={onExplain}
           onMine={onMine}
           isMining={isMining}
@@ -156,6 +174,9 @@ export function PlayerStage({
           onExplain={onDictExplain ?? (() => {})}
           onSaveWord={onDictSaveWord ?? (() => {})}
           onClose={onDictClose ?? (() => {})}
+          onFix={onDictFix}
+          corrected={dictCorrected}
+          fixEditor={dictFixEditor}
         />
       )}
 

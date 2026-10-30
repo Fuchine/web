@@ -66,7 +66,7 @@ export default async function VideoPage({
           ...t,
           romaji: t.romaji ?? (t.reading ? hiraToRomaji(t.reading) : null),
         })),
-        ...("tokenSpans" in l && l.tokenSpans ? { tokenSpans: l.tokenSpans } : {}),
+        ...(l.tokenSpans ? { tokenSpans: l.tokenSpans } : {}),
       }))}
       translatedChunks={result.translatedChunks}
       account={{

@@ -8,12 +8,13 @@ import {
   subtitleTranslationChunks,
   wordExamples,
   userWordStats,
+  type Token,
 } from "@fuchine/db";
 import { decodeListCursor, encodeListCursor, escapeLike } from "./list-query";
 import { isUuid } from "./ids";
 import { LEVEL } from "./library";
 import { knownWordSql, wordStatusFromStats, type WordStatus } from "./word-status";
-import { withTokenOverrides } from "./token-overrides";
+import { withTokenOverrides, type TokenSpan } from "./token-overrides";
 
 // Nulls sort last: videos without a duration on "shortest first", without a
 // level estimate on "level". The level bands mirror LEVEL in lib/library.ts.
@@ -258,7 +259,7 @@ export async function getVideoWithLines(db: Database, videoId: string, opts: { u
     .from(subtitleLines)
     .where(eq(subtitleLines.videoId, videoId))
     .orderBy(asc(subtitleLines.idx));
-  const lines = opts.userId
+  const lines: (Omit<(typeof sharedLines)[number], "tokens"> & { tokens: Token[]; tokenSpans?: TokenSpan[] })[] = opts.userId
     ? await withTokenOverrides(db, opts.userId, sharedLines, (l) => l.id)
     : sharedLines.map((l) => ({ ...l, tokens: l.tokens ?? [] }));
 

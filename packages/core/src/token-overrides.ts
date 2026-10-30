@@ -195,13 +195,13 @@ export function editBlock(spans: readonly TokenSpan[], a: number, b: number): [n
  * correction block are carried over, so the saved override always replaces
  * whole blocks and never overlaps another one.
  */
-export function buildOverrideEdit(
-  tokens: readonly Token[],
+export function buildOverrideEdit<T extends { surface: string } = Token>(
+  tokens: readonly T[],
   spans: readonly TokenSpan[],
   a: number,
   b: number,
-  draft: readonly Token[],
-): TokenOverride {
+  draft: readonly T[],
+): { startIdx: number; endIdx: number; tokens: T[] } {
   if (a < 0 || b < a || b >= tokens.length || spans.length !== tokens.length) {
     throw new TokenOverrideError("edit range is outside the line");
   }

@@ -25,7 +25,8 @@ import {
 } from "../../lib/listening";
 import { AppShell } from "../AppShell/AppShell";
 import { buildAppNav } from "../AppShell/nav";
-import { pickCurrentLine, formatTimecode as fmt, lineHasAudio, chunkIndexForLine, chunkPumpOrder, freqTier } from "@fuchine/core";
+import { pickCurrentLine, formatTimecode as fmt, lineHasAudio, chunkIndexForLine, chunkPumpOrder, freqTier, type TokenSpan } from "@fuchine/core";
+import { TokenFixEditor, type FixEntryHit, type TokenFixOverride } from "../TokenFix/TokenFixEditor";
 import { PlayerTopBar } from "./PlayerTopBar";
 import { PlayerStage, type PlayerVideoHandle, type DictPopupState } from "./PlayerStage";
 import { PlayerTranscript, type TranscriptLine, type TranscriptToken } from "./PlayerTranscript";
@@ -70,6 +71,14 @@ export type PlayerSubtitleLine = {
   textOriginal: string;
   textTranslation: string | null;
   tokens: { surface: string; lemma: string; reading: string | null; romaji: string | null; pos: string | null; wordEntryId: string | null }[];
+  /** Origin spans of the user's token corrections (T3.7); absent = uncorrected. */
+  tokenSpans?: TokenSpan[] | null;
+};
+
+/** A line's tokens as the user now sees them, after a correction save/reset. */
+export type LineTokensUpdate = {
+  tokens: PlayerSubtitleLine["tokens"];
+  tokenSpans: TokenSpan[] | null;
 };
 
 export interface PlayerProps {
@@ -99,6 +108,15 @@ export interface PlayerProps {
    * absent ⇒ unknown). Colors tokens and drives "furigana: unknown only".
    */
   wordStatuses?: Readonly<Record<string, WordStatus>>;
+  /**
+   * Per-user token correction (T3.7). When set, every word in the focal line
+   * opens the popup (even without an entry) and the popup offers "Fix".
+   */
+  onSaveTokens?: (lineId: string, override: TokenFixOverride) => Promise<LineTokensUpdate>;
+  /** Reset a correction block (span) or the whole line (null). */
+  onResetTokens?: (lineId: string, span: { startIdx: number; endIdx: number } | null) => Promise<LineTokensUpdate>;
+  /** Dictionary search for the Fix editor's entry picker. */
+  onSearchEntries?: (q: string) => Promise<FixEntryHit[]>;
   className?: string;
 }
 
@@ -172,7 +190,18 @@ function toExplainFocal(focal: FocalLine): ExplainFocal {
   return { textOriginal: focal.textOriginal, textTranslation: focal.textTranslation, focusSurface: null };
 }
 
-export function Player({ video, lines, account, translatedChunks, onFetchChunk, onFetchExplanation, explanationPromptVersion, onBack, onNavigate, className, initialLineId, savedWordIds, onSaveWord, onProgress, wordStatuses }: PlayerProps) {
+export function Player({ video, lines: linesProp, account, translatedChunks, onFetchChunk, onFetchExplanation, explanationPromptVersion, onBack, onNavigate, className, initialLineId, savedWordIds, onSaveWord, onProgress, wordStatuses, onSaveTokens, onResetTokens, onSearchEntries }: PlayerProps) {
+  // Token corrections saved in this session (T3.7) patch the server's lines.
+  const [tokenPatches, setTokenPatches] = useState<ReadonlyMap<string, LineTokensUpdate>>(() => new Map());
+  const lines = useMemo(
+    () => (tokenPatches.size === 0
+      ? linesProp
+      : linesProp.map((l) => {
+          const p = tokenPatches.get(l.id);
+          return p ? { ...l, tokens: p.tokens, tokenSpans: p.tokenSpans } : l;
+        })),
+    [linesProp, tokenPatches],
+  );
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMs, setCurrentMs] = useState(0);
@@ -222,7 +251,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const handleRef = useRef<PlayerVideoHandle | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
   const lineRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
-  const tokenWordRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const tokenIdxRefs = useRef<Map<number, HTMLElement>>(new Map());
   const stageRef = useRef<HTMLDivElement | null>(null);
   const previousLineIdxRef = useRef<number>(currentLineIdx);
   const appliedInitialRef = useRef(false);
@@ -305,7 +334,14 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   primedStartLineRef.current = primedStartLine;
 
   // ---- Dict popup state ----
-  const [openWordId, setOpenWordId] = useState<string | null>(null);
+  // The focal-line token whose popup is open; its entry (if any) is derived.
+  const [openTok, setOpenTok] = useState<{ lineId: string; idx: number } | null>(null);
+  const openLine = openTok ? lines.find((l) => l.id === openTok.lineId) : undefined;
+  const openWordId = openTok ? (openLine?.tokens[openTok.idx]?.wordEntryId ?? null) : null;
+  const openCorrected = Boolean(openTok && openLine?.tokenSpans?.[openTok.idx]?.corrected);
+  const [fixing, setFixing] = useState(false);
+  const [fixBusy, setFixBusy] = useState(false);
+  const [fixError, setFixError] = useState<string | null>(null);
   const [dictPopup, setDictPopup] = useState<DictPopupState | null>(null);
   const [dictEntry, setDictEntry] = useState<DictApiEntry | null>(null);
   const [dictLoading, setDictLoading] = useState(false);
@@ -827,19 +863,22 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   }, [currentLineIdx, pumpPrefetch]);
 
   // ---- Dict popup: position + fetch ----
+  const openIdx = openTok?.idx ?? null;
   useLayoutEffect(() => {
-    if (!openWordId) {
+    if (openIdx == null) {
       setDictPopup(null);
       setDictEntry(null);
       setDictLoading(false);
       setDictError(null);
       setSavedWord(false);
+      setFixing(false);
+      setFixError(null);
       return;
     }
     // Compute position
     const compute = () => {
       const stage = stageRef.current;
-      const tokenEl = tokenWordRefs.current.get(openWordId);
+      const tokenEl = tokenIdxRefs.current.get(openIdx);
       if (!stage || !tokenEl) return;
       const s = stage.getBoundingClientRect();
       const r = tokenEl.getBoundingClientRect();
@@ -852,11 +891,18 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     compute();
     window.addEventListener("resize", compute);
     return () => window.removeEventListener("resize", compute);
-  }, [openWordId]);
+  }, [openIdx, openWordId]);
 
-  // Fetch dict entry when popup opens
+  // Fetch dict entry when popup opens (a token without an entry shows that,
+  // and can still be fixed).
   useEffect(() => {
-    if (!openWordId) return;
+    if (openIdx == null) return;
+    if (!openWordId) {
+      setDictEntry(null);
+      setDictLoading(false);
+      setDictError("No dictionary entry.");
+      return;
+    }
     setDictLoading(true);
     setDictError(null);
     setDictEntry(null);
@@ -870,7 +916,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       .then((data: { entry: DictApiEntry }) => setDictEntry(data.entry))
       .catch((err: Error) => setDictError(err.message === "not found" ? "No dictionary entry." : "Could not load definition."))
       .finally(() => setDictLoading(false));
-  }, [openWordId]);
+  }, [openIdx, openWordId]);
 
   // Reflect the persisted bookmark state when the popup opens; reset on close.
   useEffect(() => {
@@ -878,7 +924,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   }, [openWordId]);
 
   const openExplain = useCallback(() => {
-    setOpenWordId(null);
+    setOpenTok(null);
     setActiveRailTab("explain");
   }, []);
 
@@ -892,14 +938,60 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     return next;
   }, [wordStatuses, lookedUp]);
 
-  const handleWordClick = useCallback((wordId: string, _surface: string) => {
-    if (wordId === openWordId) { setOpenWordId(null); return; }
-    setOpenWordId(wordId);
-    setLookedUp((prev) => (prev.has(wordId) ? prev : new Set(prev).add(wordId)));
-  }, [openWordId]);
+  const focalLineId = currentLineIdx >= 0 ? lines[currentLineIdx]?.id ?? null : null;
+  const handleTokenClick = useCallback((idx: number, wordId: string | null) => {
+    if (!focalLineId) return;
+    if (openTok && openTok.lineId === focalLineId && openTok.idx === idx) { setOpenTok(null); return; }
+    setOpenTok({ lineId: focalLineId, idx });
+    setFixing(false);
+    setFixError(null);
+    if (wordId) setLookedUp((prev) => (prev.has(wordId) ? prev : new Set(prev).add(wordId)));
+  }, [openTok, focalLineId]);
+
+  // The popup belongs to a token of the focal line: close it when the line moves on.
+  useEffect(() => {
+    if (openTok && openTok.lineId !== focalLineId) setOpenTok(null);
+  }, [openTok, focalLineId]);
+
+  const handleDictFix = useCallback(() => {
+    handleRef.current?.pause(); // the editor needs the line to stay put
+    setFixError(null);
+    setFixing(true);
+  }, []);
+
+  const applyTokenUpdate = useCallback((lineId: string, update: LineTokensUpdate) => {
+    setTokenPatches((cur) => new Map(cur).set(lineId, update));
+    setOpenTok(null);
+  }, []);
+
+  const handleFixSave = useCallback(async (override: TokenFixOverride) => {
+    if (!openTok || !onSaveTokens) return;
+    setFixBusy(true);
+    setFixError(null);
+    try {
+      applyTokenUpdate(openTok.lineId, await onSaveTokens(openTok.lineId, override));
+    } catch (err) {
+      setFixError(err instanceof UserFacingError ? err.message : "Could not save the correction.");
+    } finally {
+      setFixBusy(false);
+    }
+  }, [openTok, onSaveTokens, applyTokenUpdate]);
+
+  const handleFixReset = useCallback(async (span: { startIdx: number; endIdx: number }) => {
+    if (!openTok || !onResetTokens) return;
+    setFixBusy(true);
+    setFixError(null);
+    try {
+      applyTokenUpdate(openTok.lineId, await onResetTokens(openTok.lineId, span));
+    } catch (err) {
+      setFixError(err instanceof UserFacingError ? err.message : "Could not reset the correction.");
+    } finally {
+      setFixBusy(false);
+    }
+  }, [openTok, onResetTokens, applyTokenUpdate]);
 
   const handleDictExplain = useCallback(() => {
-    setOpenWordId(null);
+    setOpenTok(null);
     setActiveRailTab("explain");
   }, []);
 
@@ -920,12 +1012,12 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   }, [openWordId, savedWord, onSaveWord]);
 
   const handleDictClose = useCallback(() => {
-    setOpenWordId(null);
+    setOpenTok(null);
   }, []);
 
-  const handleWordRef = useCallback((wordId: string, el: HTMLElement | null) => {
-    if (el) tokenWordRefs.current.set(wordId, el);
-    else tokenWordRefs.current.delete(wordId);
+  const handleTokenRef = useCallback((idx: number, el: HTMLElement | null) => {
+    if (el) tokenIdxRefs.current.set(idx, el);
+    else tokenIdxRefs.current.delete(idx);
   }, []);
 
   const handleMine = useCallback(() => {
@@ -1131,6 +1223,23 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
             showFurigana={prefs.furigana !== "off"}
             showRomaji={showRomaji}
             activeWordId={openWordId}
+            activeTokenIdx={openIdx}
+            onDictFix={onSaveTokens ? handleDictFix : undefined}
+            dictCorrected={openCorrected}
+            dictFixEditor={fixing && openTok && openLine ? (
+              <TokenFixEditor
+                key={`${openTok.lineId}:${openTok.idx}`}
+                tokens={openLine.tokens}
+                spans={openLine.tokenSpans}
+                index={openTok.idx}
+                onSave={handleFixSave}
+                onReset={handleFixReset}
+                onSearch={onSearchEntries}
+                onCancel={() => setFixing(false)}
+                error={fixError}
+                busy={fixBusy}
+              />
+            ) : undefined}
             dictPopup={dictPopup}
             dictEntry={dictPopupEntry}
             dictLoading={dictLoading}
@@ -1143,8 +1252,8 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
             onReady={onReady}
             onStateChange={onStateChange}
             onError={onError}
-            onWordClick={handleWordClick}
-            onWordRef={handleWordRef}
+            onTokenClick={handleTokenClick}
+            onTokenRef={handleTokenRef}
             onDictExplain={handleDictExplain}
             onDictSaveWord={handleDictSaveWord}
             onDictClose={handleDictClose}
