@@ -11,7 +11,8 @@
     "backfill:explain": "tsx src/scripts/backfill-explain.ts",
     "backfill:level": "tsx src/scripts/backfill-level.ts",
     "backfill:daily-stats": "tsx src/scripts/backfill-daily-stats.ts",
-    "rotate:key": "tsx src/scripts/rotate-encryption-key.ts"
+    "rotate:key": "tsx src/scripts/rotate-encryption-key.ts",
+    "invite": "tsx src/scripts/invite.ts"
   },
   "dependencies": {
     "@fuchine/db": "workspace:*",

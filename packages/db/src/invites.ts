@@ -43,7 +43,8 @@ export async function addInvite(
     .onConflictDoUpdate({
       target: invites.email,
       targetWhere: sql`${invites.usedAt} is null`,
-      set: { expiresAt, note: opts.note ?? null, createdBy: opts.createdBy, createdAt: sql`now()` },
+      // A refresh without a note keeps the previous one.
+      set: { expiresAt, note: sql`coalesce(excluded.note, ${invites.note})`, createdBy: opts.createdBy, createdAt: sql`now()` },
     })
     .returning();
   return row!;
