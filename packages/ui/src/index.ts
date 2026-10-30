@@ -59,6 +59,15 @@ export type { ListeningMode, FuriganaMode, WordStatus } from "./lib/listening";
 export { DictPopup } from "./components/DictPopup/DictPopup";
 export { MinedCard } from "./components/MinedCard/MinedCard";
 
+// T3.6 — mine now, curate later
+export { CurateCard } from "./components/Curate/CurateCard";
+export type {
+  CurateCardProps, CurateCardStatus, CurateToken, CurateWordEntry, CurateExplanation,
+} from "./components/Curate/CurateCard";
+// Clip-only embed (start/end), reused by the curation screen's "Replay clip".
+export { ReviewEmbed } from "./components/Review/ReviewEmbed";
+export type { ReviewEmbedHandle } from "./components/Review/ReviewEmbed";
+
 // T1.7 — Review Session
 export { ReviewSession } from "./components/Review/ReviewSession";
 export type { ReviewSessionProps, ReviewItem } from "./components/Review/ReviewSession";
