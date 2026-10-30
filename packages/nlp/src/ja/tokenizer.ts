@@ -56,6 +56,7 @@ export class JaTokenizer implements Tokenizer {
         reading,
         romaji,
         pos: notEmpty(f.pos) ? f.pos : "unknown",
+        ...(notEmpty(f.pos_detail_1) ? { posDetail: f.pos_detail_1 } : {}),
         wordEntryId: null,
       };
     });

@@ -1,30 +1,31 @@
-import { sql } from "drizzle-orm";
-import { userWordStats } from "@fuchine/db";
+// Per-word knowledge status: the façade every read side goes through. Since
+// T3.9 it is a thin mapping over the three-tier model in ./known-words — the
+// player's coloring (getWordStatuses) reads wordStatusFromStats, the coverage
+// of the library and albums reads wordTierSql — so changing the rule there
+// switches both.
 
-// Per-word knowledge status (T3.8). The single place the "known" rule lives:
-// the player's coloring (getWordStatuses) and the comprehension % of the
-// library and albums (in SQL, via knownWordSql) both read it from here. T3.9
-// swaps this heuristic for the three-tier confidence model.
+import { wordTier, type ManualStatus, type WordSignals, type WordTier } from "./known-words";
+
+export { wordTierSql } from "./known-words";
+export type { WordSignals as WordStatsSignal, WordTier, ManualStatus };
 
 /** Matches WordStatus in @fuchine/ui (the player renders it). */
 export type WordStatus = "unknown" | "seen" | "known";
 
-// "Known" heuristic v1: the user answered a review containing the word
-// correctly at least once, or has seen it in this many subtitle lines.
-export const KNOWN_MIN_VIEWS = 5;
-export const KNOWN_MIN_REVIEWS_OK = 1;
-
-export type WordStatsSignal = { views: number; clicks: number; reviewsOk: number };
-
-export function wordStatusFromStats(stats: WordStatsSignal | null | undefined): WordStatus {
-  if (!stats) return "unknown";
-  if (stats.reviewsOk >= KNOWN_MIN_REVIEWS_OK || stats.views >= KNOWN_MIN_VIEWS) return "known";
-  if (stats.views > 0 || stats.clicks > 0) return "seen";
-  return "unknown";
-}
-
 /**
- * The "known" half of wordStatusFromStats as a SQL predicate over a
- * user_word_stats row (left-joined: NULL stats ⇒ not known), for aggregates.
+ * Tier → player color. unknown → "unknown"; likely → "seen" (furigana stays
+ * on); confirmed → "known" (furigana hidden in "unknown words only" mode).
  */
-export const knownWordSql = sql`(${userWordStats.reviewsOk} >= ${sql.raw(String(KNOWN_MIN_REVIEWS_OK))} or ${userWordStats.views} >= ${sql.raw(String(KNOWN_MIN_VIEWS))})`;
+export const TIER_TO_STATUS: Record<WordTier, WordStatus> = {
+  unknown: "unknown",
+  likely: "seen",
+  confirmed: "known",
+};
+
+export function wordStatusFromStats(
+  stats: WordSignals | null | undefined,
+  manual?: ManualStatus,
+  now: Date = new Date(),
+): WordStatus {
+  return TIER_TO_STATUS[wordTier(stats, manual, now)];
+}

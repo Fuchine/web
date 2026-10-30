@@ -11,6 +11,7 @@
     "backfill:explain": "tsx src/scripts/backfill-explain.ts",
     "backfill:level": "tsx src/scripts/backfill-level.ts",
     "backfill:daily-stats": "tsx src/scripts/backfill-daily-stats.ts",
+    "backfill:word-counts": "tsx src/scripts/backfill-word-counts.ts",
     "rotate:key": "tsx src/scripts/rotate-encryption-key.ts",
     "invite": "tsx src/scripts/invite.ts",
     "usage": "tsx src/scripts/usage.ts"

@@ -16,6 +16,7 @@ import type { ImportJob } from "./queue";
 import { estimateLevel } from "./level";
 import { checkEmbeddable } from "./embeddable";
 import { classifyCategory } from "./category";
+import { writeVideoWordCounts } from "./word-counts";
 
 export type Caption = { idx: number; startMs: number; endMs: number; text: string };
 
@@ -116,6 +117,8 @@ export async function importVideo(
       if (exampleRows.length > 0) {
         await tx.insert(wordExamples).values(exampleRows).onConflictDoNothing();
       }
+      // Running-word frequency for token-weighted coverage (T3.9).
+      await writeVideoWordCounts(tx, video.id, video.language, analyzed.map((a) => a.tokens));
     });
 
     const levelEstimate = await estimateVideoLevel(db, exampleRows.map((r) => r.wordEntryId));

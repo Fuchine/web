@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { UserFacingError } from "../../lib/errors";
+import type { CoverageInfo } from "../../lib/coverage";
 import { cn } from "../../lib/cn";
 import { pickPrefetchTarget } from "../../lib/prefetch";
 import { rewatchTick, startRewatch, type RewatchEffect, type RewatchPlan } from "../../lib/rewatch";
@@ -108,6 +109,12 @@ export interface PlayerProps {
    * absent ⇒ unknown). Colors tokens and drives "furigana: unknown only".
    */
   wordStatuses?: Readonly<Record<string, WordStatus>>;
+  /** This video's coverage for the viewer (T3.9), shown in the top bar. */
+  coverage?: CoverageInfo | null;
+  /** Words the user marked unknown (manual override), for the popup toggle. */
+  markedUnknownIds?: string[];
+  /** Persist "Mark as unknown" (true) or clear it (false). */
+  onMarkUnknown?: (wordEntryId: string, unknown: boolean) => Promise<void>;
   /**
    * Per-user token correction (T3.7). When set, every word in the focal line
    * opens the popup (even without an entry) and the popup offers "Fix".
@@ -190,7 +197,7 @@ function toExplainFocal(focal: FocalLine): ExplainFocal {
   return { textOriginal: focal.textOriginal, textTranslation: focal.textTranslation, focusSurface: null };
 }
 
-export function Player({ video, lines: linesProp, account, translatedChunks, onFetchChunk, onFetchExplanation, explanationPromptVersion, onBack, onNavigate, className, initialLineId, savedWordIds, onSaveWord, onProgress, wordStatuses, onSaveTokens, onResetTokens, onSearchEntries }: PlayerProps) {
+export function Player({ video, lines: linesProp, account, translatedChunks, onFetchChunk, onFetchExplanation, explanationPromptVersion, onBack, onNavigate, className, initialLineId, savedWordIds, onSaveWord, onProgress, wordStatuses, coverage, markedUnknownIds, onMarkUnknown, onSaveTokens, onResetTokens, onSearchEntries }: PlayerProps) {
   // Token corrections saved in this session (T3.7) patch the server's lines.
   const [tokenPatches, setTokenPatches] = useState<ReadonlyMap<string, LineTokensUpdate>>(() => new Map());
   const lines = useMemo(
@@ -928,15 +935,19 @@ export function Player({ video, lines: linesProp, account, translatedChunks, onF
     setActiveRailTab("explain");
   }, []);
 
-  // Known-word signals: server statuses, plus "seen" for words looked up this
-  // session (opening the popup records a click server-side — same rule).
+  // Known-word signals (T3.9 tiers): server statuses, with this session's
+  // lookups applied by the same rule as the server — opening the popup records
+  // a click, and a recent lookup demotes "likely" (seen) to unknown; a
+  // confirmed (known) word stays known. Words marked unknown are unknown.
   const [lookedUp, setLookedUp] = useState<ReadonlySet<string>>(() => new Set());
+  const [markedUnknown, setMarkedUnknown] = useState<ReadonlySet<string>>(() => new Set(markedUnknownIds ?? []));
   const effectiveStatuses = useMemo(() => {
-    if (lookedUp.size === 0) return wordStatuses;
+    if (lookedUp.size === 0 && markedUnknown.size === 0) return wordStatuses;
     const next: Record<string, WordStatus> = { ...(wordStatuses ?? {}) };
-    for (const id of lookedUp) if (statusOf(next, id) === "unknown") next[id] = "seen";
+    for (const id of lookedUp) if (statusOf(next, id) === "seen") delete next[id];
+    for (const id of markedUnknown) delete next[id];
     return next;
-  }, [wordStatuses, lookedUp]);
+  }, [wordStatuses, lookedUp, markedUnknown]);
 
   const focalLineId = currentLineIdx >= 0 ? lines[currentLineIdx]?.id ?? null : null;
   const handleTokenClick = useCallback((idx: number, wordId: string | null) => {
@@ -1010,6 +1021,25 @@ export function Player({ video, lines: linesProp, account, translatedChunks, onF
       if (next) savedSetRef.current.delete(id); else savedSetRef.current.add(id);
     }
   }, [openWordId, savedWord, onSaveWord]);
+
+  const handleDictMarkUnknown = useCallback(async () => {
+    if (!openWordId || !onMarkUnknown) return;
+    const id = openWordId;
+    const next = !markedUnknown.has(id);
+    const toggle = (on: boolean) => setMarkedUnknown((prev) => {
+      const s2 = new Set(prev);
+      if (on) s2.add(id); else s2.delete(id);
+      return s2;
+    });
+    toggle(next);
+    try {
+      await onMarkUnknown(id, next);
+      // The override lives on the saved-words row: marking also saves the word.
+      if (next) { savedSetRef.current.add(id); setSavedWord(true); }
+    } catch {
+      toggle(!next);
+    }
+  }, [openWordId, onMarkUnknown, markedUnknown]);
 
   const handleDictClose = useCallback(() => {
     setOpenTok(null);
@@ -1205,6 +1235,7 @@ export function Player({ video, lines: linesProp, account, translatedChunks, onF
         <PlayerTopBar
           title={video.title}
           channel={video.channel}
+          coverage={coverage ?? null}
           onBack={onBack}
           onClickCaptionSettings={() => undefined}
           onClickSavedWords={() => undefined}
@@ -1245,6 +1276,8 @@ export function Player({ video, lines: linesProp, account, translatedChunks, onF
             dictLoading={dictLoading}
             dictError={dictError}
             dictSaved={savedWord}
+            onDictMarkUnknown={onMarkUnknown && openWordId ? handleDictMarkUnknown : undefined}
+            dictMarkedUnknown={openWordId ? markedUnknown.has(openWordId) : false}
             minedCard={minedCard}
             miningEntry={miningEntry}
             miningVideo={video}

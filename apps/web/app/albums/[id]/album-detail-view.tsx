@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { coverageTooltip, formatCoverageBand, type CoverageInfo } from "@fuchine/ui";
 import { AppLayout } from "@/components/AppLayout";
 import "./album-detail.css";
 
@@ -42,7 +43,8 @@ export type DetailVideo = {
   channel: string | null;
   durationS: number | null;
   level: string | null;
-  comprehension: number | null;
+  /** Token-weighted coverage + band (T3.9); null = too few countable words. */
+  comprehension: CoverageInfo | null;
 };
 
 export type AlbumDetailData = {
@@ -73,10 +75,12 @@ function Cover({ ids }: { ids: string[] }) {
   );
 }
 
-function CompRing({ pct }: { pct: number }) {
+function CompRing({ cov }: { cov: CoverageInfo }) {
   const r = 10, c = 2 * Math.PI * r;
+  const pct = cov.headline;
+  const band = formatCoverageBand(cov);
   return (
-    <span className="ad-comp" title={"Comprehension " + pct + "%"}>
+    <span className="ad-comp" title={coverageTooltip(cov)} aria-label={"Coverage " + pct + "%" + (band ? ", range " + band : "")}>
       <svg className="ring" viewBox="0 0 26 26">
         <circle className="track" cx="13" cy="13" r={r} />
         <circle className="val" cx="13" cy="13" r={r} strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} />
@@ -111,7 +115,7 @@ function Row({ v, idx, onPlay, onRemove }: { v: DetailVideo; idx: number; onPlay
           <span className="ad-chan">{v.channel ?? "Unknown channel"}</span>
         </span>
       </div>
-      {v.comprehension != null && <CompRing pct={v.comprehension} />}
+      {v.comprehension != null && <CompRing cov={v.comprehension} />}
       <button className="ad-more" ref={ref} aria-label="More" onClick={() => setMenu((m) => !m)}>
         <IcMore />
         {menu && (

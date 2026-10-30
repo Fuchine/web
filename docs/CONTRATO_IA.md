@@ -31,6 +31,7 @@ type Token = {
   lemma: string;          // forma base para lookup no dicionário
   reading: string;        // leitura em hiragana: にほんご
   pos: string;            // classe gramatical
+  posDetail?: string;     // subclasse (kuromoji pos_detail_1: 固有名詞, 数…), opcional (T3.9)
   wordEntryId: string | null; // entrada de dicionário resolvida, ou null
 };
 

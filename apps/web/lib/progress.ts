@@ -7,11 +7,13 @@ import {
   type Database,
   type DbOrTx,
   type Token,
+  savedWords,
   subtitleLines,
   userDailyStats,
   userWordStats,
   wordEntries,
 } from "@fuchine/db";
+import { signalsFromRow, wordTier } from "./known-words";
 import { dayKey } from "./stats";
 import { isUuid } from "./ids";
 import { withTokenOverrides } from "./token-overrides";
@@ -125,26 +127,59 @@ export async function bumpWordViews(
     });
 }
 
-/** Count a review against every dictionary word in the reviewed sentence. */
+/**
+ * Count a review against every dictionary word in the reviewed sentence, and
+ * keep the known-word model's signals (T3.9): the most recent outcome
+ * (last_review_ok — "confirmed" needs it true) and, on a word's first-ever
+ * review, a calibration snapshot of its tier just before (first_review_tier /
+ * first_review_ok — what scripts/calibrate-known-words.ts reads).
+ */
 export async function bumpWordReviews(
   db: DbOrTx,
   userId: string,
   wordEntryIds: string[],
   ok: boolean,
+  now: Date = new Date(),
 ): Promise<void> {
   const unique = [...new Set(wordEntryIds)];
   if (unique.length === 0) return;
+
+  // Pre-review tier per word (only used where this is its first review).
+  const before = await db
+    .select({
+      wordEntryId: wordEntries.id,
+      views: userWordStats.views,
+      clicks: userWordStats.clicks,
+      reviewsOk: userWordStats.reviewsOk,
+      reviewsTotal: userWordStats.reviewsTotal,
+      lastReviewOk: userWordStats.lastReviewOk,
+      lastClickedAt: userWordStats.lastClickedAt,
+      manual: savedWords.status,
+    })
+    .from(wordEntries)
+    .leftJoin(userWordStats, and(eq(userWordStats.userId, userId), eq(userWordStats.wordEntryId, wordEntries.id)))
+    .leftJoin(savedWords, and(eq(savedWords.userId, userId), eq(savedWords.wordEntryId, wordEntries.id)))
+    .where(inArray(wordEntries.id, unique));
+  const tierBefore = new Map(before.map((r) => [r.wordEntryId, wordTier(signalsFromRow(r), r.manual, now)]));
+
   await db
     .insert(userWordStats)
     .values(unique.map((wordEntryId) => ({
       userId, wordEntryId, reviewsTotal: 1, reviewsOk: ok ? 1 : 0,
+      lastReviewOk: ok, lastReviewedAt: now,
+      firstReviewTier: tierBefore.get(wordEntryId) ?? "unknown", firstReviewOk: ok,
     })))
     .onConflictDoUpdate({
       target: [userWordStats.userId, userWordStats.wordEntryId],
       set: {
         reviewsTotal: sql`${userWordStats.reviewsTotal} + 1`,
         reviewsOk: sql`${userWordStats.reviewsOk} + excluded.reviews_ok`,
-        updatedAt: new Date(),
+        lastReviewOk: sql`excluded.last_review_ok`,
+        lastReviewedAt: sql`excluded.last_reviewed_at`,
+        // Written once, on the word's first review (the existing row had only views/clicks).
+        firstReviewTier: sql`case when ${userWordStats.reviewsTotal} = 0 then excluded.first_review_tier else ${userWordStats.firstReviewTier} end`,
+        firstReviewOk: sql`case when ${userWordStats.reviewsTotal} = 0 then excluded.first_review_ok else ${userWordStats.firstReviewOk} end`,
+        updatedAt: now,
       },
     });
 }
@@ -199,11 +234,14 @@ export async function recordWordClick(
 
   await db
     .insert(userWordStats)
-    .values({ userId, wordEntryId, clicks: 1 })
+    // A lookup is evidence the word wasn't known just now: it demotes
+    // "likely" for LOOKUP_DECAY_DAYS (lib/known-words).
+    .values({ userId, wordEntryId, clicks: 1, lastClickedAt: new Date() })
     .onConflictDoUpdate({
       target: [userWordStats.userId, userWordStats.wordEntryId],
       set: {
         clicks: sql`${userWordStats.clicks} + 1`,
+        lastClickedAt: sql`excluded.last_clicked_at`,
         updatedAt: new Date(),
       },
     });

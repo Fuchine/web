@@ -1,20 +1,35 @@
 // Study read-side queries (F1). Auth-agnostic and testable; routes add auth.
 
-import { and, asc, count, desc, eq, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNotNull, lt, or, sql, type SQL } from "drizzle-orm";
 import {
   type Database,
   videos,
   subtitleLines,
   subtitleTranslationChunks,
-  wordExamples,
   userWordStats,
+  savedWords,
+  tokenOverrides,
+  videoWordCounts,
+  wordEntries,
   type Token,
 } from "@fuchine/db";
+import { countCoverageWords } from "@fuchine/nlp";
 import { decodeListCursor, encodeListCursor, escapeLike } from "./list-query";
 import { isUuid } from "./ids";
 import { LEVEL } from "./library";
-import { knownWordSql, wordStatusFromStats, type WordStatus } from "./word-status";
+import { wordStatusFromStats, wordTierSql, type WordStatus } from "./word-status";
+import {
+  applyCountDeltas,
+  coverageFromTierCounts,
+  diffCounts,
+  emptyTierCounts,
+  signalsFromRow,
+  type Coverage,
+  type TierCounts,
+} from "./known-words";
 import { withTokenOverrides, type TokenSpan } from "./token-overrides";
+
+export type { Coverage };
 
 // Nulls sort last: videos without a duration on "shortest first", without a
 // level estimate on "level". The level bands mirror LEVEL in lib/library.ts.
@@ -28,7 +43,7 @@ export type VideoSort = (typeof VIDEO_SORTS)[number];
  * Library: videos with their line count (paginated). Search, category filter
  * and sort run here, over the whole catalog — the client's infinite scroll
  * only ever sees pages that already match. "Most comprehensible" is NOT a
- * server sort: comprehension is a per-user aggregate over word_examples
+ * server sort: coverage is a per-user aggregate over video_word_counts
  * (catalog-sized, D3), and ordering by it would recompute it for every video
  * on every page; the client keeps that ordering over loaded pages.
  * `total` (count under the same filters) comes only with the first page.
@@ -157,57 +172,125 @@ export async function getLatestVideo(db: Database) {
   return row ?? null;
 }
 
-// "Known" = the heuristic in ./word-status (shared with the player coloring).
-// Below this many distinct dictionary words the percentage is noise.
-const COMPREHENSION_MIN_WORDS = 10;
-
 /**
- * Distinct-word comprehension % per video for a user, from word_examples
- * (written at import) joined with user_word_stats (written by the player and
- * review beacons). Videos with too few words are omitted (UI shows nothing).
+ * Token-weighted coverage per video for a user (T3.9; replaces the v1
+ * distinct-word comprehension). Headline + confidence band + unique-word
+ * coverage, from the materialized per-video word frequency (video_word_counts)
+ * joined with the user's signals and manual overrides, tiered in SQL by
+ * wordTierSql. Videos with too few countable tokens are omitted (no number).
  *
- * Pass `videoIds` (the ones actually being rendered) to scope the aggregate to
- * those videos — `word_examples` is catalog-sized (shared cache, D3), so the
- * unscoped GROUP BY grows with every video anyone imports. Both the scoped and
- * unscoped paths ride `word_examples_video_word_idx`. Empty array ⇒ empty map.
+ * Cost per call: ONE aggregate (grouped by video × tier) riding the
+ * video_word_counts PK for the given videos and the user_word_stats /
+ * saved_words PKs; plus one indexed lookup of the user's token corrections on
+ * those videos, and — only when there are some — two small queries for the
+ * corrected words. Pass the `videoIds` being rendered: the table is
+ * catalog-sized (shared cache, D3). Empty array ⇒ empty map.
  */
 export async function getComprehensionByVideo(
   db: Database,
   userId: string,
   videoIds?: string[],
-): Promise<Map<string, number>> {
+): Promise<Map<string, Coverage>> {
   if (videoIds && videoIds.length === 0) return new Map();
   const rows = await db
     .select({
-      videoId: wordExamples.videoId,
-      total: sql<number>`count(distinct ${wordExamples.wordEntryId})::int`,
-      known: sql<number>`count(distinct ${wordExamples.wordEntryId}) filter (where ${knownWordSql})::int`,
+      videoId: videoWordCounts.videoId,
+      tier: wordTierSql,
+      tokens: sql<number>`sum(${videoWordCounts.occurrences})::int`,
+      words: sql<number>`count(*)::int`,
     })
-    .from(wordExamples)
-    .leftJoin(
-      userWordStats,
-      and(
-        eq(userWordStats.wordEntryId, wordExamples.wordEntryId),
-        eq(userWordStats.userId, userId),
-      ),
-    )
-    .where(videoIds ? inArray(wordExamples.videoId, videoIds) : undefined)
-    .groupBy(wordExamples.videoId);
+    .from(videoWordCounts)
+    .leftJoin(userWordStats, and(eq(userWordStats.userId, userId), eq(userWordStats.wordEntryId, videoWordCounts.wordEntryId)))
+    .leftJoin(savedWords, and(eq(savedWords.userId, userId), eq(savedWords.wordEntryId, videoWordCounts.wordEntryId)))
+    .where(videoIds ? inArray(videoWordCounts.videoId, videoIds) : undefined)
+    .groupBy(videoWordCounts.videoId, wordTierSql);
 
-  const map = new Map<string, number>();
+  const counts = new Map<string, TierCounts>();
   for (const r of rows) {
-    if (r.total >= COMPREHENSION_MIN_WORDS) {
-      map.set(r.videoId, Math.round((100 * r.known) / r.total));
-    }
+    const c = counts.get(r.videoId) ?? emptyTierCounts();
+    c[r.tier].tokens += Number(r.tokens);
+    c[r.tier].words += Number(r.words);
+    counts.set(r.videoId, c);
+  }
+
+  await applyUserCorrections(db, userId, counts, videoIds);
+
+  const map = new Map<string, Coverage>();
+  for (const [videoId, c] of counts) {
+    const cov = coverageFromTierCounts(c);
+    if (cov) map.set(videoId, cov);
   }
   return map;
 }
 
 /**
- * Player known-word signals (T3.8): status per word for one user, over the
- * word ids of the video being opened (one query on the user_word_stats PK).
- * Only "seen"/"known" words are returned — absent means "unknown" — so the
- * payload stays small for a beginner. Status rule: wordStatusFromStats.
+ * The user's token corrections (T3.7) on these videos, applied to the shared
+ * counts as per-word deltas (corrected − original coverage tokens of each
+ * corrected line). Corrections are rare, so this is usually one empty lookup.
+ */
+async function applyUserCorrections(
+  db: Database,
+  userId: string,
+  counts: Map<string, TierCounts>,
+  videoIds: string[] | undefined,
+): Promise<void> {
+  const corrected = await db
+    .selectDistinct({ id: subtitleLines.id, videoId: subtitleLines.videoId, tokens: subtitleLines.tokens, language: videos.language })
+    .from(tokenOverrides)
+    .innerJoin(subtitleLines, eq(subtitleLines.id, tokenOverrides.subtitleLineId))
+    .innerJoin(videos, eq(videos.id, subtitleLines.videoId))
+    .where(and(
+      eq(tokenOverrides.userId, userId),
+      videoIds ? inArray(subtitleLines.videoId, videoIds) : undefined,
+    ));
+  if (corrected.length === 0) return;
+
+  const lines = await withTokenOverrides(db, userId, corrected.map((l) => ({ ...l, original: l.tokens ?? [] })), (l) => l.id);
+  const ids = [...new Set(lines.flatMap((l) => [...l.original, ...l.tokens].flatMap((t) => (t.wordEntryId ? [t.wordEntryId] : []))))];
+  if (ids.length === 0) return;
+  // Entry POS (exclusions) and tier for every word involved, in one query.
+  const entries = await db
+    .select({ id: wordEntries.id, pos: wordEntries.pos, tier: wordTierSql })
+    .from(wordEntries)
+    .leftJoin(userWordStats, and(eq(userWordStats.userId, userId), eq(userWordStats.wordEntryId, wordEntries.id)))
+    .leftJoin(savedWords, and(eq(savedWords.userId, userId), eq(savedWords.wordEntryId, wordEntries.id)))
+    .where(inArray(wordEntries.id, ids));
+  const entryPos = new Map(entries.map((e) => [e.id, e.pos]));
+  const tiers = new Map(entries.map((e) => [e.id, e.tier]));
+
+  const deltasByVideo = new Map<string, Map<string, number>>();
+  for (const l of lines) {
+    const d = deltasByVideo.get(l.videoId) ?? new Map<string, number>();
+    diffCounts(
+      countCoverageWords([l.original], l.language, entryPos),
+      countCoverageWords([l.tokens], l.language, entryPos),
+      d,
+    );
+    deltasByVideo.set(l.videoId, d);
+  }
+
+  const touched = [...deltasByVideo].flatMap(([videoId, d]) => [...d.keys()].map((w) => ({ videoId, w })));
+  const baseRows = touched.length === 0 ? [] : await db
+    .select({ videoId: videoWordCounts.videoId, wordEntryId: videoWordCounts.wordEntryId, occurrences: videoWordCounts.occurrences })
+    .from(videoWordCounts)
+    .where(and(
+      inArray(videoWordCounts.videoId, [...deltasByVideo.keys()]),
+      inArray(videoWordCounts.wordEntryId, [...new Set(touched.map((t) => t.w))]),
+    ));
+  for (const [videoId, d] of deltasByVideo) {
+    const base = new Map(baseRows.filter((r) => r.videoId === videoId).map((r) => [r.wordEntryId, r.occurrences]));
+    const c = counts.get(videoId) ?? emptyTierCounts();
+    applyCountDeltas(c, d, base, tiers);
+    counts.set(videoId, c);
+  }
+}
+
+/**
+ * Player known-word signals (T3.8/T3.9): color per word for one user over the
+ * word ids of the video being opened — one query driven by the word_entries
+ * PK with the user's stats and manual override left-joined, tiered by the
+ * façade (wordStatusFromStats). Only "seen" (likely) / "known" (confirmed)
+ * words are returned — absent means "unknown" — so the payload stays small.
  */
 export async function getWordStatuses(
   db: Database,
@@ -218,16 +301,26 @@ export async function getWordStatuses(
   if (ids.length === 0) return {};
   const rows = await db
     .select({
-      wordEntryId: userWordStats.wordEntryId,
+      wordEntryId: wordEntries.id,
       views: userWordStats.views,
       clicks: userWordStats.clicks,
       reviewsOk: userWordStats.reviewsOk,
+      reviewsTotal: userWordStats.reviewsTotal,
+      lastReviewOk: userWordStats.lastReviewOk,
+      lastClickedAt: userWordStats.lastClickedAt,
+      manual: savedWords.status,
     })
-    .from(userWordStats)
-    .where(and(eq(userWordStats.userId, userId), inArray(userWordStats.wordEntryId, ids)));
+    .from(wordEntries)
+    .leftJoin(userWordStats, and(eq(userWordStats.userId, userId), eq(userWordStats.wordEntryId, wordEntries.id)))
+    .leftJoin(savedWords, and(eq(savedWords.userId, userId), eq(savedWords.wordEntryId, wordEntries.id)))
+    .where(and(
+      inArray(wordEntries.id, ids),
+      or(isNotNull(userWordStats.userId), isNotNull(savedWords.status)),
+    ));
+  const now = new Date();
   const out: Record<string, Exclude<WordStatus, "unknown">> = {};
   for (const r of rows) {
-    const status = wordStatusFromStats(r);
+    const status = wordStatusFromStats(signalsFromRow(r), r.manual, now);
     if (status !== "unknown") out[r.wordEntryId] = status;
   }
   return out;

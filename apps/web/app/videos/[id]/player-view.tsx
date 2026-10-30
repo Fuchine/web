@@ -13,7 +13,7 @@ const toPlayerTokens = (r: LineTokensResponse) => ({
   tokenSpans: r.tokenSpans,
 });
 
-export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "onFetchChunk" | "onFetchExplanation" | "explanationPromptVersion" | "onSaveWord" | "onProgress" | "onSaveTokens" | "onResetTokens" | "onSearchEntries">) {
+export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "onFetchChunk" | "onFetchExplanation" | "explanationPromptVersion" | "onSaveWord" | "onMarkUnknown" | "onProgress" | "onSaveTokens" | "onResetTokens" | "onSearchEntries">) {
   const router = useRouter();
   const videoId = props.video.id;
   // Prompt version the server reports with each explanation (T3.12 label).
@@ -88,9 +88,20 @@ export function PlayerView(props: Omit<PlayerProps, "onBack" | "onNavigate" | "o
     return data.saved;
   }, []);
 
+  // "Mark as unknown" = the manual override "new" (T3.9); undo clears it.
+  const onMarkUnknown = useCallback(async (wordEntryId: string, unknown: boolean) => {
+    const res = await fetch(`/api/dictionary/${wordEntryId}/saved`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: unknown ? "new" : null }),
+    });
+    if (!res.ok) throw new Error(`mark unknown failed: ${res.status}`);
+  }, []);
+
   return (
     <Player
       {...props}
+      onMarkUnknown={onMarkUnknown}
       onFetchChunk={onFetchChunk}
       onFetchExplanation={onFetchExplanation}
       explanationPromptVersion={promptVersion}

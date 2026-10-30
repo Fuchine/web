@@ -44,7 +44,7 @@ UI é em inglês.
 - `screens.md` — guia para gerar telas (handoff para IA): sistema visual,
   fluxo component-first, tokens/utilitários, componentes prontos em
   `@fuchine/ui` e os shapes de API por tela.
-- `packages/db/src/schema.ts` — schema Drizzle: 23 tabelas (20 do app + 3 do
+- `packages/db/src/schema.ts` — schema Drizzle: 24 tabelas (21 do app + 3 do
   adapter Auth.js).
 
 ## Decisões que NÃO podem ser violadas
@@ -131,10 +131,15 @@ tabela `token_overrides`, migration 0020 — span de índices `[start, end]` →
 /api/lines/[id]/tokens`; um helper `withTokenOverrides` em
 `lib/token-overrides.ts` aplica no player, fila/stats de revisão, curadoria,
 export Lapis, beacon de views e resumo — só para o dono, stats passadas não
-são reescritas, comprehension/`word_examples` e cache de IA seguem
+são reescritas, `word_examples`/`video_word_counts` e cache de IA seguem
 compartilhados; "Fix" no popup com `TokenFixEditor`; spec em
 `docs/plans/2026-10-30-token-overrides-spec.md`), T3.8 (modo de escuta Primed, ocultar JP/tradução,
-cores por status de palavra — regra única em `lib/word-status.ts`), T3.6 (fila "curar depois":
+cores por status de palavra — regra única em `lib/word-status.ts`), T3.9 (modelo de
+palavra conhecida em três níveis — unknown/likely/confirmed em `lib/known-words.ts`,
+TS + SQL — e cobertura **ponderada por token** com faixa de confiança; migration
+0021: `video_word_counts` + sinais em `user_word_stats`; "Mark as unknown" no popup;
+calibração `scripts/calibrate-known-words.ts`; spec em
+`docs/plans/2026-10-30-known-words-spec.md`), T3.6 (fila "curar depois":
 `/phrases/curate` lista cards com `notes IS NULL` e nunca revisados — `notes = ""`
 = curado sem nota; "Rewatch ×2"; minerar com **M**; badge de revisão conta só o
 que a fila serve hoje), T3.11
@@ -157,18 +162,18 @@ lint, test, build), `e2e.yml` (migrate + suítes E2E contra Postgres real), `dco
 
 Pacotes e seus pontos de entrada:
 
-- `packages/db` — schema Drizzle com 23 tabelas: 20 do app (`users`,
+- `packages/db` — schema Drizzle com 24 tabelas: 21 do app (`users`,
   `user_settings`, `invites`, `videos`, `subtitle_lines`,
   `subtitle_translation_chunks`, `word_entries`, `word_pitch`, `word_examples`,
   `sentence_cards`, `review_logs`, `ai_explanations`, `albums`, `album_videos`,
   `user_video_flags`, `user_word_stats`, `saved_words`, `user_daily_stats`,
-  `token_overrides`, `llm_usage`) + 3 do adapter Auth.js (`accounts`, `sessions`,
+  `token_overrides`, `video_word_counts`, `llm_usage`) + 3 do adapter Auth.js (`accounts`, `sessions`,
   `verification_tokens`). Tipos jsonb (`Token`, `Explanation`, `Definition`,
   `DailyGoals`) + `createDb()` (pool configurável, `DB_POOL_MAX`) +
   `ensureUserSettings` + helpers de convite (`invites.ts`) e `normalizeEmail`.
   Exporta também `Transaction`/`DbOrTx` (handle de transação do Drizzle) para
   helpers que rodam tanto standalone quanto dentro de `db.transaction(...)`.
-  Migrations em `drizzle/` de `0000_init` a `0020` com meta journal
+  Migrations em `drizzle/` de `0000_init` a `0021` com meta journal
   (`pnpm db:migrate`; a `0013` cria a extensão `pg_trgm`). Seed JMdict +
   frequência em `src/seed/` (`pnpm --filter @fuchine/db seed`/`seed:jmdict`;
   fixture em `seeds/fixtures/`).
@@ -250,18 +255,34 @@ Pacotes e seus pontos de entrada:
   status das phrases na 1ª página; `usePaginatedList` refaz a página 1 quando os
   params mudam, com epoch guard contra respostas velhas). Exceção deliberada: o
   sort "Most comprehensible" é client-side sobre as páginas carregadas
-  (comprehension é agregado por usuário, catalog-sized). **Writers de atividade**
+  (cobertura é agregado por usuário, catalog-sized). **Writers de atividade**
   (`lib/progress.ts`): `POST /api/videos/[id]/progress` (beacon do player a
   cada 15s: ms assistidos + linhas vistas → `user_daily_stats` +
   `user_word_stats.views`) e `POST /api/dictionary/[id]/click` (popup →
-  `clicks`); minerar/revisar incrementam `cards_created`/`reviews_done` e
-  `reviews_ok/total` por palavra da linha. **Minerar e revisar são transacionais**
+  `clicks` + `last_clicked_at`); minerar/revisar incrementam `cards_created`/`reviews_done` e
+  `reviews_ok/total` por palavra da linha (+ `last_review_ok` e, no 1º review da
+  palavra, o snapshot `first_review_tier/ok` para a calibração). **Minerar e revisar são transacionais**
   (`db.transaction` em `lib/cards.ts`): o `reviewCardById` grava update do card +
   `review_logs` + bumps de stats atomicamente (card reagendado nunca fica sem log,
-  D6), com os tokens da linha vindo no select inicial (join). Comprehension por
-  vídeo/usuário (`getComprehensionByVideo` em `lib/study.ts`: % de palavras
-  distintas conhecidas — reviewsOk≥1 ou views≥5 — via
-  `word_examples`⋈`user_word_stats`, mínimo 10 palavras) alimenta a biblioteca; o
+  D6), com os tokens da linha vindo no select inicial (join). **Modelo de palavra
+  conhecida (T3.9)** em `lib/known-words.ts` (puro + `wordTierSql`; façade
+  `lib/word-status.ts` mapeia unknown/likely/confirmed → cores
+  unknown/seen/known do player): *confirmed* = reviewsOk≥1 e último review OK
+  (grade≥3) ou manual "known"; *likely* = views≥10, cliques≤10% das views e
+  nenhum lookup há 14 dias (manual "learning" limita a likely; review falho
+  tira o confirmed mas não força unknown); manual "new" ("Mark as unknown" no
+  popup) força unknown. **Cobertura** por vídeo/usuário
+  (`getComprehensionByVideo` em `lib/study.ts` → `Coverage`): manchete
+  **ponderada por token** = (confirmed + 0,7·likely)/tokens contáveis, faixa
+  confirmed-only … confirmed+likely, cobertura única como secundária; sem número
+  abaixo de 50 tokens/10 palavras. Uma query agregada por página sobre
+  `video_word_counts` (frequência corrida por vídeo, escrita no import /
+  `backfill:word-counts`; exclusões em `isCoverageToken` de `@fuchine/nlp`:
+  sem entrada, 記号/感動詞/フィラー, 固有名詞/数, numerais/latim; partículas
+  contam) ⋈ `user_word_stats` ⋈ `saved_words`; correções de token do usuário
+  entram como deltas. Biblioteca/álbum/player mostram "93% (89–95)" com
+  tooltip dos limiares 80/90/95/98. Calibração (base de T3.10):
+  `pnpm --filter @fuchine/web exec tsx scripts/calibrate-known-words.ts`. O
   StatBar da biblioteca usa horas/palavras/streak reais de `getStats` (dias ativos
   vêm só de `user_daily_stats` — 1 linha/dia, sem scan de histórico). O badge de
   review (dashboard/biblioteca) usa `countDueCards` e o "Continue watching" usa
@@ -303,7 +324,8 @@ Pacotes e seus pontos de entrada:
   cobre vídeos antigos. No fim do import, `estimateVideoLevel` grava
   `videos.level_estimate` (mediana do frequency_rank das palavras distintas;
   `src/level.ts`, mínimo 20 palavras ranqueadas; `backfill:level` para vídeos
-  antigos). `backfill:daily-stats` semeia `user_daily_stats` com reviews/mineração
+  antigos). `backfill:word-counts` monta `video_word_counts` de vídeos anteriores
+  à 0021 (idempotente; `--all` reconstrói). `backfill:daily-stats` semeia `user_daily_stats` com reviews/mineração
   anteriores aos writers (idempotente, reconcilia das tabelas-fonte por dia local,
   não toca em `ms_watched`/`lines_seen`). **Frequência:** `frequency_rank` é derivado dos tags `nfXX` do
   próprio JMdict no seed (`mapper.ts` `nfRankFromTags` — bandas de 500,

@@ -207,9 +207,9 @@ function PlayerTranscriptImpl({
               </button>
               <span className="kw-legend" id="kw-legend" role="tooltip">
                 <span className="kw-legend-title">Word colors</span>
-                <span className="kw-legend-row"><i className="kw-swatch k-unknown" aria-hidden="true" />Unknown — not met yet</span>
-                <span className="kw-legend-row"><i className="kw-swatch k-seen" aria-hidden="true" />Seen — met or looked up</span>
-                <span className="kw-legend-row"><i className="kw-swatch k-known" aria-hidden="true" />Known — reviewed or seen often</span>
+                <span className="kw-legend-row"><i className="kw-swatch k-unknown" aria-hidden="true" />Unknown — new, rarely seen or looked up lately</span>
+                <span className="kw-legend-row"><i className="kw-swatch k-seen" aria-hidden="true" />Likely — seen often without looking up</span>
+                <span className="kw-legend-row"><i className="kw-swatch k-known" aria-hidden="true" />Confirmed — reviewed correctly or marked known</span>
               </span>
             </span>
           )}
