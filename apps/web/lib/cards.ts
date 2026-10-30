@@ -4,6 +4,7 @@ import { and, asc, count, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import { type Database, sentenceCards, subtitleLines, videos, reviewLogs, wordEntries, userSettings, type Token, type Definition } from "@fuchine/db";
 import { newCardState, reviewCard, previewIntervals, type CardState, type ReviewGrade } from "@fuchine/core";
 import { bumpDailyStats, bumpWordReviews } from "./progress";
+import { effectiveNewCardsPerDay } from "./srs-defaults";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
@@ -74,9 +75,11 @@ function startOfToday(now = new Date()): Date {
 }
 
 /**
- * Remaining daily allowances (null = unlimited / no goal set) for new-card
- * introductions and due-card reviews, honoring `newCardsPerDay` and
- * `maxReviewsPerDay`. A card's first review writes a review_logs row whose
+ * Remaining daily allowances for new-card introductions and due-card reviews,
+ * honoring `newCardsPerDay` and `maxReviewsPerDay`. New cards are always
+ * capped: an unset `newCardsPerDay` (or null `dailyGoals`) falls back to
+ * DEFAULT_NEW_CARDS_PER_DAY (T3.5) so beginners aren't buried. Reviews stay
+ * uncapped (null) unless `maxReviewsPerDay` is set. A card's first review writes a review_logs row whose
  * state is the state *before* the review: state=0 = a new introduction, state≠0
  * = a review of an already-introduced card. Counting today's distinct cards on
  * each side gives what's already been consumed.
@@ -84,17 +87,14 @@ function startOfToday(now = new Date()): Date {
 async function dailyAllowances(
   db: Database,
   userId: string,
-): Promise<{ newRemaining: number | null; reviewRemaining: number | null }> {
+): Promise<{ newRemaining: number; reviewRemaining: number | null }> {
   const [settings] = await db
     .select({ dailyGoals: userSettings.dailyGoals })
     .from(userSettings)
     .where(eq(userSettings.userId, userId))
     .limit(1);
-  const newCap = settings?.dailyGoals?.newCardsPerDay ?? null;
+  const newCap = effectiveNewCardsPerDay(settings?.dailyGoals);
   const reviewCap = settings?.dailyGoals?.maxReviewsPerDay ?? null;
-  if (newCap == null && reviewCap == null) {
-    return { newRemaining: null, reviewRemaining: null };
-  }
 
   const [row] = await db
     .select({
@@ -105,7 +105,7 @@ async function dailyAllowances(
     .where(and(eq(reviewLogs.userId, userId), gte(reviewLogs.reviewedAt, startOfToday())));
 
   return {
-    newRemaining: newCap == null ? null : Math.max(0, newCap - Number(row?.newIntro ?? 0)),
+    newRemaining: Math.max(0, newCap - Number(row?.newIntro ?? 0)),
     reviewRemaining: reviewCap == null ? null : Math.max(0, reviewCap - Number(row?.reviews ?? 0)),
   };
 }
@@ -159,8 +159,9 @@ export async function getReviewQueue(db: Database, userId: string, limit = 20) {
         .limit(reviewCap)
     : [];
 
-  // Due new cards, capped by the remaining daily-new allowance (null = unlimited).
-  const newCap = newRemaining == null ? limit : Math.min(newRemaining, limit);
+  // Due new cards, capped by the remaining daily-new allowance (always set: the
+  // user's newCardsPerDay or the default).
+  const newCap = Math.min(newRemaining, limit);
   const newRows = newCap > 0
     ? await db
         .select(QUEUE_COLUMNS)
