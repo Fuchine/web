@@ -59,6 +59,9 @@ export { MinedCard } from "./components/MinedCard/MinedCard";
 // T1.7 — Review Session
 export { ReviewSession } from "./components/Review/ReviewSession";
 export type { ReviewSessionProps, ReviewItem } from "./components/Review/ReviewSession";
+// T3.11 — review variants on the exact clip
+export { REVIEW_MODES } from "./components/Review/review-modes";
+export type { ReviewMode } from "./components/Review/review-modes";
 
 export { cn } from "./lib/cn";
 export { UserFacingError } from "./lib/errors";

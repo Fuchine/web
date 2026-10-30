@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
 import { ReviewSession, type ReviewItem } from "./ReviewSession";
+import type { ReviewMode } from "./review-modes";
 
 const now = new Date();
 const later = (mins: number) => new Date(now.getTime() + mins * 60000);
@@ -107,11 +108,11 @@ const mockQueue: ReviewItem[] = [
   },
 ];
 
-function Wrapper({ queue }: { queue: ReviewItem[] }) {
+function Wrapper({ queue, initialMode }: { queue: ReviewItem[]; initialMode?: ReviewMode }) {
   const [done, setDone] = useState(false);
   return (
     <div className="p-8 bg-gray-950 min-h-screen">
-      <ReviewSession queue={queue} onComplete={() => setDone(true)} />
+      <ReviewSession queue={queue} onComplete={() => setDone(true)} initialMode={initialMode} />
       {done && <p className="text-white text-center mt-8">Session complete!</p>}
     </div>
   );
@@ -144,4 +145,27 @@ export const EmptyQueue: Story = {
       </div>
     );
   },
+};
+
+// T3.11 — the same queue in each review mode. The mode picker stays live, so a
+// story can switch modes; the app remembers the choice per browser.
+
+/** Today's flow: cloze-style recall, "Show answer", grade. */
+export const ModeClassic: Story = {
+  render: () => <Wrapper queue={mockQueue} initialMode="classic" />,
+};
+
+/** Listen → reveal: the clip autoplays with no text; reveal the Japanese, then the translation, then grade. */
+export const ModeListenFirst: Story = {
+  render: () => <Wrapper queue={mockQueue} initialMode="listen" />,
+};
+
+/** Cloze: type the blanked word (kanji or kana both accepted), see the check, then grade yourself. */
+export const ModeCloze: Story = {
+  render: () => <Wrapper queue={mockQueue} initialMode="cloze" />,
+};
+
+/** Shadow this line: loop the clip, record in memory, A/B compare. No score. */
+export const ModeShadow: Story = {
+  render: () => <Wrapper queue={mockQueue} initialMode="shadow" />,
 };
