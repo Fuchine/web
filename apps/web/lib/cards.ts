@@ -2,7 +2,8 @@
 
 import { and, asc, count, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import { type Database, sentenceCards, subtitleLines, videos, reviewLogs, wordEntries, userSettings, type Token, type Definition } from "@fuchine/db";
-import { newCardState, reviewCard, previewIntervals, type CardState, type ReviewGrade } from "@fuchine/core";
+import { newCardState, type FsrsService, type ReviewGrade } from "@fuchine/core";
+import { cardStateOf, loadUserFsrs, rebuildMemory } from "./fsrs";
 import { bumpDailyStats, bumpWordReviews } from "./progress";
 import { effectiveNewCardsPerDay } from "./srs-defaults";
 
@@ -39,17 +40,6 @@ export function parseCardType(raw: unknown): { cardType: CardType } | { error: s
     : { error: `cardType must be one of: ${CARD_TYPES.join(", ")}` };
 }
 
-/** Reconstruct the FSRS CardState from a sentence_cards row. */
-function stateOf(c: {
-  stability: number; difficulty: number; due: Date; lastReview: Date | null;
-  state: number; reps: number; lapses: number; elapsedDays: number; scheduledDays: number;
-}): CardState {
-  return {
-    stability: c.stability, difficulty: c.difficulty, due: c.due, lastReview: c.lastReview,
-    state: c.state, reps: c.reps, lapses: c.lapses, elapsedDays: c.elapsedDays, scheduledDays: c.scheduledDays,
-  };
-}
-
 /** Mine a subtitle line into a review card. Deduped per (user, line, type). */
 export async function mineSentence(
   db: Database,
@@ -81,8 +71,10 @@ export async function mineSentence(
       .insert(sentenceCards)
       .values({
         userId, subtitleLineId: line.id, videoId: line.videoId, cardType, notes,
-        stability: init.stability, difficulty: init.difficulty, due: init.due, state: init.state,
-        reps: init.reps, lapses: init.lapses, elapsedDays: init.elapsedDays, scheduledDays: init.scheduledDays,
+        stability: init.stability, stabilityFast: init.stabilityFast, difficulty: init.difficulty,
+        due: init.due, state: init.state, reps: init.reps, lapses: init.lapses,
+        elapsedDays: init.elapsedDays, scheduledDays: init.scheduledDays,
+        learningStep: init.learningStep, fsrsModel: init.model,
       })
       .onConflictDoNothing()
       .returning();
@@ -151,9 +143,11 @@ async function dailyAllowances(
 const QUEUE_COLUMNS = {
   cardId: sentenceCards.id, videoId: sentenceCards.videoId, cardType: sentenceCards.cardType,
   notes: sentenceCards.notes, due: sentenceCards.due,
-  stability: sentenceCards.stability, difficulty: sentenceCards.difficulty, lastReview: sentenceCards.lastReview,
+  stability: sentenceCards.stability, stabilityFast: sentenceCards.stabilityFast,
+  difficulty: sentenceCards.difficulty, lastReview: sentenceCards.lastReview,
   state: sentenceCards.state, reps: sentenceCards.reps, lapses: sentenceCards.lapses,
   elapsedDays: sentenceCards.elapsedDays, scheduledDays: sentenceCards.scheduledDays,
+  learningStep: sentenceCards.learningStep, fsrsModel: sentenceCards.fsrsModel,
   textOriginal: subtitleLines.textOriginal, textTranslation: subtitleLines.textTranslation,
   tStartMs: subtitleLines.tStartMs, tEndMs: subtitleLines.tEndMs,
   source: videos.source, sourceId: videos.sourceId,
@@ -178,6 +172,10 @@ export async function countDueCards(db: Database, userId: string): Promise<numbe
 export async function getReviewQueue(db: Database, userId: string, limit = 20) {
   const now = new Date();
   const { newRemaining, reviewRemaining } = await dailyAllowances(db, userId);
+  // The user's scheduler (fitted FSRS-7 weights + desired retention, T3.1), and
+  // pre-0018 cards get their FSRS-7 memory replayed before they're previewed.
+  const fsrs = await loadUserFsrs(db, userId);
+  await rebuildMemory(db, userId, fsrs);
 
   // Due review cards (already introduced): capped by maxReviewsPerDay (null =
   // unlimited), oldest-due first.
@@ -234,7 +232,7 @@ export async function getReviewQueue(db: Database, userId: string, limit = 20) {
           .where(inArray(wordEntries.id, uniqueIds as string[]))
       : [];
 
-  return buildReviewQueuePayload(rows, entries);
+  return buildReviewQueuePayload(rows, entries, fsrs, now);
 }
 
 // frequencyRank lets the cloze review mode (T3.11) blank the line's rarest word.
@@ -245,8 +243,9 @@ export type WordEntryData = {
 /** The joined sentence_cards ⋈ subtitle_lines ⋈ videos row (QUEUE_COLUMNS). */
 export type ReviewQueueRow = {
   cardId: string; videoId: string; cardType: string; notes: string | null; due: Date;
-  stability: number; difficulty: number; lastReview: Date | null; state: number;
+  stability: number; stabilityFast: number | null; difficulty: number; lastReview: Date | null; state: number;
   reps: number; lapses: number; elapsedDays: number; scheduledDays: number;
+  learningStep: number; fsrsModel: string;
   textOriginal: string; textTranslation: string | null; tStartMs: number; tEndMs: number;
   source: string; sourceId: string; tokens: Token[] | null;
 };
@@ -258,12 +257,12 @@ export type WordEntryRow = {
 
 export type ReviewQueueCard = Omit<
   ReviewQueueRow,
-  "stability" | "difficulty" | "lastReview" | "reps" | "lapses" | "elapsedDays"
-    | "scheduledDays" | "textOriginal" | "textTranslation" | "tStartMs" | "tEndMs" | "source" | "sourceId"
+  "stability" | "stabilityFast" | "difficulty" | "lastReview" | "reps" | "lapses" | "elapsedDays"
+    | "scheduledDays" | "learningStep" | "fsrsModel" | "textOriginal" | "textTranslation" | "tStartMs" | "tEndMs" | "source" | "sourceId"
 > & {
   clip: { source: string; sourceId: string; startMs: number; endMs: number };
   sentence: { text: string; translation: string | null };
-  intervals: ReturnType<typeof previewIntervals>;
+  intervals: ReturnType<FsrsService["preview"]>;
   tokens: Token[];
 };
 
@@ -281,6 +280,8 @@ export type ReviewQueuePayload = {
 export function buildReviewQueuePayload(
   rows: ReviewQueueRow[],
   entries: WordEntryRow[],
+  fsrs: FsrsService,
+  now: Date = new Date(),
 ): ReviewQueuePayload {
   const wordEntries: Record<string, WordEntryData> = {};
   for (const e of entries) {
@@ -299,7 +300,7 @@ export function buildReviewQueuePayload(
     state: r.state,
     clip: { source: r.source, sourceId: r.sourceId, startMs: r.tStartMs, endMs: r.tEndMs },
     sentence: { text: r.textOriginal, translation: r.textTranslation },
-    intervals: previewIntervals(stateOf(r)),
+    intervals: fsrs.preview(r.cardId, cardStateOf(r), now),
     tokens: r.tokens ?? [],
   }));
 
@@ -326,10 +327,20 @@ export async function reviewCardById(
     .where(and(eq(sentenceCards.id, cardId), eq(sentenceCards.userId, userId)))
     .limit(1);
   if (!row) return { status: 404, body: { error: "card not found" } };
-  const card = row.card;
+  let card = row.card;
+
+  // The user's scheduler (T3.1). A pre-0018 card has its FSRS-7 memory rebuilt
+  // from its review history first (or is kept on FSRS-5 if that's incomplete).
+  const fsrs = await loadUserFsrs(db, userId);
+  if (card.fsrsModel === "fsrs-7" && card.state !== 0 && card.stabilityFast == null) {
+    await rebuildMemory(db, userId, fsrs, { cardIds: [cardId] });
+    const [fresh] = await db.select().from(sentenceCards).where(eq(sentenceCards.id, cardId)).limit(1);
+    if (!fresh) return { status: 404, body: { error: "card not found" } };
+    card = fresh;
+  }
 
   const now = new Date();
-  const { card: next, log } = reviewCard(stateOf(card), grade as ReviewGrade, now);
+  const { card: next, log } = fsrs.review(cardId, cardStateOf(card), grade as ReviewGrade, now);
   const wordIds = ((row.tokens as Token[]) ?? [])
     .map((t) => t.wordEntryId)
     .filter((id): id is string => !!id);
@@ -341,16 +352,18 @@ export async function reviewCardById(
     await tx
       .update(sentenceCards)
       .set({
-        stability: next.stability, difficulty: next.difficulty, due: next.due, lastReview: now,
-        state: next.state, reps: next.reps, lapses: next.lapses,
+        stability: next.stability, stabilityFast: next.stabilityFast, difficulty: next.difficulty,
+        due: next.due, lastReview: now, state: next.state, reps: next.reps, lapses: next.lapses,
         elapsedDays: next.elapsedDays, scheduledDays: next.scheduledDays,
+        learningStep: next.learningStep, fsrsModel: next.model,
       })
       .where(eq(sentenceCards.id, cardId));
 
     await tx.insert(reviewLogs).values({
-      cardId, userId, grade: log.grade, state: log.state, due: log.due,
-      stability: log.stability, difficulty: log.difficulty,
+      cardId, userId, grade: log.grade, state: log.state, due: log.due, lastReview: log.lastReview,
+      stability: log.stability, stabilityFast: log.stabilityFast, difficulty: log.difficulty,
       elapsedDays: log.elapsedDays, lastElapsedDays: log.lastElapsedDays, scheduledDays: log.scheduledDays,
+      learningStep: log.learningStep, fsrsModel: log.model, reviewedAt: log.reviewedAt,
     });
 
     await bumpDailyStats(tx, userId, { reviewsDone: 1 });
