@@ -118,7 +118,10 @@ exceto `/api/auth/*` e `/api/import`, escape no export e no e-mail,
 Da Fase 3 já entraram T3.5 (default **10** cards novos/dia aplicado na leitura —
 `dailyGoals` sem o campo = 10, nunca gravado; `lib/srs-defaults.ts`; projeção
 "amanhã" em `lib/goals.ts`), T3.8 (modo de escuta Primed, ocultar JP/tradução,
-cores por status de palavra — regra única em `lib/word-status.ts`), T3.11
+cores por status de palavra — regra única em `lib/word-status.ts`), T3.6 (fila "curar depois":
+`/phrases/curate` lista cards com `notes IS NULL` e nunca revisados — `notes = ""`
+= curado sem nota; "Rewatch ×2"; minerar com **M**; badge de revisão conta só o
+que a fila serve hoje), T3.11
 (modos de revisão Listen first / Cloze / Shadow sobre o clipe, gravação só em
 memória) e T3.12 (harness `pnpm --filter @fuchine/llm eval:explain`, gold set
 semente de 36 itens **não revisado**, trava `prompt-version.lock.json` que
