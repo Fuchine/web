@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { signOut } from "next-auth/react";
 import { Button } from "@fuchine/ui";
 import { DEFAULT_NEW_CARDS_PER_DAY } from "@/lib/srs-defaults";
+import { ExportRows } from "./export-section";
 import { FsrsRows } from "./fsrs-section";
 
 /** Starting values when the user turns on an optional limit. */
@@ -380,11 +381,7 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
         icon={(<svg viewBox="0 0 24 24" fill="none"><path d="M12 4v10M8 10.5l4 4 4-4M5 19.5h14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>)}
         title="Data"
       >
-        <Row title="Export deck" desc="Download your mined cards as an Anki-importable file.">
-          <Button variant="ghost" size="sm" onClick={() => { window.location.href = "/api/export/deck"; }}>
-            Export deck
-          </Button>
-        </Row>
+        <ExportRows />
         <Row title="Sign out" desc="You can sign back in any time.">
           <Button variant="ghost" size="sm" onClick={() => void signOut({ callbackUrl: "/login" })}>
             Sign out

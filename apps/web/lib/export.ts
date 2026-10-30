@@ -58,7 +58,6 @@ export function parseExportParams(
   const rawDeck = params.get("deck") ?? "";
   if (rawDeck.length > DECK_MAX) return { ok: false, error: `deck must be at most ${DECK_MAX} characters` };
   // A deck name lives on a `#deck:` header line: no control characters.
-  // eslint-disable-next-line no-control-regex
   const deck = rawDeck.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim() || DEFAULT_DECK;
   const h = params.get("history");
   return { ok: true, value: { preset, filter, deck, history: h === "1" || h === "true", format } };
