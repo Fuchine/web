@@ -115,6 +115,8 @@ async function doImport() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Single source of truth for the version: manifest.json.
+  $("version").textContent = `build v${chrome.runtime.getManifest().version}`;
   $("base").value = await getBase();
   $("base").addEventListener("change", async (e) => {
     const base = e.target.value.trim();
