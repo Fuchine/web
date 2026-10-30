@@ -32,6 +32,9 @@ UI é em inglês.
   `backlog/CORRECOES-PRE-DEPLOY-2026-07-10.md` — ondas anteriores (auditoria de
   código, portões de produção, correções pré-deploy). Itens fechados saem do
   backlog; o histórico fica no git.
+- `docs/ARCHITECTURE.md`, `docs/SELF_HOSTING.md`, `docs/EXTENSION.md` — docs
+  públicos em inglês (T2.8); o português continua sendo a fonte da verdade.
+  Mudou env, compose, CLI ou extensão? Atualize-os junto.
 - `docs/DEPLOY_CHECKLIST.md` — runbook do dia do deploy (env, auth, sequência,
   smoke test, ensaio de backup → restore).
 - `docs/plans/` — specs e planos de implementação por feature
@@ -198,7 +201,7 @@ Pacotes e seus pontos de entrada:
   `POST/DELETE /api/albums/[id]/videos` (list com contagem de vídeos, dedup por
   PK composta, ownership por usuário; na biblioteca, "Add to album" abre modal
   com criação inline; E2E em `scripts/e2e-albums.ts`). Também: `GET
-  /api/phrases`, `PATCH /api/cards/[id]` (não há `DELETE` ainda — T2.2), flags por
+  /api/phrases`, `PATCH`/`DELETE /api/cards/[id]` (id validado com `isUuid`), flags por
   usuário `POST/DELETE /api/videos/[id]/flags` (`saved`/`hidden`/
   `not_interested` em `user_video_flags`), tradução lazy `POST
   /api/videos/[id]/translate`, dicionário (`browse`, `collection`, `grammar`,
@@ -304,7 +307,6 @@ testes de todos os pacotes; o CI usa este, não só o web), `pnpm build`,
 `pnpm db:generate`, `pnpm db:migrate`; E2E com
 `pnpm --filter @fuchine/web e2e:run` (precisa de Postgres).
 
-**Lacunas conhecidas** (todas na fila do roadmap): sem `DELETE /api/cards/:id`
-nem ESLint no CI (T2.2); sem limite de tamanho de requisição nem
-`frame-ancestors` (T2.5); sem release/tag/imagem publicada (T2.9); sem admin
-nem denúncia de conteúdo, ver `backlog/catalog-visibility-decision.md` (T2.13).
+**Lacunas conhecidas** (todas na fila do roadmap): sem release/tag/imagem
+publicada (T2.9); sem admin nem denúncia de conteúdo, ver
+`backlog/catalog-visibility-decision.md` (T2.13).
