@@ -27,6 +27,16 @@ export function decodeListCursor(cursor: string): CursorPart[] | null {
   }
 }
 
+/**
+ * Page size from a `?limit=` param: an integer in [1, max], `fallback` when the
+ * param is absent or not a number (NaN/negative used to reach SQL LIMIT → 500).
+ */
+export function parseLimit(raw: string | null, fallback: number, max = 100): number {
+  const n = parseInt(raw ?? "", 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(Math.max(n, 1), max);
+}
+
 /** Escape %, _ and \ so user input matches literally inside an ILIKE pattern. */
 export function escapeLike(q: string): string {
   return q.replace(/[\\%_]/g, (m) => `\\${m}`);

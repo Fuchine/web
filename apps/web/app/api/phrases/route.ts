@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { parseLimit } from "@/lib/list-query";
 import {
   listPhrases,
   countPhrasesByStatus,
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
   }
   const url = new URL(req.url);
   const cursor = url.searchParams.get("cursor") ?? undefined;
-  const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
+  const limit = parseLimit(url.searchParams.get("limit"), 50);
   const q = url.searchParams.get("q")?.slice(0, 100) || undefined;
   const statusParam = url.searchParams.get("status");
   const status = PHRASE_STATUSES.includes(statusParam as PhraseStatus)
