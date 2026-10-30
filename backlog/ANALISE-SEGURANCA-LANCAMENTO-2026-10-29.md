@@ -243,14 +243,14 @@ tarefa S; M = 2–3; L = 4+).
 
 ### M0 — Verdade do repositório (1 sessão)
 
-- [ ] Reescrever "Estado atual" do `CLAUDE.md` com o §1 desta análise (F0/F1
+- [x] Reescrever "Estado atual" do `CLAUDE.md` com o §1 desta análise (F0/F1
       feitas, F2 ~80%, Portão 1 fechado, próximos = M1/M2).
-- [ ] Marcar T0.x/T1.x como feitas no `ROADMAP_ENGENHARIA.md`; adicionar M1–M5
+- [x] Marcar T0.x/T1.x como feitas no `ROADMAP_ENGENHARIA.md`; adicionar M1–M5
       como a nova fila.
-- [ ] Limpar os links órfãos em `DEPLOY_CHECKLIST`, `PRODUCAO`, `CORRECOES`;
+- [x] Limpar os links órfãos em `DEPLOY_CHECKLIST`, `PRODUCAO`, `CORRECOES`;
       criar `backlog/catalog-visibility-decision.md`.
-- [ ] Corrigir **F1** (`DELETE /api/cards/:id`), F3 (extensão), F4 (lint).
-- [ ] **B4:** bump nodemailer ≥ 10.1.4, storybook ≥ 8.6.19, vite ≥ 6.4.4,
+- [x] Corrigir **F1** (`DELETE /api/cards/:id`), F3 (extensão), F4 (lint).
+- [x] **B4:** bump nodemailer ≥ 10.1.4, storybook ≥ 8.6.19, vite ≥ 6.4.4,
       vitest; `dependabot.yml`; `pnpm audit --prod --audit-level=high` no CI.
 
 **Pronto quando:** `pnpm audit --prod` limpo, CI com lint + audit verde, e um
@@ -258,18 +258,18 @@ leitor novo do `CLAUDE.md` sabe em que fase o projeto está.
 
 ### M1 — Hardening pré-exposição (1–2 sessões) · bloqueia qualquer instância com IP público
 
-- [ ] **A1** allowlist/`REGISTRATION` em `callbacks.signIn` (+ E2E: e-mail
+- [x] **A1** allowlist/`REGISTRATION` em `callbacks.signIn` (+ E2E: e-mail
       fora da lista recebe 403 e não cria `users`).
-- [ ] **A2** teto global diário de tokens/US$ para a chave house, lido de
+- [x] **A2** teto global diário de tokens/US$ para a chave house, lido de
       `llm_usage`; recusa com 429 e mensagem clara quando estourar.
-- [ ] **B1** `request_body { max_size 2MB }` no Caddyfile; cap de `notes`;
+- [x] **B1** `request_body { max_size 2MB }` no Caddyfile; cap de `notes`;
       allowlist de `cardType`.
-- [ ] **B2** `frame-ancestors 'none'`, `X-Frame-Options: DENY`,
+- [x] **B2** `frame-ancestors 'none'`, `X-Frame-Options: DENY`,
       `Permissions-Policy`, `form-action 'self'`.
-- [ ] **B3** Caddy sem `env_file`; segredos só em web/worker/migrate.
-- [ ] **B5** fail-closed para `magicLink`.
-- [ ] **C1, C2, C3, C4, C6** (todos XS/S; cabem numa sessão).
-- [ ] Teste de regressão: um `vitest` que importa cada `route.ts` de
+- [x] **B3** Caddy sem `env_file`; segredos só em web/worker/migrate.
+- [x] **B5** fail-closed para `magicLink`.
+- [x] **C1, C2, C3, C4, C6** (todos XS/S; cabem numa sessão).
+- [x] Teste de regressão: um `vitest` que importa cada `route.ts` de
       `app/api` e garante 401 sem sessão (protege contra a próxima rota
       esquecida — hoje não há `middleware.ts`).
 

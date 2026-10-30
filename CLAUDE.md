@@ -104,15 +104,29 @@ compartilhada com flags por usuário, export Anki (TSV), exclusão de conta,
 `llm_usage`. **Portão 1 de produção (self-host, 1 usuário) fechado** pelo PR #19
 + ensaio backup → restore de 2026-07-20 (PASS 8/8). Nunca houve release, tag,
 imagem publicada nem instância pública. **Fila atual:** Fase 2 ("Lançar",
-M0–M3) do `docs/ROADMAP_ENGENHARIA.md` v0.2 — prontos T2.1 (reconciliação dos
-docs), T2.3 (registro controlado) e T2.4 (teto da chave da casa); próximos
-T2.2, T2.5, T2.6 (hardening antes de qualquer IP público), depois T2.7 (deploy
-do mantenedor).
+M0–M3) do `docs/ROADMAP_ENGENHARIA.md` v0.2 — prontos T2.1 (docs), T2.2
+(DELETE de card, caps de entrada, ESLint + `pnpm audit --prod` no CI,
+Dependabot), T2.3 (registro controlado), T2.4 (teto da chave da casa), T2.5
+(body ≤ 2 MB no Caddy, `frame-ancestors`/`X-Frame-Options`/`Permissions-Policy`
+com `microphone=(self)`, segredos fora do Caddy, magic link fail-closed) e T2.6
+(`isUuid` em toda rota com id, `middleware.ts` rejeitando mutação cross-site
+exceto `/api/auth/*` e `/api/import`, escape no export e no e-mail,
+`apps/web/app/api/auth-coverage.test.ts` exigindo 401 sem sessão em toda rota).
+Da Fase 3 já entraram T3.5 (default **10** cards novos/dia aplicado na leitura —
+`dailyGoals` sem o campo = 10, nunca gravado; `lib/srs-defaults.ts`; projeção
+"amanhã" em `lib/goals.ts`), T3.8 (modo de escuta Primed, ocultar JP/tradução,
+cores por status de palavra — regra única em `lib/word-status.ts`), T3.11
+(modos de revisão Listen first / Cloze / Shadow sobre o clipe, gravação só em
+memória) e T3.12 (harness `pnpm --filter @fuchine/llm eval:explain`, gold set
+semente de 36 itens **não revisado**, trava `prompt-version.lock.json` que
+exige bump de `PROMPT_VERSION` ao mudar `prompts.ts`, rótulo "AI-generated ·
+prompt vN"). Próximo: T2.7 (deploy do mantenedor) e a onda 2 da Fase 3.
+`next dev` voltou a funcionar (corpo Node do boot em `instrumentation-node.ts`).
 
 Monorepo pnpm + Turborepo: `pnpm typecheck` e `pnpm test` verdes nos 8
 pacotes (`apps/web`, `apps/worker`, `packages/{core,db,nlp,llm,jobs,ui}`);
-`apps/web` builda no Next 15. CI (`.github/workflows/`): `ci.yml` (typecheck,
-test, build), `e2e.yml` (migrate + suítes E2E contra Postgres real), `dco.yml`
+`apps/web` builda no Next 15. CI (`.github/workflows/`): `ci.yml` (audit, typecheck,
+lint, test, build), `e2e.yml` (migrate + suítes E2E contra Postgres real), `dco.yml`
 (Signed-off-by) e `spike-captions.yml`.
 
 Pacotes e seus pontos de entrada:
