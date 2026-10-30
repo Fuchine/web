@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
-import { sentenceCards } from "@fuchine/db";
+import { deleteCard, updateCardNotes } from "@/lib/cards";
 
 // PATCH /api/cards/:id — update notes on a sentence card
 export async function PATCH(
@@ -16,20 +15,22 @@ export async function PATCH(
 
   const { id } = await params;
   const body = (await req.json().catch(() => null)) ?? {};
+  const result = await updateCardNotes(db, session.user.id, id, body);
+  return NextResponse.json(result.body, { status: result.status });
+}
 
-  if (typeof body.notes !== "string") {
-    return NextResponse.json({ error: "notes must be a string" }, { status: 400 });
+// DELETE /api/cards/:id — remove a card (the Player's "Undo" after mining).
+// Scoped to the session user: someone else's card is a 404.
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const updated = await db
-    .update(sentenceCards)
-    .set({ notes: body.notes ?? null })
-    .where(and(eq(sentenceCards.id, id), eq(sentenceCards.userId, session.user.id)))
-    .returning({ id: sentenceCards.id, notes: sentenceCards.notes });
-
-  if (updated.length === 0) {
-    return NextResponse.json({ error: "card not found" }, { status: 404 });
-  }
-
-  return NextResponse.json(updated[0], { status: 200 });
+  const { id } = await params;
+  const result = await deleteCard(db, session.user.id, id);
+  return NextResponse.json(result.body, { status: result.status });
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Token } from "@fuchine/db";
-import { buildReviewQueuePayload, type ReviewQueueRow } from "./cards";
+import { buildReviewQueuePayload, CARD_TYPES, MAX_NOTES_LENGTH, parseCardType, validateNotes, type ReviewQueueRow } from "./cards";
 
 const tok = (wordEntryId: string | null): Token => ({
   surface: "猫", lemma: "猫", reading: "ねこ", romaji: "neko", pos: "noun", wordEntryId,
@@ -52,5 +52,42 @@ describe("buildReviewQueuePayload", () => {
   it("tolerates rows with null tokens", () => {
     const { cards } = buildReviewQueuePayload([row({ tokens: null })], []);
     expect(cards[0]!.tokens).toEqual([]);
+  });
+});
+
+describe("validateNotes (B1)", () => {
+  it("accepts absent, null, empty, and up-to-cap strings", () => {
+    expect(validateNotes(undefined)).toBeNull();
+    expect(validateNotes(null)).toBeNull();
+    expect(validateNotes("")).toBeNull();
+    expect(validateNotes("x".repeat(MAX_NOTES_LENGTH))).toBeNull();
+  });
+
+  it("rejects notes over the cap", () => {
+    expect(MAX_NOTES_LENGTH).toBe(2000);
+    expect(validateNotes("x".repeat(MAX_NOTES_LENGTH + 1))).toMatch(/at most 2000/);
+  });
+
+  it("rejects non-string notes", () => {
+    expect(validateNotes(42)).toMatch(/must be a string/);
+    expect(validateNotes({ a: 1 })).toMatch(/must be a string/);
+  });
+});
+
+describe("parseCardType (B1 allowlist)", () => {
+  it("defaults absent/blank to listening", () => {
+    expect(parseCardType(undefined)).toEqual({ cardType: "listening" });
+    expect(parseCardType(null)).toEqual({ cardType: "listening" });
+    expect(parseCardType("  ")).toEqual({ cardType: "listening" });
+  });
+
+  it("accepts every allowlisted type (trimmed)", () => {
+    for (const t of CARD_TYPES) expect(parseCardType(` ${t} `)).toEqual({ cardType: t });
+  });
+
+  it("rejects unknown or non-string types", () => {
+    expect(parseCardType("cloze")).toHaveProperty("error");
+    expect(parseCardType("x".repeat(10_000))).toHaveProperty("error");
+    expect(parseCardType(1)).toHaveProperty("error");
   });
 });
