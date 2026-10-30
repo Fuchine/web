@@ -1,7 +1,7 @@
 /**
  * End-to-end test for SRS defaults and daily load (T3.5). Runs the REAL lib
- * functions (getReviewQueue, getDailyProgress, getTomorrowProjection,
- * updateSettings) against a live Postgres. No mocks.
+ * functions (getReviewQueue, countDueCards, getDailyProgress,
+ * getTomorrowProjection, updateSettings) against a live Postgres. No mocks.
  *
  *   DATABASE_URL=postgres://... pnpm --filter @fuchine/web exec tsx scripts/e2e-goals-defaults.ts
  */
@@ -9,7 +9,7 @@ import {
   createDb, users, videos, subtitleLines, sentenceCards, reviewLogs, userSettings, type Database,
 } from "@fuchine/db";
 import { eq } from "drizzle-orm";
-import { getReviewQueue } from "../lib/cards";
+import { countDueCards, getReviewQueue } from "../lib/cards";
 import { getDailyProgress, getTomorrowProjection } from "../lib/goals";
 import { updateSettings } from "../lib/settings";
 import { DEFAULT_NEW_CARDS_PER_DAY } from "../lib/srs-defaults";
@@ -56,6 +56,9 @@ async function main() {
   check("starts with null dailyGoals", s0?.g == null, s0);
   let queue = (await getReviewQueue(db, user.id, 50)).cards;
   check(`queue serves ${DEFAULT_NEW_CARDS_PER_DAY} of ${NEW_CARDS} new cards`, queue.length === DEFAULT_NEW_CARDS_PER_DAY, queue.length);
+  // T3.6 badge fix: the badge counts what the queue serves, not the backlog.
+  let badge = await countDueCards(db, user.id);
+  check(`review badge shows ${DEFAULT_NEW_CARDS_PER_DAY}, not ${NEW_CARDS}`, badge === DEFAULT_NEW_CARDS_PER_DAY, badge);
   let goals = await getDailyProgress(db, user.id);
   check("dashboard shows the default new-cards goal",
     goals.length === 1 && goals[0]!.key === "newCards" && goals[0]!.goal === DEFAULT_NEW_CARDS_PER_DAY, goals);
@@ -68,6 +71,8 @@ async function main() {
   check("settings accepts newCardsPerDay", set.status === 200, set);
   queue = (await getReviewQueue(db, user.id, 50)).cards;
   check("queue honors the explicit 12", queue.length === 12, queue.length);
+  badge = await countDueCards(db, user.id);
+  check("review badge honors the explicit 12", badge === 12, badge);
   goals = await getDailyProgress(db, user.id);
   check("goal shows 12", goals[0]?.goal === 12, goals);
 
@@ -103,6 +108,8 @@ async function main() {
   check("no history → fallback pace of 8 s", p.secondsPerReview === 8, p);
   check("minutes from the fallback pace", p.minutes === Math.ceil((p.total * 8) / 60), p);
   check("no budget set", p.budgetMinutes === null && p.overBudget === false, p);
+  badge = await countDueCards(db, user.id);
+  check("review badge = due reviews (1 overdue) + capped new", badge === 1 + DEFAULT_NEW_CARDS_PER_DAY, badge);
 
   // 15 reviews 7 s apart (one session) → measured pace of 7 s.
   const base = now.getTime() - 86_400_000;
@@ -120,6 +127,18 @@ async function main() {
   check("maxReviewsPerDay caps projected reviews", p.reviews === 1, p);
   check("reviewMinutesPerDay is surfaced as the budget", p.budgetMinutes === 1, p);
   check("over budget is flagged", p.overBudget === true && p.minutes > 1, p);
+
+  // Introduce 4 new cards today (state-0 logs) → the new allowance shrinks to 6.
+  const newCardRows = await db.select({ id: sentenceCards.id }).from(sentenceCards)
+    .where(eq(sentenceCards.userId, user.id)).limit(NEW_CARDS);
+  const freshIds = newCardRows.filter((r) => !reviewRows.some((rr) => rr.id === r.id)).slice(0, 4);
+  await db.insert(reviewLogs).values(freshIds.map((r) => ({
+    cardId: r.id, userId: user.id, grade: 3, state: 0, due: now,
+    stability: 1, difficulty: 5, elapsedDays: 0, lastElapsedDays: 0, scheduledDays: 0,
+  })));
+  badge = await countDueCards(db, user.id);
+  check("review badge subtracts today's introductions from the new allowance",
+    badge === 1 + (DEFAULT_NEW_CARDS_PER_DAY - 4), badge);
 
   // Cleanup (user cascade removes settings/cards/logs; video cascade lines).
   await db.delete(users).where(eq(users.id, user.id));

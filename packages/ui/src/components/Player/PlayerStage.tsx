@@ -65,6 +65,9 @@ export interface PlayerStageProps {
   onMinedClose?: () => void;
   minedAlbums?: { id: string; name: string }[];
   onMinedAddToAlbum?: (albumId: string) => void;
+  /** "Rewatch ×2" on the mined toast (T3.6). */
+  onMinedRewatch?: () => void;
+  minedRewatching?: boolean;
   className?: string;
 }
 
@@ -107,6 +110,8 @@ export function PlayerStage({
   onMinedClose,
   minedAlbums,
   onMinedAddToAlbum,
+  onMinedRewatch,
+  minedRewatching = false,
   className,
 }: PlayerStageProps): ReactNode {
   return (
@@ -165,6 +170,8 @@ export function PlayerStage({
           onClose={onMinedClose ?? (() => {})}
           albums={minedAlbums}
           onAddToAlbum={onMinedAddToAlbum}
+          onRewatch={onMinedRewatch}
+          rewatching={minedRewatching}
         />
       )}
     </div>

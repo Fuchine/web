@@ -276,11 +276,14 @@ export function PhrasesView({
   nextCursor = null,
   counts: initialCounts = null,
   reviewDue,
+  uncurated = 0,
 }: {
   phrases: PhraseRow[];
   nextCursor?: string | null;
   counts?: PhraseCounts | null;
   reviewDue: number;
+  /** Cards mined without notes and not yet reviewed (T3.6). */
+  uncurated?: number;
 }) {
   const router = useRouter();
 
@@ -423,6 +426,15 @@ export function PhrasesView({
             {dueCount > 0 && ` · ${dueCount} due today`}
           </p>
         </div>
+        <div className="flex flex-none flex-wrap items-center gap-2">
+        {uncurated > 0 && (
+          <button
+            onClick={() => router.push("/phrases/curate")}
+            className="rise-2 inline-flex flex-none items-center gap-[9px] rounded-[var(--radius)] border border-border-strong bg-surface px-[18px] py-[11px] text-[14.5px] font-[550] text-fg transition-colors hover:border-faint cursor-pointer"
+          >
+            <ICheck className="h-[17px] w-[17px]" /> Curate {uncurated}
+          </button>
+        )}
         {reviewDue > 0 && (
           <button
             onClick={() => router.push("/review")}
@@ -431,6 +443,7 @@ export function PhrasesView({
             <IReview className="h-[17px] w-[17px]" /> Review due
           </button>
         )}
+        </div>
       </div>
 
       {/* Toolbar */}
