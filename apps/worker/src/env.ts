@@ -1,4 +1,5 @@
 import { config } from "dotenv";
+import { parseHouseBudgetEnv } from "@fuchine/llm";
 
 // Load the repo-root .env (worker runs from apps/worker).
 config({ path: "../../.env" });
@@ -17,7 +18,12 @@ function optionalInt(name: string, dflt: number): number {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : dflt;
 }
 
+// House-key daily ceiling (T2.4). Invalid values stop the worker at start.
+const houseBudget = parseHouseBudgetEnv(process.env);
+if (!houseBudget.ok) throw new Error(houseBudget.error);
+
 export const env = {
+  houseDailyTokens: houseBudget.dailyTokens,
   databaseUrl: required("DATABASE_URL"),
   redisUrl: process.env.REDIS_URL ?? "redis://localhost:6379",
   // Cap the eager per-import layer-2 pre-warm to the first N lines (the tail is

@@ -5,7 +5,13 @@
 import { Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { createDb, videos } from "@fuchine/db";
-import { prewarmVideoExplanations, resolveMaxLines, setUsageSink, dbUsageSink } from "@fuchine/llm";
+import {
+  createHouseBudget,
+  dbUsageSink,
+  prewarmVideoExplanations,
+  resolveMaxLines,
+  setUsageSink,
+} from "@fuchine/llm";
 import {
   getExplainQueue,
   getImportQueue,
@@ -27,6 +33,10 @@ const db = createDb(env.databaseUrl, { max: Number(process.env.DB_POOL_MAX) || 5
 // Persist per-request LLM usage into `llm_usage` (backlog: llm-usage-metering).
 // The worker is the heaviest LLM caller (import translation + explain pre-warm).
 setUsageSink(dbUsageSink(db));
+
+// House-key daily ceiling (T2.4): pre-warm stops once today's spend reaches it.
+const budget = createHouseBudget(db, { getLimit: () => env.houseDailyTokens });
+const withinBudget = async () => (await budget.state()) !== "exhausted";
 
 const explainQueue = getExplainQueue(connection);
 const importQueue = getImportQueue(connection);
@@ -57,7 +67,12 @@ const importWorker = new Worker<ImportJob>(
 const explainWorker = new Worker<ExplainJob>(
   EXPLAIN_QUEUE,
   async (job) => {
+    if (!(await withinBudget())) {
+      console.log(`[explain] pre-warm ${job.data.videoId} skipped: house budget spent for today`);
+      return;
+    }
     const summary = await prewarmVideoExplanations(db, houseProvider(), job.data.videoId, {
+      shouldContinue: withinBudget,
       explanationLanguage: job.data.explanationLanguage,
       concurrency: 2,
       // `full` (first-open tail warm) covers the whole video; `head`/default
@@ -73,7 +88,8 @@ const explainWorker = new Worker<ExplainJob>(
     console.log(
       `[explain] pre-warm ${job.data.videoId} (${job.data.scope ?? "head"}): ` +
         `${summary.generated} generated, ${summary.cached} cached, ` +
-        `${summary.failed} failed of ${summary.total}${spend}`,
+        `${summary.failed} failed of ${summary.total}${spend}` +
+        (summary.stopped ? `; stopped: house budget (${summary.skipped} skipped)` : ""),
     );
   },
   // One video at a time; prewarm's internal pool already runs 2 calls in
