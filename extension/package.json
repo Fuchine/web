@@ -1,0 +1,24 @@
+{
+  "name": "fuchine-importer",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Fuchine Importer browser extension: send a video's Japanese captions to your Fuchine instance.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "typecheck": "wxt prepare && tsc --noEmit",
+    "test": "vitest run",
+    "postinstall": "wxt prepare"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "4.1.12",
+    "wxt": "0.21.4"
+  }
+}

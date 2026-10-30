@@ -1,41 +1,77 @@
-// Shared, self-contained capture helpers. Loaded by popup.html (script tag) and
-// by background.js (importScripts). Both pass these by reference to
-// chrome.scripting.executeScript, which serializes the function into the page —
-// so each function MUST be self-contained (no outer-scope references).
+// Shared, self-contained capture helpers used by the popup and the background
+// service worker. Both pass these functions by reference to
+// browser.scripting.executeScript({ world: "MAIN", func }), which serializes the
+// function source into the YouTube page — so each function MUST be
+// self-contained: no imports, no module-scope helpers, no outer references.
+// capture.test.ts re-evaluates them from their source text to enforce this.
 
-// extractCaptions moved verbatim from popup.js — reads window.ytInitialPlayerResponse,
-// window.__fuchine, and the player API; returns { ...meta, captions } or { error }.
-async function extractCaptions() {
-  const decode = (s) =>
+/** One caption line as sent to POST /api/import. */
+export interface CaptionLine {
+  idx: number;
+  startMs: number;
+  endMs: number;
+  text: string;
+}
+
+/** The /api/import payload (plus `source`, which the server ignores). */
+export interface CapturedVideo {
+  url: string;
+  title?: string;
+  channel?: string;
+  durationS: number | null;
+  language: "ja";
+  captions: CaptionLine[];
+  source: string;
+}
+
+export interface CaptureError {
+  error: string;
+  langs?: string[];
+  tried?: unknown[];
+  captured?: number;
+}
+
+export type CaptureResult = CapturedVideo | CaptureError;
+
+/**
+ * Reads the current video from the player API (window.ytInitialPlayerResponse
+ * as fallback) and the timedtext tracks inject.content.ts stashed on
+ * window.__fuchine. Returns `{ ...meta, captions, source }` or `{ error }`.
+ */
+export async function extractCaptions(): Promise<CaptureResult> {
+  const decode = (s: string) =>
     s
       .replace(/<[^>]+>/g, "")
       .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
       .replace(/&#39;/g, "'").replace(/&quot;/g, '"')
       .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
 
-  function parse(body) {
+  type Line = { startMs: number; endMs: number; text: string };
+
+  function parse(body: string): Line[] {
     if (body.trimStart().startsWith("{")) {
-      let d;
+      let d: any;
       try { d = JSON.parse(body); } catch { return []; }
       return (d.events || [])
-        .filter((e) => Array.isArray(e.segs))
-        .map((e) => ({
+        .filter((e: any) => Array.isArray(e.segs))
+        .map((e: any) => ({
           startMs: e.tStartMs || 0,
           endMs: (e.tStartMs || 0) + (e.dDurationMs || 0),
-          text: e.segs.map((s) => s.utf8 || "").join("").trim(),
+          text: e.segs.map((s: any) => s.utf8 || "").join("").trim(),
         }));
     }
     if (body.includes("<text")) {
       return [...body.matchAll(/<text start="([\d.]+)"(?: dur="([\d.]+)")?[^>]*>([\s\S]*?)<\/text>/g)].map((m) => {
-        const st = Math.round(parseFloat(m[1]) * 1000);
+        const st = Math.round(parseFloat(m[1]!) * 1000);
         const du = m[2] ? Math.round(parseFloat(m[2]) * 1000) : 0;
-        return { startMs: st, endMs: st + du, text: decode(m[3]).trim() };
+        return { startMs: st, endMs: st + du, text: decode(m[3]!).trim() };
       });
     }
     return [];
   }
 
-  const finalize = (caps) => caps.filter((c) => c.text.length > 0).map((c, i) => ({ idx: i, ...c }));
+  const finalize = (caps: Line[]) =>
+    caps.filter((c) => c.text.length > 0).map((c, i) => ({ idx: i, ...c }));
 
   try {
     // YouTube is a single-page app: window.ytInitialPlayerResponse is captured
@@ -45,22 +81,23 @@ async function extractCaptions() {
     // read live below, changes). Read the current video from the player API,
     // which updates on navigation, and fall back to the (possibly stale)
     // initial response only when the player isn't available.
-    const pr = window.ytInitialPlayerResponse;
+    const w = window as any;
+    const pr = w.ytInitialPlayerResponse;
     const vd = pr?.videoDetails || {};
-    const player = document.getElementById("movie_player");
+    const player = document.getElementById("movie_player") as any;
     const live = (player && player.getVideoData && player.getVideoData()) || {};
-    const videoId = live.video_id || vd.videoId || null;
+    const videoId: string | null = live.video_id || vd.videoId || null;
     const meta = {
-      url: videoId ? `https://www.youtube.com/watch?v=${videoId}` : location.href.split("&")[0],
+      url: videoId ? `https://www.youtube.com/watch?v=${videoId}` : location.href.split("&")[0]!,
       title: live.title || vd.title,
       channel: live.author || vd.author,
       durationS:
         (player && player.getDuration && Math.round(player.getDuration())) ||
         Number(vd.lengthSeconds) ||
         null,
-      language: "ja",
+      language: "ja" as const,
     };
-    const captured = (window.__fuchine && window.__fuchine.tracks) || [];
+    const captured: { url: string; body: string }[] = (w.__fuchine && w.__fuchine.tracks) || [];
 
     // 1) Intercepted player request (preferred). __fuchine.tracks accumulates
     //    across every video watched in the tab, so match the current video id
@@ -77,7 +114,7 @@ async function extractCaptions() {
     //    response's track list when it actually describes the current video —
     //    on SPA navigation it belongs to an earlier one.
     const prMatches = !videoId || !vd.videoId || vd.videoId === videoId;
-    const tracks = prMatches
+    const tracks: any[] = prMatches
       ? pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks || []
       : [];
     const track =
@@ -91,14 +128,14 @@ async function extractCaptions() {
     }
     const sep = track.baseUrl.includes("?") ? "&" : "?";
     const variants = [["default", track.baseUrl], ["json3", `${track.baseUrl}${sep}fmt=json3`]];
-    const tried = [];
+    const tried: unknown[] = [];
     for (const [fmt, url] of variants) {
       let body = "";
       try {
         const r = await fetch(url, { credentials: "include" });
         body = await r.text();
         tried.push({ fmt, status: r.status, bytes: body.length });
-      } catch (e) {
+      } catch (e: any) {
         tried.push({ fmt, err: String(e && e.message ? e.message : e) });
         continue;
       }
@@ -108,18 +145,20 @@ async function extractCaptions() {
       }
     }
     return { error: "needs-cc", tried, captured: captured.length };
-  } catch (err) {
+  } catch (err: any) {
     return { error: String(err && err.message ? err.message : err) };
   }
 }
 
-// Best-effort: get the player playing with the Japanese caption track on, so it
-// fetches the timedtext (inject.js then captures it). Returns readiness info so
-// the caller can poll until the player has actually initialized — "tab loaded"
-// is not the same as "player ready". Fragile by nature.
-function primeCapture() {
+/**
+ * Best-effort: get the player playing with the Japanese caption track on, so it
+ * fetches the timedtext (inject.content.ts then captures it). Returns readiness
+ * info so the caller can poll until the player has actually initialized — "tab
+ * loaded" is not the same as "player ready". Fragile by nature.
+ */
+export function primeCapture(): { ready: boolean; state?: number; error?: string } {
   try {
-    const p = document.getElementById("movie_player");
+    const p = document.getElementById("movie_player") as any;
     if (!p || !p.getPlayerState) return { ready: false };
     // Muted playback is allowed to autoplay; the player needs to be playing to
     // fetch the caption track.
@@ -132,7 +171,7 @@ function primeCapture() {
       p.loadModule("captions");
     }
     return { ready: true, state: p.getPlayerState() };
-  } catch (e) {
+  } catch (e: any) {
     return { ready: false, error: String((e && e.message) || e) };
   }
 }
