@@ -115,7 +115,14 @@ com `microphone=(self)`, segredos fora do Caddy, magic link fail-closed) e T2.6
 (`isUuid` em toda rota com id, `middleware.ts` rejeitando mutação cross-site
 exceto `/api/auth/*` e `/api/import`, escape no export e no e-mail,
 `apps/web/app/api/auth-coverage.test.ts` exigindo 401 sem sessão em toda rota).
-Da Fase 3 já entraram T3.5 (default **10** cards novos/dia aplicado na leitura —
+Da Fase 3 já entraram T3.1 (**FSRS-7** via `ts-fsrs` 6; migration 0018
+adiciona `stability_fast`/`learning_step`/`fsrs_model` e dias fracionários em
+cards e logs, e `fsrs_params`/`desired_retention` em `user_settings`; cards
+antigos com histórico completo têm a memória FSRS-7 reconstruída dos
+`review_logs` no primeiro toque, os sem histórico seguem em `fsrs-5`;
+otimizador WASM no browser em Settings → Review, mínimo 400 reviews; `lib/fsrs.ts`,
+`GET /api/review/logs/export`, `GET/PUT /api/settings/fsrs`; spec em
+`docs/plans/2026-10-30-fsrs7-spec.md`), T3.5 (default **10** cards novos/dia aplicado na leitura —
 `dailyGoals` sem o campo = 10, nunca gravado; `lib/srs-defaults.ts`; projeção
 "amanhã" em `lib/goals.ts`), T3.8 (modo de escuta Primed, ocultar JP/tradução,
 cores por status de palavra — regra única em `lib/word-status.ts`), T3.6 (fila "curar depois":
@@ -152,7 +159,7 @@ Pacotes e seus pontos de entrada:
   `ensureUserSettings` + helpers de convite (`invites.ts`) e `normalizeEmail`.
   Exporta também `Transaction`/`DbOrTx` (handle de transação do Drizzle) para
   helpers que rodam tanto standalone quanto dentro de `db.transaction(...)`.
-  Migrations em `drizzle/` de `0000_init` a `0017` com meta journal
+  Migrations em `drizzle/` de `0000_init` a `0018` com meta journal
   (`pnpm db:migrate`; a `0013` cria a extensão `pg_trgm`). Seed JMdict +
   frequência em `src/seed/` (`pnpm --filter @fuchine/db seed`/`seed:jmdict`;
   fixture em `seeds/fixtures/`).
