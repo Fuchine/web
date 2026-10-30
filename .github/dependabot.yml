@@ -27,3 +27,13 @@ updates:
       - /apps/worker
     schedule:
       interval: weekly
+
+  # Browser extension (own npm lockfile, outside the pnpm workspace).
+  - package-ecosystem: npm
+    directory: /extension
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      wxt:
+        patterns: ["wxt", "@wxt-dev/*", "vitest", "typescript"]
