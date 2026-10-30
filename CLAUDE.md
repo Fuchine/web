@@ -159,7 +159,7 @@ Pacotes e seus pontos de entrada:
   `ensureUserSettings` + helpers de convite (`invites.ts`) e `normalizeEmail`.
   Exporta também `Transaction`/`DbOrTx` (handle de transação do Drizzle) para
   helpers que rodam tanto standalone quanto dentro de `db.transaction(...)`.
-  Migrations em `drizzle/` de `0000_init` a `0018` com meta journal
+  Migrations em `drizzle/` de `0000_init` a `0019` com meta journal
   (`pnpm db:migrate`; a `0013` cria a extensão `pg_trgm`). Seed JMdict +
   frequência em `src/seed/` (`pnpm --filter @fuchine/db seed`/`seed:jmdict`;
   fixture em `seeds/fixtures/`).
