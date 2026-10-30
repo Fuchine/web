@@ -9,6 +9,7 @@ import {
   wordExamples,
   userWordStats,
 } from "@fuchine/db";
+import { knownWordSql } from "./word-status";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
@@ -130,7 +131,7 @@ export async function listAlbumsForView(db: Database, userId: string): Promise<A
     .select({
       albumId: albumVideos.albumId,
       total: sql<number>`count(distinct ${wordExamples.wordEntryId})::int`,
-      known: sql<number>`count(distinct ${wordExamples.wordEntryId}) filter (where ${userWordStats.reviewsOk} >= 1 or ${userWordStats.views} >= 5)::int`,
+      known: sql<number>`count(distinct ${wordExamples.wordEntryId}) filter (where ${knownWordSql})::int`,
     })
     .from(albumVideos)
     .innerJoin(albums, and(eq(albums.id, albumVideos.albumId), eq(albums.userId, userId)))

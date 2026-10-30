@@ -8,8 +8,8 @@ import {
   createDb, users, videos, subtitleLines, wordEntries, wordExamples, userWordStats,
   type Database, type Definition,
 } from "@fuchine/db";
-import { eq, inArray } from "drizzle-orm";
-import { getComprehensionByVideo } from "../lib/study";
+import { and, eq, inArray } from "drizzle-orm";
+import { getComprehensionByVideo, getWordStatuses } from "../lib/study";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -72,14 +72,34 @@ async function main() {
     // Weak signal only — must NOT count as known:
     { userId: user.id, wordEntryId: words[6].id, views: 4 },
     { userId: user.id, wordEntryId: words[7].id, reviewsTotal: 2, reviewsOk: 0 },
+    { userId: user.id, wordEntryId: words[8].id, clicks: 1 },
   ]);
 
   map = await getComprehensionByVideo(db, user.id);
   check("6 of 12 known → 50%", map.get(video.id) === 50, map.get(video.id));
 
+  // Player known-word signals (T3.8): same heuristic, per word.
+  const ids = words.map((w) => w.id);
+  const statuses = await getWordStatuses(db, user.id, [...ids, ids[0]]);
+  const knownIds = Object.keys(statuses).filter((k) => statuses[k] === "known");
+  check("statuses: the 6 comprehension-known words are known", knownIds.length === 6 &&
+    words.slice(0, 6).every((w) => statuses[w.id] === "known"), statuses);
+  check("statuses: views<5 and a click → seen", statuses[words[6].id] === "seen" && statuses[words[8].id] === "seen", statuses);
+  check("statuses: failed reviews only, no views → omitted (unknown)", !(words[7].id in statuses), statuses);
+  check("statuses: untouched words omitted (unknown)", !(words[11].id in statuses), statuses);
+  check("statuses: empty id list → {}", Object.keys(await getWordStatuses(db, user.id, [])).length === 0);
+
   const [stranger] = await db.insert(users).values({ email: `e2e-comp-stranger-${stamp}@example.com` }).returning();
   const strangerMap = await getComprehensionByVideo(db, stranger.id);
   check("comprehension is per-user (stranger sees 0%)", strangerMap.get(video.id) === 0, strangerMap.get(video.id));
+  const strangerStatuses = await getWordStatuses(db, stranger.id, ids);
+  check("statuses are per-user (stranger has none)", Object.keys(strangerStatuses).length === 0, strangerStatuses);
+
+  // A correct review flips a seen word to known (the coloring changes after a review).
+  await db.update(userWordStats).set({ reviewsOk: 1, reviewsTotal: 1 })
+    .where(and(eq(userWordStats.userId, user.id), eq(userWordStats.wordEntryId, words[6].id)));
+  const after = await getWordStatuses(db, user.id, [words[6].id]);
+  check("statuses: seen → known after a correct review", after[words[6].id] === "known", after);
 
   // Cleanup.
   await db.delete(users).where(eq(users.id, user.id));
