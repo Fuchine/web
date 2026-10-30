@@ -1,25 +1,33 @@
 # Checklist do primeiro deploy
 
-**Versão 0.1 · 6 de julho de 2026**
+**Versão 0.2 · 30 de outubro de 2026** (v0.1: 6 de julho de 2026)
 
 Runbook executável do primeiro deploy de uma instância Fuchine (self-host ou a
 futura cloud). Complementa os índices do backlog:
 [PRODUCAO-2026-07-06](../backlog/PRODUCAO-2026-07-06.md) lista **o que
 construir** antes do deploy; este documento lista **o que conferir e executar
-no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
+no dia**. Itens marcados 🔒 dependem de backlog ainda aberto — hoje nenhum:
+os bloqueadores da v0.1 foram resolvidos no PR #19 (2026-07-09) e o ensaio de
+backup → restore foi feito em 2026-07-20 (Apêndice A). Os arquivos de backlog
+correspondentes foram removidos ao fechar (PR #21); o histórico fica no git.
 
 ---
 
 ## 1. Pré-requisitos de build (bloqueiam o deploy)
 
-- [ ] 🔒 Imagens/compose de web + worker existem
-      ([deploy-story-missing.md](../backlog/deploy-story-missing.md))
-- [ ] 🔒 Proxy TLS decidido e configurado — Caddy no compose ou proxy próprio
-      ([tls-and-security-headers.md](../backlog/tls-and-security-headers.md))
-- [ ] 🔒 Fail-fast de env no boot do web
-      ([env-validation-fail-fast.md](../backlog/env-validation-fail-fast.md))
-- [ ] 🔒 Backup agendado + restore testado **antes** do primeiro usuário real
-      ([backups-restore-missing.md](../backlog/backups-restore-missing.md))
+- [ ] Imagens de web + worker buildam (`apps/web/Dockerfile`,
+      `apps/worker/Dockerfile`; `docker compose up -d --build`) — resolvido no
+      PR #19
+- [ ] Proxy TLS configurado: serviço `caddy` do compose + `Caddyfile`
+      (Let's Encrypt automático com `SITE_ADDRESS=<domínio>`) ou proxy próprio;
+      security headers + CSP vêm do `next.config.ts` — resolvido no PR #19
+- [ ] Boot do web limpo: `apps/web/instrumentation.ts` aborta se faltar env
+      obrigatória (`DATABASE_URL`, `AUTH_SECRET`, `FUCHINE_ENCRYPTION_KEY`,
+      registro, teto da casa) — resolvido no PR #19
+- [ ] Backup agendado ligado (`docker compose --profile backup up -d`, sidecar
+      `db-backup` com `scripts/pg-backup.sh`) **antes** do primeiro usuário
+      real; restore com `scripts/pg-restore.sh`, ensaiado em 2026-07-20
+      (Apêndice A)
 
 ## 2. Configuração (o `.env` de produção)
 
@@ -27,10 +35,12 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
 - [ ] `AUTH_SECRET` novo (`openssl rand -base64 32`) — nunca o de dev
 - [ ] `AUTH_URL=https://<domínio>` (https, sem barra final)
 - [ ] `FUCHINE_ENCRYPTION_KEY` nova — e **backup dela junto do banco**:
-      perder a chave invalida todas as chaves BYOK salvas
-      ([encryption-key-ops.md](../backlog/encryption-key-ops.md))
+      perder a chave invalida todas as chaves BYOK salvas (ciphertext
+      versionado `v2:`; rotação com
+      `pnpm --filter @fuchine/worker rotate:key` — resolvido no PR #19)
 - [ ] `TZ` da instância definida e documentada (streaks bucketizam pela TZ do
-      processo — [timezone-streaks-decision.md](../backlog/timezone-streaks-decision.md))
+      processo; decisão do PR #19: TZ fixa por instância, igual em web e
+      worker — default `America/Sao_Paulo` no compose)
 - [ ] `LLM_PROVIDER`/`LLM_API_KEY` reais (echo em produção = IA silenciosamente
       desligada) · `MT_PROVIDER=deepl` se aplicável
 - [ ] `DEPLOYMENT_MODE=self-host`
@@ -63,7 +73,7 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
       em memória no primeiro tokenize — medir RSS real com um import de teste
       antes de fixar o plano do VPS
 - [ ] Postgres: `max_connections` ≥ 40 com folga (web ~10 + worker ~10 +
-      scripts — [db-pool-config.md](../backlog/db-pool-config.md))
+      scripts; knob `DB_POOL_MAX`, default 10 no web e 5 no worker — PR #19)
 - [ ] Disco: JMdict seedado ≈ 1–2 GB de banco base; +~2 MB por vídeo importado
 
 ## 5. Sequência de deploy (ordem importa)
@@ -88,17 +98,16 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
 - [ ] Uma conta Google **fora** da allowlist e sem convite é recusada em
       `/login` ("invite-only"), e um magic link para um e-mail não convidado
       mostra "check your e-mail" **sem** enviar nada
-- [ ] Extensão apontada para `https://<domínio>` importa um vídeo real
-      (🔒 exige [extension-hardcoded-origin.md](../backlog/extension-hardcoded-origin.md))
+- [ ] Extensão apontada para `https://<domínio>` (campo de servidor no popup;
+      a permissão do origin é pedida em runtime — PR #19) importa um vídeo real
 - [ ] Import processa: status sai de Processing, tokens aparecem
 - [ ] Player toca no domínio https (embed com `origin` correto), legenda dupla
       sincronizada, tradução dos chunks chegando
 - [ ] Popup de dicionário responde; **Explain** gera (cache miss) e o segundo
       clique é instantâneo (cache hit)
 - [ ] Mine → Review → grade → resumo de sessão; stats registram o dia
+- [ ] `GET /api/health` responde 200 com `db`/`redis` ok e `workerAlive: true`
 - [ ] `GET /api/health` mostra `houseBudget: "ok"` (ou `"unlimited"` se sem teto)
-- [ ] `GET /api/health` respondendo (🔒
-      [health-endpoints-missing.md](../backlog/health-endpoints-missing.md))
 - [ ] Se a CSP foi ligada: thumbnails e o iframe do YouTube carregam sem erro
       de console
 
@@ -107,14 +116,15 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
 - [ ] Conferir que o backup diário está de fato gerando arquivos (e fazer um
       restore de amostra)
 - [ ] Observar logs do worker: fila vazia estável, sem vídeo preso em
-      `processing` ([import-jobs-no-retry.md](../backlog/import-jobs-no-retry.md))
-- [ ] Observar consumo de LLM/DeepL nos dashboards dos providers (enquanto
-      [llm-usage-metering.md](../backlog/llm-usage-metering.md) não existe,
-      o painel do provider é a única medição)
+      `processing` (jobs têm 3 tentativas com backoff e o worker re-enfileira
+      imports órfãos no boot; a causa de falha fica em `videos.status_reason`)
+- [ ] Observar consumo de LLM/DeepL: cada chamada grava em `llm_usage` (resumo
+      do dia com `pnpm --filter @fuchine/worker usage`); conferir contra o
+      painel do provider na primeira semana
 - [ ] Kill test: derrubar o worker e conferir que o compose o reergue e a
       fila drena
-- [ ] Revisitar o banner do Dependabot (8 alertas vs item resolvido no PR #16
-      — confirmar se era lag)
+- [ ] Revisitar o banner do Dependabot (o PR #24, 2026-10-14, fechou todos os
+      alertas abertos até então — conferir se surgiram novos)
 
 ---
 
