@@ -117,6 +117,27 @@ export const userSettings = pgTable("user_settings", {
   onboardingCompletedAt: timestamp("onboarding_completed_at", { withTimezone: true }),
 });
 
+// Registration invites (T2.3). E-mail-bound, single use, expiring. Checked in
+// the Auth.js signIn callback and consumed atomically inside account creation
+// (apps/web/lib/auth-registration.ts). At most one active (unused) invite per
+// address; used rows stay as history.
+export const invites = pgTable(
+  "invites",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    email: text("email").notNull(), // normalized (normalizeEmail)
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    usedBy: uuid("used_by").references(() => users.id, { onDelete: "set null" }),
+    createdBy: text("created_by").notNull(), // "cli" now; admin e-mail from T2.13
+    note: text("note"),
+  },
+  (t) => [
+    uniqueIndex("invites_active_email_uq").on(t.email).where(sql`${t.usedAt} is null`),
+  ],
+);
+
 /* ------------------------------------------------------------------ */
 /* Content: videos, subtitle lines, dictionary, examples              */
 /* ------------------------------------------------------------------ */
@@ -613,3 +634,4 @@ export type NewSentenceCard = typeof sentenceCards.$inferInsert;
 export type ReviewLog = typeof reviewLogs.$inferSelect;
 export type AiExplanation = typeof aiExplanations.$inferSelect;
 export type Album = typeof albums.$inferSelect;
+export type Invite = typeof invites.$inferSelect;
