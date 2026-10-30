@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { SessionSummary } from "@/lib/summary";
 
@@ -229,17 +230,17 @@ export function SummaryView({ accountName, accountEmail, data }: Props) {
 
               {/* actions */}
               <div className="mt-[26px] flex gap-3">
-                <a href="/"
+                <Link href="/"
                   className="flex flex-1 items-center justify-center gap-[9px] rounded-[999px] border border-[var(--border-strong)] bg-surface px-4 py-[13px] text-[15px] font-[600] text-fg no-underline shadow-none transition-[background,border-color,color,transform] duration-[0.15s] hover:border-[var(--text-faint)] active:translate-y-px">
                   Back to home
-                </a>
-                <a href="/"
+                </Link>
+                <Link href="/"
                   className="flex flex-1 items-center justify-center gap-[9px] rounded-[999px] border border-accent bg-accent px-4 py-[13px] text-[15px] font-[600] text-on-accent no-underline shadow-[var(--shadow-sm)] transition-[background,border-color,color,transform] duration-[0.15s] hover:bg-[var(--accent-hover)] active:translate-y-px">
                   Keep immersing
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-[18px] w-[18px]">
                     <path d="M5 12h14M13 6l6 6-6 6" />
                   </svg>
-                </a>
+                </Link>
               </div>
             </div>
           </div>

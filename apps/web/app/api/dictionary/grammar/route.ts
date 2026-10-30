@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { savedWords, wordEntries, userWordStats } from "@fuchine/db";
 import { freqTier } from "@/lib/dictionary";
 import { computeMastery, computeStatus, firstGloss, grammarPosCondition } from "@/lib/dictionary-utils";

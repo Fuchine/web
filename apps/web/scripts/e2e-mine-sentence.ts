@@ -8,7 +8,7 @@
  *   DATABASE_URL=postgres://... pnpm --filter @fuchine/web exec tsx scripts/e2e-mine-sentence.ts
  */
 import { createDb, users, videos, subtitleLines, sentenceCards, reviewLogs, type Token } from "@fuchine/db";
-import { mineSentence, getReviewQueue, reviewCardById } from "../lib/cards";
+import { mineSentence, getReviewQueue, reviewCardById, updateCardNotes, deleteCard } from "../lib/cards";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -103,16 +103,27 @@ async function main() {
   const rowCount = await db.select().from(sentenceCards).where(eqUser(user.id));
   check("exactly one card row after dedup", rowCount.length === 1, rowCount.length);
 
-  // --- 5. Different cardType is a distinct card -> 201 ---
-  console.log("5. Distinct cardType");
+  // --- 5. cardType allowlist + notes cap (B1) -> 400, nothing written ---
+  console.log("5. cardType allowlist + notes cap");
   const cloze = await mineSentence(db, user.id, { subtitleLineId: line.id, cardType: "cloze" });
-  check("cloze mine => 201", cloze.status === 201, cloze);
-  check("cloze is a new card", (cloze.body.card as { id: string })?.id !== card?.id);
+  check("unknown cardType => 400", cloze.status === 400, cloze);
+  const longNotes = await mineSentence(db, user.id, { subtitleLineId: line.id, notes: "x".repeat(2001) });
+  check("notes over 2000 chars => 400", longNotes.status === 400, longNotes.status);
+  const afterRejects = await db.select().from(sentenceCards).where(eqUser(user.id));
+  check("rejected mines wrote no card", afterRejects.length === 1, afterRejects.length);
+
+  console.log("5b. PATCH notes");
+  const patched = await updateCardNotes(db, user.id, card.id, { notes: "edited" });
+  check("PATCH notes => 200", patched.status === 200 && patched.body.notes === "edited", patched);
+  const patchLong = await updateCardNotes(db, user.id, card.id, { notes: "x".repeat(2001) });
+  check("PATCH notes over 2000 chars => 400", patchLong.status === 400, patchLong.status);
+  const patchMissing = await updateCardNotes(db, user.id, card.id, {});
+  check("PATCH without notes => 400", patchMissing.status === 400, patchMissing.status);
 
   // --- 6. Round-trip: mined card shows up in the review queue ---
   console.log("6. Review queue round-trip");
   const { cards: queue } = await getReviewQueue(db, user.id);
-  check("two cards now due", queue.length === 2, queue.length);
+  check("one card now due", queue.length === 1, queue.length);
   const listening = queue.find((q) => q.cardType === "listening");
   check("queue carries the sentence text", listening?.sentence.text === "猫が好き", listening?.sentence.text);
   check("queue carries the translation", listening?.sentence.translation === "I like cats");
@@ -155,6 +166,38 @@ async function main() {
   check("grade 9 => 400", badGrade.status === 400, badGrade);
   const logs3 = await db.select().from(reviewLogs).where(eqLogCard(before.cardId));
   check("rejected grade wrote no log", logs3.length === 2, logs3.length);
+
+  // --- 9. Undo (DELETE /api/cards/:id): owner-scoped, logs cascade (F1) ---
+  console.log("9. Delete (Undo after mining)");
+  const [other] = await db
+    .insert(users)
+    .values({ email: `e2e-mine-other-${Date.now()}@example.com` })
+    .returning();
+  const otherMine = await mineSentence(db, other.id, { subtitleLineId: line.id });
+  check("other user mines the same line => 201", otherMine.status === 201, otherMine.status);
+  const otherCardId = (otherMine.body.card as { id: string }).id;
+
+  const stolen = await deleteCard(db, user.id, otherCardId);
+  check("deleting another user's card => 404", stolen.status === 404, stolen);
+  const otherStill = await db.select().from(sentenceCards).where(eq(sentenceCards.id, otherCardId));
+  check("other user's card survives", otherStill.length === 1, otherStill.length);
+
+  const undo = await deleteCard(db, user.id, before.cardId);
+  check("deleting own card => 200", undo.status === 200 && undo.body.deleted === true, undo);
+  const gone = await db.select().from(sentenceCards).where(eq(sentenceCards.id, before.cardId));
+  check("card is gone", gone.length === 0, gone.length);
+  const logsGone = await db.select().from(reviewLogs).where(eqLogCard(before.cardId));
+  check("its review logs cascaded", logsGone.length === 0, logsGone.length);
+  const again = await deleteCard(db, user.id, before.cardId);
+  check("deleting it again => 404", again.status === 404, again.status);
+  const { cards: emptyQueue } = await getReviewQueue(db, user.id);
+  check("deleted card is out of the queue", emptyQueue.every((q) => q.cardId !== before.cardId), emptyQueue.length);
+
+  // Re-mining after Undo creates a fresh card (the dedup slot was freed).
+  const remine = await mineSentence(db, user.id, { subtitleLineId: line.id });
+  check("re-mine after delete => 201", remine.status === 201, remine.status);
+
+  await db.delete(users).where(eq(users.id, other.id));
 
   // --- Cleanup --- deleting the user cascades to its cards + logs; the video
   // cascades to its subtitle lines. Leaves the DB as we found it.

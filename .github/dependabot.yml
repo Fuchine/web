@@ -1,0 +1,29 @@
+# Weekly dependency updates (B4). Security updates are raised regardless of
+# this schedule once Dependabot alerts are enabled on the repository.
+version: 2
+updates:
+  # pnpm workspace (root lockfile covers apps/* and packages/*).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      storybook:
+        patterns: ["storybook", "@storybook/*"]
+      vitest:
+        patterns: ["vitest", "@vitest/*"]
+      eslint:
+        patterns: ["eslint", "typescript-eslint", "@next/eslint-plugin-next", "eslint-plugin-*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directories:
+      - /apps/web
+      - /apps/worker
+    schedule:
+      interval: weekly

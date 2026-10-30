@@ -7,6 +7,37 @@ import { bumpDailyStats, bumpWordReviews } from "./progress";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
+/** Card types the API accepts. Only "listening" exists today; extend here. */
+export const CARD_TYPES = ["listening"] as const;
+export type CardType = (typeof CARD_TYPES)[number];
+
+/** Upper bound for a card's free-text notes (B1: no unbounded writes). */
+export const MAX_NOTES_LENGTH = 2000;
+
+/**
+ * Validate optional `notes`: absent/null is fine; otherwise a string of at
+ * most MAX_NOTES_LENGTH characters. Returns an error message or null.
+ */
+export function validateNotes(notes: unknown): string | null {
+  if (notes === undefined || notes === null) return null;
+  if (typeof notes !== "string") return "notes must be a string";
+  if (notes.length > MAX_NOTES_LENGTH) return `notes must be at most ${MAX_NOTES_LENGTH} characters`;
+  return null;
+}
+
+/**
+ * Resolve an optional `cardType` against the allowlist (absent/blank →
+ * "listening"). Returns the type, or an error message.
+ */
+export function parseCardType(raw: unknown): { cardType: CardType } | { error: string } {
+  if (raw === undefined || raw === null) return { cardType: "listening" };
+  if (typeof raw !== "string") return { error: "cardType must be a string" };
+  const t = raw.trim() || "listening";
+  return (CARD_TYPES as readonly string[]).includes(t)
+    ? { cardType: t as CardType }
+    : { error: `cardType must be one of: ${CARD_TYPES.join(", ")}` };
+}
+
 /** Reconstruct the FSRS CardState from a sentence_cards row. */
 function stateOf(c: {
   stability: number; difficulty: number; due: Date; lastReview: Date | null;
@@ -22,10 +53,17 @@ function stateOf(c: {
 export async function mineSentence(
   db: Database,
   userId: string,
-  body: { subtitleLineId?: string; cardType?: string; notes?: string },
+  body: { subtitleLineId?: unknown; cardType?: unknown; notes?: unknown },
 ): Promise<Result> {
-  if (!body?.subtitleLineId) return { status: 400, body: { error: "subtitleLineId is required" } };
-  const cardType = body.cardType?.trim() || "listening";
+  if (!body?.subtitleLineId || typeof body.subtitleLineId !== "string") {
+    return { status: 400, body: { error: "subtitleLineId is required" } };
+  }
+  const parsedType = parseCardType(body.cardType);
+  if ("error" in parsedType) return { status: 400, body: { error: parsedType.error } };
+  const { cardType } = parsedType;
+  const notesError = validateNotes(body.notes);
+  if (notesError) return { status: 400, body: { error: notesError } };
+  const notes = (body.notes as string | null | undefined) ?? null;
 
   const [line] = await db
     .select({ id: subtitleLines.id, videoId: subtitleLines.videoId })
@@ -41,7 +79,7 @@ export async function mineSentence(
     const ins = await tx
       .insert(sentenceCards)
       .values({
-        userId, subtitleLineId: line.id, videoId: line.videoId, cardType, notes: body.notes ?? null,
+        userId, subtitleLineId: line.id, videoId: line.videoId, cardType, notes,
         stability: init.stability, difficulty: init.difficulty, due: init.due, state: init.state,
         reps: init.reps, lapses: init.lapses, elapsedDays: init.elapsedDays, scheduledDays: init.scheduledDays,
       })
@@ -309,4 +347,41 @@ export async function reviewCardById(
   });
 
   return { status: 200, body: { cardId, due: next.due, state: next.state, reps: next.reps } };
+}
+
+/**
+ * Update a card's notes (PATCH /api/cards/:id). Scoped to the owner: a card
+ * that isn't theirs is a 404, same as one that doesn't exist.
+ */
+export async function updateCardNotes(
+  db: Database,
+  userId: string,
+  cardId: string,
+  body: { notes?: unknown },
+): Promise<Result> {
+  if (typeof body?.notes !== "string") return { status: 400, body: { error: "notes must be a string" } };
+  const notesError = validateNotes(body.notes);
+  if (notesError) return { status: 400, body: { error: notesError } };
+
+  const updated = await db
+    .update(sentenceCards)
+    .set({ notes: body.notes })
+    .where(and(eq(sentenceCards.id, cardId), eq(sentenceCards.userId, userId)))
+    .returning({ id: sentenceCards.id, notes: sentenceCards.notes });
+  if (updated.length === 0) return { status: 404, body: { error: "card not found" } };
+  return { status: 200, body: updated[0] };
+}
+
+/**
+ * Delete a card (DELETE /api/cards/:id, the Player's "Undo" after mining).
+ * Scoped to the owner (someone else's card is a 404); its review_logs go with
+ * it via the FK cascade.
+ */
+export async function deleteCard(db: Database, userId: string, cardId: string): Promise<Result> {
+  const deleted = await db
+    .delete(sentenceCards)
+    .where(and(eq(sentenceCards.id, cardId), eq(sentenceCards.userId, userId)))
+    .returning({ id: sentenceCards.id });
+  if (deleted.length === 0) return { status: 404, body: { error: "card not found" } };
+  return { status: 200, body: { id: deleted[0].id, deleted: true } };
 }
