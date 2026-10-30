@@ -95,6 +95,13 @@ docker compose run --rm worker pnpm --filter @fuchine/worker invite revoke frien
 
 Set `REGISTRATION=closed` to stop new sign-ups entirely (existing users keep working).
 
+**Cap your AI bill.** `HOUSE_DAILY_TOKEN_BUDGET` sets a daily ceiling on tokens
+spent with your house key; at the ceiling, new house-key AI pauses until
+midnight while cached content and users' own keys keep working.
+`HOUSE_EXPLAIN_FALLBACK=false` makes explanations BYOK-only. Check today's spend
+with `docker compose run --rm worker pnpm --filter @fuchine/worker usage`;
+`/api/health` reports `houseBudget`.
+
 The `migrate` service applies pending migrations automatically before web/worker
 boot. `web` publishes no host port — Caddy is the only ingress. Health:
 `https://your.domain.com/api/health` reports Postgres, Redis, and worker

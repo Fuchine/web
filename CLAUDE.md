@@ -119,6 +119,13 @@ Pacotes e seus pontos de entrada:
   `pnpm --filter @fuchine/worker invite add|list|revoke`); política pura em
   `lib/registration.ts`; negação sem enumeração (magic link negado responde
   igual ao sucesso, sem enviar). E2E: `e2e-registration.ts`.
+  **Teto da chave da casa** (T2.4): `HOUSE_DAILY_TOKEN_BUDGET` (tokens/dia local,
+  somados de `llm_usage` com `key_source='house'`, cache de 30 s por processo,
+  `createHouseBudget` em `@fuchine/llm`) pausa explain sem BYOK e tradução em
+  cache miss (429 `house_budget`) e o pre-warm do worker; cache e BYOK seguem.
+  `HOUSE_EXPLAIN_FALLBACK=false` = explicação nova só com BYOK (403
+  `byok_required`); o Player mostra a mensagem do servidor. `/api/health` expõe
+  `houseBudget`; CLI `pnpm --filter @fuchine/worker usage`. E2E: `e2e-house-budget.ts`.
   Rotas: `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
   estudo (F1, completa): `GET /api/videos` (biblioteca), `GET /api/videos/[id]`
   (payload do player), `POST /api/cards` (minerar, dedup), `GET

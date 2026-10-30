@@ -38,6 +38,10 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
       numa instância pública) e `AUTH_ALLOWED_EMAILS` com o seu e-mail — sem
       isso ninguém cria a primeira conta. Convites:
       `docker compose run --rm worker pnpm --filter @fuchine/worker invite add <email>`
+- [ ] `HOUSE_DAILY_TOKEN_BUDGET` definido (teto diário de tokens da chave da
+      casa) e decidido `HOUSE_EXPLAIN_FALLBACK` (`false` = explicação nova só
+      com BYOK). Conferir o gasto do dia com
+      `docker compose run --rm worker pnpm --filter @fuchine/worker usage`
 
 ## 3. Autenticação (as pegadinhas de produção)
 
@@ -92,6 +96,7 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
 - [ ] Popup de dicionário responde; **Explain** gera (cache miss) e o segundo
       clique é instantâneo (cache hit)
 - [ ] Mine → Review → grade → resumo de sessão; stats registram o dia
+- [ ] `GET /api/health` mostra `houseBudget: "ok"` (ou `"unlimited"` se sem teto)
 - [ ] `GET /api/health` respondendo (🔒
       [health-endpoints-missing.md](../backlog/health-endpoints-missing.md))
 - [ ] Se a CSP foi ligada: thumbnails e o iframe do YouTube carregam sem erro

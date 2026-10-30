@@ -198,6 +198,13 @@ A coluna `model` registra qual modelo escreveu a explicação (para depuração 
 > vídeo/usuário). É telemetria: **não** afeta a saída nem a chave de cache, e
 > omitir é válido. Persistido por um sink plugável (`setUsageSink`/`dbUsageSink`),
 > registrado no boot do web e do worker.
+>
+> **Atualização 2026-10-30 — teto da chave da casa (T2.4).** `meta` ganha
+> `keySource?: "house" | "byok"`, gravado em `llm_usage.key_source` (default
+> `house`, migration 0017). Só o caminho de explain com chave BYOK marca `byok`;
+> qualquer chamada sem marca conta contra `HOUSE_DAILY_TOKEN_BUDGET`. Continua
+> sendo telemetria: não muda saída nem chave de cache. Spec:
+> `docs/plans/2026-10-30-house-budget-spec.md`.
 
 ### 5.3. Regeneração preguiçosa
 
