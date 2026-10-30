@@ -25,6 +25,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Production dependencies only; fails on high/critical advisories.
+      - name: Audit (production deps)
+        run: pnpm audit --prod --audit-level=high
+
       - name: Typecheck (all packages)
         run: pnpm typecheck
 
