@@ -8,6 +8,7 @@ import {
   text,
   integer,
   doublePrecision,
+  real,
   boolean,
   timestamp,
   date,
@@ -113,6 +114,12 @@ export const userSettings = pgTable("user_settings", {
   learningLanguage: text("learning_language").notNull().default("ja"),
   explanationLanguage: text("explanation_language").notNull().default("en"),
   dailyGoals: jsonb("daily_goals").$type<DailyGoals>(),
+  // FSRS per-user scheduling (T3.1). fsrs_params: the user's fitted FSRS-7
+  // weights (34 numbers, validated by @fuchine/core validateFsrsParams); null =
+  // the ts-fsrs FSRS-7 defaults. desired_retention: target recall probability
+  // in [0.80, 0.95]; null = 0.9.
+  fsrsParams: jsonb("fsrs_params").$type<number[]>(),
+  desiredRetention: real("desired_retention"),
   // Null = onboarding never finished; set on first completion.
   onboardingCompletedAt: timestamp("onboarding_completed_at", { withTimezone: true }),
 });
@@ -282,16 +289,27 @@ export const sentenceCards = pgTable(
     // Reserved for cloze / production templates later; MVP creates "listening".
     cardType: text("card_type").notNull().default("listening"),
     notes: text("notes"),
-    // --- FSRS state (D6): maps 1:1 to a ts-fsrs Card. ---
+    // --- FSRS state (D6): maps 1:1 to a ts-fsrs v6 card (@fuchine/core CardState). ---
     stability: doublePrecision("stability").notNull().default(0),
+    // FSRS-7 fast trace (T3.1). null = FSRS-5 card, or a pre-0018 card whose
+    // FSRS-7 memory is rebuilt from review_logs on first touch.
+    stabilityFast: doublePrecision("stability_fast"),
     difficulty: doublePrecision("difficulty").notNull().default(0),
     due: timestamp("due", { withTimezone: true }).notNull().defaultNow(),
     lastReview: timestamp("last_review", { withTimezone: true }),
     state: integer("state").notNull().default(0), // 0 New 1 Learning 2 Review 3 Relearning
     reps: integer("reps").notNull().default(0),
     lapses: integer("lapses").notNull().default(0),
-    elapsedDays: integer("elapsed_days").notNull().default(0),
-    scheduledDays: integer("scheduled_days").notNull().default(0),
+    // Fractional days since the previous review (Fuchine-computed; ts-fsrs v6
+    // dropped the field). Integer before 0018.
+    elapsedDays: doublePrecision("elapsed_days").notNull().default(0),
+    // Fractional since FSRS-7 (integer before 0018).
+    scheduledDays: doublePrecision("scheduled_days").notNull().default(0),
+    learningStep: integer("learning_step").notNull().default(0),
+    // Which model schedules the card: "fsrs-7" (default) or "fsrs-5" (a card
+    // learned under ts-fsrs v4 without a complete review history, kept on the
+    // model that scheduled it — upstream's migration rule).
+    fsrsModel: text("fsrs_model").notNull().default("fsrs-7"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -318,14 +336,20 @@ export const reviewLogs = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     // Full ts-fsrs ReviewLog — lets you re-optimize FSRS params per user later (D6).
+    // Memory/schedule fields are the card's PRE-review values (ts-fsrs revlog).
     grade: integer("grade").notNull(), // 1 Again 2 Hard 3 Good 4 Easy
     state: integer("state").notNull(), // card state at review time
     due: timestamp("due", { withTimezone: true }).notNull(),
+    lastReview: timestamp("last_review", { withTimezone: true }), // T3.1; null before 0018
     stability: doublePrecision("stability").notNull(),
+    stabilityFast: doublePrecision("stability_fast"), // T3.1; FSRS-7 only
     difficulty: doublePrecision("difficulty").notNull(),
-    elapsedDays: integer("elapsed_days").notNull(),
-    lastElapsedDays: integer("last_elapsed_days").notNull(),
-    scheduledDays: integer("scheduled_days").notNull(),
+    elapsedDays: doublePrecision("elapsed_days").notNull(),
+    lastElapsedDays: doublePrecision("last_elapsed_days").notNull(),
+    scheduledDays: doublePrecision("scheduled_days").notNull(),
+    learningStep: integer("learning_step").notNull().default(0), // T3.1
+    // Model that produced the log (T3.1). null = written by ts-fsrs v4 (FSRS-5).
+    fsrsModel: text("fsrs_model"),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

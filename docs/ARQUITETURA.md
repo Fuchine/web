@@ -136,13 +136,13 @@ O ERD completo é o próximo artefato; este resumo registra as entidades e os ca
 | Entidade | Campos-chave | Notas |
 |---|---|---|
 | `users` | id, email, plan, created_at | `plan` só importa no modo cloud. |
-| `user_settings` | user_id, llm_provider, llm_api_key_encrypted, target_lang, daily_goals | Chave BYOK cifrada (AES-GCM), nunca em texto puro. |
+| `user_settings` | user_id, llm_provider, llm_api_key_encrypted, target_lang, daily_goals, **fsrs_params** (jsonb), **desired_retention** (real) | Chave BYOK cifrada (AES-GCM), nunca em texto puro. `fsrs_params`: 34 pesos FSRS-7 ajustados pelo otimizador no browser (null = defaults do ts-fsrs); `desired_retention` em [0,80; 0,95] (null = 0,9). T3.1, migration 0018. |
 | `videos` | id, source, source_id, url, title, channel, duration_s, **language**, status, level_estimate | `source = youtube` no MVP. Único por `(source, source_id)` — base do cache compartilhado. |
 | `subtitle_lines` | id, video_id, idx, t_start_ms, t_end_ms, text_original, text_translation, tokens (jsonb) | Tokens embutidos em jsonb evitam explosão de linhas; cada token referencia `word_entry_id`. |
 | `word_entries` | id, **language**, lemma, reading, pos, definitions (jsonb), frequency_rank | Populada do jmdict-simplified no seed. |
 | `word_examples` | word_entry_id, subtitle_line_id, video_id | Preenchida no import; alimenta "ver exemplos em vídeo" e filtros por álbum. |
-| `sentence_cards` | id, user_id, subtitle_line_id, video_id, t_start_ms, t_end_ms, notes, + estado FSRS (stability, difficulty, due_at, state, reps, lapses) | O card carrega o próprio estado de agendamento. |
-| `review_logs` | id, card_id, grade, reviewed_at, elapsed_ms, scheduled_days | Histórico completo: permite re-otimizar FSRS depois. |
+| `sentence_cards` | id, user_id, subtitle_line_id, video_id, t_start_ms, t_end_ms, notes, + estado FSRS (stability, **stability_fast**, difficulty, due, last_review, state, reps, lapses, elapsed_days, scheduled_days, **learning_step**, **fsrs_model**) | O card carrega o próprio estado de agendamento, 1:1 com o card do ts-fsrs v6. Desde a 0018 (T3.1): FSRS-7 por padrão; `stability_fast` é o traço rápido do FSRS-7 (null = card FSRS-5 ou card pré-0018 aguardando replay do histórico); `elapsed_days`/`scheduled_days` fracionários; `fsrs_model` = `fsrs-7` \| `fsrs-5` (card aprendido sem histórico completo fica no modelo que o agendou). |
+| `review_logs` | id, card_id, user_id, grade, state, due, last_review, stability, stability_fast, difficulty, elapsed_days, last_elapsed_days, scheduled_days, learning_step, fsrs_model, reviewed_at | Histórico completo (D6): base do otimizador por usuário (`GET /api/review/logs/export` → CSV do otimizador) e do replay que leva cards antigos ao FSRS-7. Campos de memória são os valores **antes** do review. `fsrs_model` null = log escrito pelo ts-fsrs v4 (FSRS-5). |
 | `ai_explanations` | id, subtitle_line_id, kind, target_lang, prompt_version, model, content (jsonb) | **Cache da camada 2.** Único por `(subtitle_line_id, kind, target_lang, prompt_version)`. |
 | `albums` / `album_videos` | id, user_id, name / album_id, video_id | Coleções do usuário; filtram biblioteca, exemplos e sessões de revisão. |
 | `user_word_stats` | user_id, word_entry_id, views, clicks, reviews_ok, reviews_total | Base das stats por palavra (vistas, difíceis, dominadas). |
