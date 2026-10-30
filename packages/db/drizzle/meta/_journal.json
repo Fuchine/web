@@ -134,6 +134,13 @@
       "when": 1793379445626,
       "tag": "0018_fsrs7",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793381246488,
+      "tag": "0019_word_pitch",
+      "breakpoints": true
     }
   ]
 }
