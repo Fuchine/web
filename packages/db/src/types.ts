@@ -18,6 +18,10 @@ export type Token = {
   reading: string | null; // reading in hiragana (にほんご); null/"" when none (e.g. punctuation)
   romaji: string | null; // romanized reading (maiasa); null when none (e.g. punctuation)
   pos: string; // part of speech
+  // Finer POS (kuromoji pos_detail_1: 固有名詞, 数, 代名詞…), when the tokenizer
+  // gives one. Optional: tokens stored before T3.9 and user corrections lack
+  // it. Read by the coverage exclusions (isCoverageToken in @fuchine/nlp).
+  posDetail?: string;
   wordEntryId: string | null; // resolved dictionary entry, or null
 };
 

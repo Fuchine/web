@@ -522,9 +522,47 @@ export const userWordStats = pgTable(
     clicks: integer("clicks").notNull().default(0), // times the user opened the popup
     reviewsOk: integer("reviews_ok").notNull().default(0),
     reviewsTotal: integer("reviews_total").notNull().default(0),
+    // --- Known-word model signals (T3.9, 0021). See apps/web/lib/known-words.ts. ---
+    // Last popup lookup: a recent one demotes "likely" → "unknown" for a while.
+    lastClickedAt: timestamp("last_clicked_at", { withTimezone: true }),
+    // Outcome of the most recent review of a card containing the word
+    // (grade ≥ 3, same rule as reviews_ok). null = never reviewed, or pre-0021
+    // without a recoverable log. "confirmed" requires it to be true.
+    lastReviewOk: boolean("last_review_ok"),
+    lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
+    // Calibration snapshot (basis for T3.10): the word's tier just before its
+    // first-ever review, and whether that review was OK. Written once.
+    firstReviewTier: text("first_review_tier"),
+    firstReviewOk: boolean("first_review_ok"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.wordEntryId] })],
+);
+
+// Per-video word frequency (T3.9, 0021): occurrences of each dictionary word
+// in the video's shared tokens, counting only coverage tokens (proper nouns,
+// interjections, numerals and symbols excluded — isCoverageToken in
+// @fuchine/nlp). Materialized at import (and by backfill:word-counts) so the
+// token-weighted coverage of a page of videos is one aggregate over ~1–2k rows
+// per video instead of unnesting every line's tokens jsonb (word_examples keeps
+// one row per (word, line), so it loses in-line repeats and has no POS).
+// Per-user token corrections are applied on read as deltas. Shared, like
+// word_examples. See docs/plans/2026-10-30-known-words-spec.md.
+export const videoWordCounts = pgTable(
+  "video_word_counts",
+  {
+    videoId: uuid("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+    wordEntryId: uuid("word_entry_id")
+      .notNull()
+      .references(() => wordEntries.id, { onDelete: "cascade" }),
+    occurrences: integer("occurrences").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.videoId, t.wordEntryId] }), // serves the per-page aggregate
+    index("video_word_counts_word_idx").on(t.wordEntryId), // cascade from word delete
+  ],
 );
 
 export const savedWords = pgTable(
