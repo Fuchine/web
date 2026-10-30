@@ -8,6 +8,7 @@
 import { setUsageSink, dbUsageSink, parseHouseBudgetEnv } from "@fuchine/llm";
 import { db } from "@/lib/db";
 import { parseRegistrationEnv } from "@/lib/registration";
+import { encryptionKeyProblem } from "@/lib/encryption-key";
 
 export async function registerNode() {
   // Persist per-request LLM usage into `llm_usage` (backlog: llm-usage-metering).
@@ -20,8 +21,10 @@ export async function registerNode() {
   // Hard requirements — the app cannot function without these.
   if (!process.env.DATABASE_URL) missing.push("DATABASE_URL (Postgres connection string)");
   if (!process.env.AUTH_SECRET) missing.push("AUTH_SECRET (openssl rand -base64 32)");
-  if (!process.env.FUCHINE_ENCRYPTION_KEY)
-    missing.push("FUCHINE_ENCRYPTION_KEY (openssl rand -base64 32)");
+  // Presence AND shape: a wrong-sized key would otherwise boot fine and 500 on
+  // the first BYOK save (C6).
+  const keyProblem = encryptionKeyProblem(process.env.FUCHINE_ENCRYPTION_KEY);
+  if (keyProblem) missing.push(keyProblem);
 
   // At least one usable sign-in method must exist, or the first user is locked
   // out. Google (Auth.js reads AUTH_GOOGLE_ID/SECRET) or email magic link.
