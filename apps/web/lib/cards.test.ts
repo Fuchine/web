@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Token } from "@fuchine/db";
-import { buildReviewQueuePayload, CARD_TYPES, MAX_NOTES_LENGTH, parseCardType, validateNotes, type ReviewQueueRow } from "./cards";
+import { buildReviewQueuePayload, CARD_TYPES, MAX_NOTES_LENGTH, parseCardType, servableDueCount, validateNotes, type ReviewQueueRow } from "./cards";
 
 const tok = (wordEntryId: string | null): Token => ({
   surface: "猫", lemma: "猫", reading: "ねこ", romaji: "neko", pos: "noun", wordEntryId,
@@ -94,5 +94,28 @@ describe("parseCardType (B1 allowlist)", () => {
     expect(parseCardType("cloze")).toHaveProperty("error");
     expect(parseCardType("x".repeat(10_000))).toHaveProperty("error");
     expect(parseCardType(1)).toHaveProperty("error");
+  });
+});
+
+describe("servableDueCount (review badge)", () => {
+  it("caps due new cards at the remaining new allowance", () => {
+    // 50 freshly mined cards, default 10/day, nothing introduced yet → 10.
+    expect(servableDueCount({ reviews: 0, newCards: 50 }, { newRemaining: 10, reviewRemaining: null })).toBe(10);
+  });
+
+  it("adds every due review when maxReviewsPerDay is unset", () => {
+    expect(servableDueCount({ reviews: 34, newCards: 50 }, { newRemaining: 10, reviewRemaining: null })).toBe(44);
+  });
+
+  it("caps due reviews by the remaining review allowance when set", () => {
+    expect(servableDueCount({ reviews: 34, newCards: 3 }, { newRemaining: 10, reviewRemaining: 20 })).toBe(23);
+  });
+
+  it("shows nothing once both of today's allowances are spent", () => {
+    expect(servableDueCount({ reviews: 2, newCards: 50 }, { newRemaining: 0, reviewRemaining: 0 })).toBe(0);
+  });
+
+  it("never exceeds what is actually due", () => {
+    expect(servableDueCount({ reviews: 1, newCards: 2 }, { newRemaining: 10, reviewRemaining: 5 })).toBe(3);
   });
 });

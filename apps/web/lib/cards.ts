@@ -1,6 +1,6 @@
 // Mining + SRS review (F1, T1.6/T1.7). Auth-agnostic and testable.
 
-import { and, asc, count, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import { type Database, sentenceCards, subtitleLines, videos, reviewLogs, wordEntries, userSettings, type Token, type Definition } from "@fuchine/db";
 import { newCardState, reviewCard, previewIntervals, type CardState, type ReviewGrade } from "@fuchine/core";
 import { bumpDailyStats, bumpWordReviews } from "./progress";
@@ -161,17 +161,43 @@ const QUEUE_COLUMNS = {
 } as const;
 
 /**
- * Count of cards due now (new + review) for the user — for the sidebar
- * "review due" badge. Covered by `sentence_cards_user_due_idx`; avoids building
- * the full queue (joins + word_entries) just to read `.length`. Note this is the
- * true due backlog, not the per-session/daily-capped queue length.
+ * The review badge's number: what a session started now would actually serve
+ * today. Due reviews (already introduced) are capped by the remaining
+ * `maxReviewsPerDay` allowance when set; due new cards by the remaining new
+ * allowance (newCardsPerDay or the T3.5 default). Pure — unit-tested.
+ */
+export function servableDueCount(
+  due: { reviews: number; newCards: number },
+  allowances: { newRemaining: number; reviewRemaining: number | null },
+): number {
+  const reviews = allowances.reviewRemaining == null
+    ? due.reviews
+    : Math.min(due.reviews, allowances.reviewRemaining);
+  return reviews + Math.min(due.newCards, allowances.newRemaining);
+}
+
+/**
+ * Count for the sidebar/dashboard "review due" badge — the number of cards the
+ * queue would serve today, honoring the daily caps (servableDueCount), so 50
+ * freshly mined cards show 10, not 50. One count over
+ * `sentence_cards_user_due_idx` (split by state with FILTER) plus the
+ * allowances query; never builds the queue (joins + word_entries).
  */
 export async function countDueCards(db: Database, userId: string): Promise<number> {
-  const [row] = await db
-    .select({ n: count() })
-    .from(sentenceCards)
-    .where(and(eq(sentenceCards.userId, userId), lte(sentenceCards.due, new Date())));
-  return Number(row?.n ?? 0);
+  const [[row], allowances] = await Promise.all([
+    db
+      .select({
+        reviews: sql<number>`count(*) filter (where ${sentenceCards.state} <> 0)`,
+        newCards: sql<number>`count(*) filter (where ${sentenceCards.state} = 0)`,
+      })
+      .from(sentenceCards)
+      .where(and(eq(sentenceCards.userId, userId), lte(sentenceCards.due, new Date()))),
+    dailyAllowances(db, userId),
+  ]);
+  return servableDueCount(
+    { reviews: Number(row?.reviews ?? 0), newCards: Number(row?.newCards ?? 0) },
+    allowances,
+  );
 }
 
 /** Cards due now for the user, with the clip + sentence and preview intervals. */
