@@ -74,12 +74,12 @@ export function InstallAppPrompt({
       <p
         role="note"
         className={cn(
-          "m-0 flex items-center gap-2 rounded-full border border-border bg-bg-2 py-[5px] pl-3.5 pr-[5px] text-[12.5px] text-muted",
+          "m-0 flex items-center gap-2 rounded-[14px] border border-border bg-bg-2 py-[5px] pl-3.5 pr-[5px] text-[12.5px] leading-[1.35] text-muted",
           className,
         )}
       >
         <span className="min-w-0 flex-1">
-          Install: tap <b className="font-[600] text-fg">Share</b> → <b className="font-[600] text-fg">Add to Home Screen</b>
+          Install: <b className="font-[600] text-fg">Share</b> → <b className="font-[600] text-fg">Add to Home Screen</b>
         </span>
         <button
           type="button"

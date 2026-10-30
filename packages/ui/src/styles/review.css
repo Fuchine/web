@@ -516,7 +516,8 @@
     align-items: flex-start;
     padding: 12px max(12px, env(safe-area-inset-right)) 16px max(12px, env(safe-area-inset-left));
   }
-  .rev-stack { gap: 12px; }
+  /* Top-aligned: cards of different heights don't jump around between grades. */
+  .rev-stack { gap: 12px; margin: 0 auto; }
   .card-sentence { font-size: 24px; line-height: 1.65; }
   .card-en { font-size: 15px; margin-top: 14px; }
   .card-reveal { margin-top: 22px; padding-top: 18px; }
