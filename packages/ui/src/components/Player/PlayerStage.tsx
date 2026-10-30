@@ -6,6 +6,7 @@ import { PlayerVideo, type PlayerVideoHandle, type PlayerVideoProps } from "./Pl
 import { PlayerFocalSubtitles, type FocalLine } from "./PlayerFocalSubtitles";
 import { PlayerControlBar, type PlayerControlBarProps } from "./PlayerControlBar";
 import { DictPopup } from "../DictPopup/DictPopup";
+import type { PrimedPhase, WordStatus } from "../../lib/listening";
 import { MinedCard } from "../MinedCard/MinedCard";
 
 export type DictPopupState = {
@@ -22,6 +23,14 @@ export interface PlayerStageProps {
   showTranslation: boolean;
   showFurigana: boolean;
   showRomaji: boolean;
+  /**
+   * What the focal line actually shows right now (user toggles combined with
+   * the primed-listening phase). Default: the toggles as given.
+   */
+  focalVisibility?: { japanese: boolean; translation: boolean };
+  primedPhase?: PrimedPhase;
+  wordStatuses?: Readonly<Record<string, WordStatus>>;
+  colorKnown?: boolean;
   activeWordId: string | null;
   dictPopup: DictPopupState | null;
   dictEntry: {
@@ -67,6 +76,10 @@ export function PlayerStage({
   showTranslation,
   showFurigana,
   showRomaji,
+  focalVisibility,
+  primedPhase,
+  wordStatuses,
+  colorKnown,
   activeWordId,
   dictPopup,
   dictEntry,
@@ -108,7 +121,11 @@ export function PlayerStage({
       {focalLine ? (
         <PlayerFocalSubtitles
           line={focalLine}
-          showTranslation={showTranslation}
+          showTranslation={focalVisibility ? focalVisibility.translation : showTranslation}
+          showJapanese={focalVisibility ? focalVisibility.japanese : true}
+          primedPhase={primedPhase}
+          wordStatuses={wordStatuses}
+          colorKnown={colorKnown}
           showFurigana={showFurigana}
           showRomaji={showRomaji}
           activeWordId={activeWordId}

@@ -4,6 +4,24 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { UserFacingError } from "../../lib/errors";
 import { cn } from "../../lib/cn";
 import { pickPrefetchTarget } from "../../lib/prefetch";
+import {
+  DEFAULT_PLAYER_PREFS,
+  FURIGANA_MODES,
+  LISTENING_MODES,
+  PRIMED_IDLE,
+  lineAtOrAfter,
+  loadPlayerPrefs,
+  nextInCycle,
+  primedStep,
+  savePlayerPrefs,
+  statusOf,
+  subtitleVisibility,
+  type PlayerPrefs,
+  type PrimedEvent,
+  type PrimedLine,
+  type PrimedState,
+  type WordStatus,
+} from "../../lib/listening";
 import { AppShell } from "../AppShell/AppShell";
 import { buildAppNav } from "../AppShell/nav";
 import { pickCurrentLine, formatTimecode as fmt, lineHasAudio, chunkIndexForLine, chunkPumpOrder, freqTier } from "@fuchine/core";
@@ -69,6 +87,11 @@ export interface PlayerProps {
   onSaveWord?: (wordEntryId: string, save: boolean) => Promise<boolean>;
   /** Batched study-activity beacon: watch time + lines seen since the last call. */
   onProgress?: (progress: { msWatched: number; lineIds: string[] }) => void;
+  /**
+   * Known-word signals for this video's words (server-computed per user;
+   * absent ⇒ unknown). Colors tokens and drives "furigana: unknown only".
+   */
+  wordStatuses?: Readonly<Record<string, WordStatus>>;
   className?: string;
 }
 
@@ -83,6 +106,20 @@ const PREFETCH_WAIT_MS = 30_000;
 // circuit breaker so a downed MT provider isn't hammered chunk-by-chunk.
 const PUMP_BACKOFFS_MS = [1000, 4000, 15000];
 const PUMP_BREAKER_THRESHOLD = 3;
+
+// localStorage can be missing or throw (private mode, blocked site data).
+function browserStorage(): Storage | undefined {
+  try {
+    return typeof window === "undefined" ? undefined : window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+// Primed listening previews a line only when there's a translation to show.
+function toPrimedLines(lines: PlayerSubtitleLine[], translations: Map<string, string | null>): PrimedLine[] {
+  return lines.map((l) => ({ tStartMs: l.tStartMs, tEndMs: l.tEndMs, preview: Boolean(translations.get(l.id)) }));
+}
 
 function toFocal(
   line: PlayerSubtitleLine | undefined,
@@ -114,7 +151,13 @@ function toTranscript(
     tStartMs: l.tStartMs,
     textOriginal: l.textOriginal,
     textTranslation: translations.get(l.id) ?? null,
-    tokens: l.tokens.map<TranscriptToken>((t) => ({ surface: t.surface, reading: t.reading, romaji: t.romaji })),
+    tokens: l.tokens.map<TranscriptToken>((t) => ({
+      surface: t.surface,
+      reading: t.reading,
+      romaji: t.romaji,
+      wordEntryId: t.wordEntryId,
+      pos: t.pos,
+    })),
   }));
 }
 
@@ -122,7 +165,7 @@ function toExplainFocal(focal: FocalLine): ExplainFocal {
   return { textOriginal: focal.textOriginal, textTranslation: focal.textTranslation, focusSurface: null };
 }
 
-export function Player({ video, lines, account, translatedChunks, onFetchChunk, onFetchExplanation, onBack, onNavigate, className, initialLineId, savedWordIds, onSaveWord, onProgress }: PlayerProps) {
+export function Player({ video, lines, account, translatedChunks, onFetchChunk, onFetchExplanation, onBack, onNavigate, className, initialLineId, savedWordIds, onSaveWord, onProgress, wordStatuses }: PlayerProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMs, setCurrentMs] = useState(0);
@@ -139,7 +182,9 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const [userIsScrolling, setUserIsScrolling] = useState(false);
   const [loopLine, setLoopLine] = useState(false);
   const [showTranslation, setShowTranslation] = useState(true);
-  const [showFurigana, setShowFurigana] = useState(false);
+  // Listening mode, JP toggle, known-word coloring, furigana — per browser.
+  // Defaults on the server render; the stored prefs load after mount.
+  const [prefs, setPrefs] = useState<PlayerPrefs>(DEFAULT_PLAYER_PREFS);
   const [showRomaji, setShowRomaji] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<number | null>(null);
@@ -177,6 +222,80 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const savedSetRef = useRef<Set<string>>(new Set(savedWordIds ?? []));
   const currentLineIdxRef = useRef<number>(currentLineIdx);
   currentLineIdxRef.current = currentLineIdx;
+  const loopLineRef = useRef(loopLine);
+  loopLineRef.current = loopLine;
+  const translationsRef = useRef(translations);
+  translationsRef.current = translations;
+  const listeningModeRef = useRef(prefs.listeningMode);
+  listeningModeRef.current = prefs.listeningMode;
+
+  useEffect(() => {
+    setPrefs(loadPlayerPrefs(browserStorage()));
+  }, []);
+  const updatePrefs = useCallback((patch: (p: PlayerPrefs) => Partial<PlayerPrefs>) => {
+    setPrefs((prev) => {
+      const next = { ...prev, ...patch(prev) };
+      savePlayerPrefs(browserStorage(), next);
+      return next;
+    });
+  }, []);
+
+  // ---- Primed listening (lib/listening.ts state machine) ----
+  // The machine decides; this runs its effects against the iframe. One phase
+  // timer at a time: any state change cancels the pending one.
+  const [primed, setPrimed] = useState<PrimedState>(PRIMED_IDLE);
+  const primedRef = useRef<PrimedState>(PRIMED_IDLE);
+  const primedTimerRef = useRef<number | null>(null);
+  const dispatchPrimedRef = useRef<(e: PrimedEvent) => void>(() => {});
+  const dispatchPrimed = useCallback(
+    (event: PrimedEvent) => {
+      const prev = primedRef.current;
+      const { state, effects } = primedStep(prev, event, {
+        lines: toPrimedLines(lines, translationsRef.current),
+        loop: loopLineRef.current,
+      });
+      if (state === prev) return;
+      primedRef.current = state;
+      setPrimed(state);
+      if (primedTimerRef.current != null) {
+        window.clearTimeout(primedTimerRef.current);
+        primedTimerRef.current = null;
+      }
+      const h = handleRef.current;
+      for (const e of effects) {
+        if (e.type === "pause") h?.pause();
+        else if (e.type === "play") h?.play();
+        else if (e.type === "seek") {
+          h?.seekTo(e.ms / 1000);
+          setCurrentMs(e.ms);
+        } else {
+          primedTimerRef.current = window.setTimeout(() => {
+            primedTimerRef.current = null;
+            dispatchPrimedRef.current({ type: "timer" });
+          }, e.ms);
+        }
+      }
+      // The machine owns the focal line while it runs.
+      if (state.phase !== "idle" && state.lineIdx >= 0 && state.lineIdx !== currentLineIdxRef.current) {
+        previousLineIdxRef.current = state.lineIdx;
+        setCurrentLineIdx(state.lineIdx);
+      }
+    },
+    [lines],
+  );
+  dispatchPrimedRef.current = dispatchPrimed;
+  useEffect(() => () => {
+    if (primedTimerRef.current != null) window.clearTimeout(primedTimerRef.current);
+  }, []);
+
+  /** Line to start a primed cycle on: under (or next after) the playhead. */
+  const primedStartLine = useCallback((): number => {
+    const t = handleRef.current?.getCurrentTime();
+    if (t == null || Number.isNaN(t)) return Math.max(0, currentLineIdxRef.current);
+    return lineAtOrAfter(lines, t * 1000);
+  }, [lines]);
+  const primedStartLineRef = useRef(primedStartLine);
+  primedStartLineRef.current = primedStartLine;
 
   // ---- Dict popup state ----
   const [openWordId, setOpenWordId] = useState<string | null>(null);
@@ -214,6 +333,11 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       if (newIdx >= 0 && newIdx < lines.length) {
         pendingLinesRef.current.add((lines[newIdx] as PlayerSubtitleLine).id);
       }
+      // Primed cycle running: it owns line changes (and loop-line).
+      if (primedRef.current.phase !== "idle") {
+        dispatchPrimed({ type: "tick", ms });
+        return;
+      }
       if (newIdx !== previousLineIdxRef.current) {
         const prev = previousLineIdxRef.current;
         if (loopLine && prev >= 0 && prev < lines.length && lineHasAudio(lines[prev] as Parameters<typeof lineHasAudio>[0])) {
@@ -228,7 +352,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       }
     }, POLL_MS);
     return () => window.clearInterval(id);
-  }, [isReady, isPlaying, loopLine, lines]);
+  }, [isReady, isPlaying, loopLine, lines, dispatchPrimed]);
 
   // Flush accumulated watch time + seen lines: every PROGRESS_FLUSH_MS, when
   // the tab is hidden, and on unmount. No-op when nothing accumulated.
@@ -393,15 +517,20 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const seekToLine = useCallback(
     (idx: number) => {
       if (idx < 0 || idx >= lines.length) return;
-      const target = lines[idx] as PlayerSubtitleLine;
-      handleRef.current?.seekTo(target.tStartMs / 1000);
-      setCurrentMs(target.tStartMs);
-      setCurrentLineIdx(idx);
-      previousLineIdxRef.current = idx;
+      if (primedRef.current.phase !== "idle") {
+        // Restart the primed cycle on the target line (it seeks).
+        dispatchPrimed({ type: "seek", lineIdx: idx });
+      } else {
+        const target = lines[idx] as PlayerSubtitleLine;
+        handleRef.current?.seekTo(target.tStartMs / 1000);
+        setCurrentMs(target.tStartMs);
+        setCurrentLineIdx(idx);
+        previousLineIdxRef.current = idx;
+      }
       setUserIsScrolling(true);
       window.setTimeout(() => setUserIsScrolling(false), CLICK_GRACE_MS);
     },
-    [lines],
+    [lines, dispatchPrimed],
   );
 
   // Deep-link from the dictionary: once the iframe is ready, seek to the line.
@@ -417,27 +546,41 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const onPlayPause = useCallback(() => {
     const h = handleRef.current;
     if (!h) return;
+    // Mid-cycle the video may be held paused by the machine, but to the user
+    // it's "playing": the button stops the cycle.
+    if (primedRef.current.phase !== "idle") {
+      dispatchPrimed({ type: "userPause" });
+      return;
+    }
     if (isPlaying) h.pause();
-    else h.play();
-  }, [isPlaying]);
+    else h.play(); // in primed mode the "playing" event starts the cycle
+  }, [isPlaying, dispatchPrimed]);
+
+  // Time-based seek: mid-cycle, restart the cycle on the line there.
+  const onSeek = useCallback(
+    (ms: number) => {
+      const h = handleRef.current;
+      if (!h) return;
+      if (primedRef.current.phase !== "idle") {
+        const idx = lineAtOrAfter(lines, ms);
+        if (idx >= 0) {
+          dispatchPrimed({ type: "seek", lineIdx: idx });
+          return;
+        }
+        dispatchPrimed({ type: "userPause" });
+      }
+      h.seekTo(ms / 1000);
+      setCurrentMs(ms);
+    },
+    [lines, dispatchPrimed],
+  );
 
   const onSkip = useCallback(
     (deltaMs: number) => {
-      const h = handleRef.current;
-      if (!h) return;
-      const targetMs = Math.max(0, Math.min(durationMs, currentMs + deltaMs));
-      h.seekTo(targetMs / 1000);
-      setCurrentMs(targetMs);
+      onSeek(Math.max(0, Math.min(durationMs, currentMs + deltaMs)));
     },
-    [currentMs, durationMs],
+    [currentMs, durationMs, onSeek],
   );
-
-  const onSeek = useCallback((ms: number) => {
-    const h = handleRef.current;
-    if (!h) return;
-    h.seekTo(ms / 1000);
-    setCurrentMs(ms);
-  }, []);
 
   const onCycleRate = useCallback(() => {
     const h = handleRef.current;
@@ -480,6 +623,18 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
 
   const onStateChange = useCallback((s: "playing" | "paused" | "buffering" | "ended" | "unstarted") => {
     setIsPlaying(s === "playing");
+    if (listeningModeRef.current !== "primed") return;
+    const phase = primedRef.current.phase;
+    // Our own play()/pause() echo back here: "playing" only starts a cycle
+    // from idle, and "paused" only counts as the user's while listening (the
+    // machine pauses for preview/reveal itself). Through refs: PlayerVideo
+    // binds this callback once, when the iframe is created.
+    if (s === "playing" && phase === "idle") {
+      const idx = primedStartLineRef.current();
+      if (idx >= 0) dispatchPrimedRef.current({ type: "start", lineIdx: idx });
+    } else if ((s === "paused" || s === "ended") && phase === "listen") {
+      dispatchPrimedRef.current({ type: "userPause" });
+    }
   }, []);
 
   const onError = useCallback((code: number) => {
@@ -684,9 +839,20 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     setActiveRailTab("explain");
   }, []);
 
+  // Known-word signals: server statuses, plus "seen" for words looked up this
+  // session (opening the popup records a click server-side — same rule).
+  const [lookedUp, setLookedUp] = useState<ReadonlySet<string>>(() => new Set());
+  const effectiveStatuses = useMemo(() => {
+    if (lookedUp.size === 0) return wordStatuses;
+    const next: Record<string, WordStatus> = { ...(wordStatuses ?? {}) };
+    for (const id of lookedUp) if (statusOf(next, id) === "unknown") next[id] = "seen";
+    return next;
+  }, [wordStatuses, lookedUp]);
+
   const handleWordClick = useCallback((wordId: string, _surface: string) => {
     if (wordId === openWordId) { setOpenWordId(null); return; }
     setOpenWordId(wordId);
+    setLookedUp((prev) => (prev.has(wordId) ? prev : new Set(prev).add(wordId)));
   }, [openWordId]);
 
   const handleDictExplain = useCallback(() => {
@@ -802,9 +968,30 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   // Stable toggle callbacks so the memoized PlayerTranscript/control bar aren't
   // invalidated every render by fresh inline arrows.
   const onToggleTranslation = useCallback(() => setShowTranslation((v) => !v), []);
-  const onToggleFurigana = useCallback(() => setShowFurigana((v) => !v), []);
+  const onCycleFurigana = useCallback(
+    () => updatePrefs((p) => ({ furigana: nextInCycle(FURIGANA_MODES, p.furigana) })),
+    [updatePrefs],
+  );
+  const onToggleColorKnown = useCallback(() => updatePrefs((p) => ({ colorKnown: !p.colorKnown })), [updatePrefs]);
+  const onToggleJapanese = useCallback(() => updatePrefs((p) => ({ showJapanese: !p.showJapanese })), [updatePrefs]);
   const onToggleRomaji = useCallback(() => setShowRomaji((v) => !v), []);
   const onToggleLoop = useCallback(() => setLoopLine((v) => !v), []);
+  const onCycleListeningMode = useCallback(() => {
+    const next = nextInCycle(LISTENING_MODES, listeningModeRef.current);
+    listeningModeRef.current = next;
+    updatePrefs(() => ({ listeningMode: next }));
+    if (next !== "primed") dispatchPrimed({ type: "exit" });
+    else if (isPlaying) {
+      const idx = primedStartLine();
+      if (idx >= 0) dispatchPrimed({ type: "start", lineIdx: idx });
+    }
+  }, [updatePrefs, dispatchPrimed, isPlaying, primedStartLine]);
+
+  const primedPhase = prefs.listeningMode === "primed" ? primed.phase : "idle";
+  const focalVisibility = useMemo(
+    () => subtitleVisibility(primedPhase, { japanese: prefs.showJapanese, translation: showTranslation }),
+    [primedPhase, prefs.showJapanese, showTranslation],
+  );
 
   if (loadError) {
     const embedBlocked = errorCode === 150 || errorCode === 101;
@@ -873,7 +1060,11 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
             videoId={video.sourceId}
             focalLine={focal}
             showTranslation={showTranslation}
-            showFurigana={showFurigana}
+            focalVisibility={focalVisibility}
+            primedPhase={primedPhase}
+            wordStatuses={effectiveStatuses}
+            colorKnown={prefs.colorKnown}
+            showFurigana={prefs.furigana !== "off"}
             showRomaji={showRomaji}
             activeWordId={openWordId}
             dictPopup={dictPopup}
@@ -902,7 +1093,8 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
             minedAlbums={albums}
             onMinedAddToAlbum={handleMinedAddToAlbum}
             controlBar={{
-              isPlaying,
+              // Mid-cycle the machine holds the video paused between phases.
+              isPlaying: isPlaying || primedPhase === "preview" || primedPhase === "reveal",
               currentMs,
               durationMs,
               playbackRate: rate,
@@ -915,6 +1107,10 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
               onToggleTranslation,
               translationsUnavailable: translationsSuspended,
               onToggleRomaji,
+              listeningMode: prefs.listeningMode,
+              onCycleListeningMode,
+              showJapanese: prefs.showJapanese,
+              onToggleJapanese,
               onCycleRate,
               onVolume,
               muted,
@@ -946,11 +1142,16 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
                 lines={transcriptLines}
                 currentLineIdx={currentLineIdx}
                 showTranslation={showTranslation}
-                showFurigana={showFurigana}
+                furigana={prefs.furigana}
+                wordStatuses={effectiveStatuses}
+                colorKnown={prefs.colorKnown}
+                hideCurrentJapanese={!focalVisibility.japanese}
+                hideCurrentTranslation={!focalVisibility.translation}
                 translationsUnavailable={translationsSuspended}
                 onLineClick={seekToLine}
                 onToggleTranslation={onToggleTranslation}
-                onToggleFurigana={onToggleFurigana}
+                onCycleFurigana={onCycleFurigana}
+                onToggleColorKnown={onToggleColorKnown}
                 formatTimecode={fmt}
                 railRef={railRef}
                 lineRefs={lineRefs}

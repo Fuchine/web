@@ -2,11 +2,15 @@
 
 import { memo, useCallback, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import { cn } from "../../lib/cn";
+import { showReadingFor, statusOf, type FuriganaMode, type WordStatus } from "../../lib/listening";
 
 export type TranscriptToken = {
   surface: string;
   reading: string | null;
   romaji: string | null;
+  /** Dictionary word (absent/null ⇒ not a word: no known-word color). */
+  wordEntryId?: string | null;
+  pos?: string | null;
 };
 
 export type TranscriptLine = {
@@ -22,12 +26,26 @@ export interface PlayerTranscriptProps {
   lines: TranscriptLine[];
   currentLineIdx: number;
   showTranslation: boolean;
-  showFurigana: boolean;
+  /** Furigana over every word, only over words not yet known, or none. */
+  furigana: FuriganaMode;
+  /** Per-word knowledge status (absent ⇒ unknown). */
+  wordStatuses?: Readonly<Record<string, WordStatus>>;
+  /** Color tokens by knowledge status. */
+  colorKnown?: boolean;
+  /**
+   * Blur the current row's Japanese / translation — while the focal line
+   * hides them (Hide JP, primed listening) the rail must not give it away.
+   */
+  hideCurrentJapanese?: boolean;
+  hideCurrentTranslation?: boolean;
   /** Background MT pump breaker is open — surface it on the translation toggle. */
   translationsUnavailable?: boolean;
   onLineClick: (lineIdx: number) => void;
   onToggleTranslation: () => void;
-  onToggleFurigana: () => void;
+  /** Cycles furigana: off → all → unknown only. */
+  onCycleFurigana: () => void;
+  /** When provided, shows the known-word coloring toggle (with its legend). */
+  onToggleColorKnown?: () => void;
   formatTimecode: (ms: number) => string;
   /** Ref to the scrollable region (used by the autoscroll logic). */
   railRef?: RefObject<HTMLDivElement | null>;
@@ -55,10 +73,32 @@ function CcIcon() {
   );
 }
 
+function DotsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="16" height="16">
+      <path d="M4 17.5h4.5M10 17.5h4.5M16 17.5h4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M5.5 13l2-6 2 6M6.2 11h2.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14 7.5h5M16.5 7.5V13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+const FURIGANA_LABEL: Record<FuriganaMode, string> = {
+  off: "Furigana: off",
+  all: "Furigana: all words",
+  unknown: "Furigana: words you don't know yet",
+};
+
+const isWord = (t: TranscriptToken) => Boolean(t.wordEntryId) && t.pos !== "Particle" && t.pos !== "Punct";
+
 interface TranscriptRowProps {
   line: TranscriptLine;
   isCurrent: boolean;
-  showFurigana: boolean;
+  furigana: FuriganaMode;
+  wordStatuses?: Readonly<Record<string, WordStatus>>;
+  colorKnown: boolean;
+  maskJapanese: boolean;
+  maskTranslation: boolean;
   showTranslation: boolean;
   formatTimecode: (ms: number) => string;
   onLineClick: (lineIdx: number) => void;
@@ -73,7 +113,11 @@ interface TranscriptRowProps {
 const TranscriptRow = memo(function TranscriptRow({
   line,
   isCurrent,
-  showFurigana,
+  furigana,
+  wordStatuses,
+  colorKnown,
+  maskJapanese,
+  maskTranslation,
   showTranslation,
   formatTimecode,
   onLineClick,
@@ -90,22 +134,27 @@ const TranscriptRow = memo(function TranscriptRow({
     >
       <span className="tr-time">{formatTimecode(line.tStartMs)}</span>
       <div>
-        <div className="tr-ja jp">
+        <div className={cn("tr-ja jp", maskJapanese && "tr-masked")} aria-hidden={maskJapanese || undefined}>
           {tokens
-            ? tokens.map((t, i) =>
-                showFurigana && t.reading && t.reading !== t.surface ? (
-                  <ruby key={i}>
+            ? tokens.map((t, i) => {
+                const word = isWord(t);
+                const status = word ? statusOf(wordStatuses, t.wordEntryId) : "unknown";
+                const cls = colorKnown && word ? `k-${status}` : undefined;
+                return showReadingFor(furigana, status) && t.reading && t.reading !== t.surface ? (
+                  <ruby key={i} className={cls}>
                     {t.surface}
                     <rt className="jp-rb">{t.reading}</rt>
                   </ruby>
                 ) : (
-                  <span key={i}>{t.surface}</span>
-                ),
-              )
+                  <span key={i} className={cls}>{t.surface}</span>
+                );
+              })
             : line.textOriginal}
         </div>
         {showTranslation && line.textTranslation && (
-          <div className="tr-en">{line.textTranslation}</div>
+          <div className={cn("tr-en", maskTranslation && "tr-masked")} aria-hidden={maskTranslation || undefined}>
+            {line.textTranslation}
+          </div>
         )}
       </div>
     </button>
@@ -116,11 +165,16 @@ function PlayerTranscriptImpl({
   lines,
   currentLineIdx,
   showTranslation,
-  showFurigana,
+  furigana,
+  wordStatuses,
+  colorKnown = false,
+  hideCurrentJapanese = false,
+  hideCurrentTranslation = false,
   translationsUnavailable,
   onLineClick,
   onToggleTranslation,
-  onToggleFurigana,
+  onCycleFurigana,
+  onToggleColorKnown,
   formatTimecode,
   railRef,
   lineRefs,
@@ -139,13 +193,33 @@ function PlayerTranscriptImpl({
     <>
       <div className="tr-sub">
         <div className="tr-tools">
+          {onToggleColorKnown && (
+            <span className="kw-toggle">
+              <button
+                type="button"
+                className={cn("tr-tool", colorKnown && "on")}
+                onClick={onToggleColorKnown}
+                aria-label="Color words by how well you know them"
+                aria-pressed={colorKnown}
+                aria-describedby="kw-legend"
+              >
+                <DotsIcon />
+              </button>
+              <span className="kw-legend" id="kw-legend" role="tooltip">
+                <span className="kw-legend-title">Word colors</span>
+                <span className="kw-legend-row"><i className="kw-swatch k-unknown" aria-hidden="true" />Unknown — not met yet</span>
+                <span className="kw-legend-row"><i className="kw-swatch k-seen" aria-hidden="true" />Seen — met or looked up</span>
+                <span className="kw-legend-row"><i className="kw-swatch k-known" aria-hidden="true" />Known — reviewed or seen often</span>
+              </span>
+            </span>
+          )}
           <button
             type="button"
-            className={cn("tr-tool", showFurigana && "on")}
-            onClick={onToggleFurigana}
-            aria-label="Show furigana"
-            aria-pressed={showFurigana}
-            title="Furigana"
+            className={cn("tr-tool", furigana !== "off" && "on", furigana === "unknown" && "partial")}
+            onClick={onCycleFurigana}
+            aria-label={FURIGANA_LABEL[furigana]}
+            aria-pressed={furigana !== "off"}
+            title={`${FURIGANA_LABEL[furigana]} (click to change)`}
           >
             <CcIcon />
           </button>
@@ -167,7 +241,11 @@ function PlayerTranscriptImpl({
             key={line.id}
             line={line}
             isCurrent={line.idx === currentLineIdx}
-            showFurigana={showFurigana}
+            furigana={furigana}
+            wordStatuses={wordStatuses}
+            colorKnown={colorKnown}
+            maskJapanese={hideCurrentJapanese && line.idx === currentLineIdx}
+            maskTranslation={hideCurrentTranslation && line.idx === currentLineIdx}
             showTranslation={showTranslation}
             formatTimecode={formatTimecode}
             onLineClick={onLineClick}

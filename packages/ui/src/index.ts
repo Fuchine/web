@@ -51,6 +51,9 @@ export type {
 } from "./components/Player/PlayerExplain";
 export { RATES } from "./components/Player/PlayerControlBar";
 export type { PlaybackRate, PlayerControlBarProps } from "./components/Player/PlayerControlBar";
+// T3.8 — listening modes + known-word signals
+export { PRIMED_PREVIEW_MS, PRIMED_REVEAL_MS } from "./lib/listening";
+export type { ListeningMode, FuriganaMode, WordStatus } from "./lib/listening";
 
 // T1.4 — dict popup + T1.6 — sentence mining
 export { DictPopup } from "./components/DictPopup/DictPopup";

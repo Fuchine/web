@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react";
 import { cn } from "../../lib/cn";
+import type { ListeningMode } from "../../lib/listening";
 
 export const RATES = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0] as const;
 export type PlaybackRate = (typeof RATES)[number];
@@ -16,6 +17,12 @@ export interface PlayerControlBarProps {
   /** Background MT pump breaker is open — surface it on the translation toggle. */
   translationsUnavailable?: boolean;
   showRomaji: boolean;
+  /** Listening mode (T3.8). The mode button renders when onCycleListeningMode is given. */
+  listeningMode?: ListeningMode;
+  onCycleListeningMode?: () => void;
+  /** Japanese subtitle toggle. The button renders when onToggleJapanese is given. */
+  showJapanese?: boolean;
+  onToggleJapanese?: () => void;
   /** Disabled when no IFrame is ready. */
   disabled?: boolean;
   onPlayPause: () => void;
@@ -103,6 +110,10 @@ export function PlayerControlBar({
   showTranslation,
   translationsUnavailable,
   showRomaji,
+  listeningMode = "normal",
+  onCycleListeningMode,
+  showJapanese = true,
+  onToggleJapanese,
   disabled,
   onPlayPause,
   onSkip,
@@ -191,6 +202,21 @@ export function PlayerControlBar({
         >
           {Icon.loop}
         </button>
+        {onToggleJapanese && (
+          <button
+            type="button"
+            className={btnCx(showJapanese, false)}
+            onClick={onToggleJapanese}
+            disabled={disabled}
+            aria-label="Toggle Japanese subtitles"
+            aria-pressed={showJapanese}
+            title={showJapanese ? "Hide Japanese subtitles" : "Show Japanese subtitles"}
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="20" height="20">
+              <text x="12" y="17" textAnchor="middle" fontSize="14" fontWeight="600" fill="currentColor" fontFamily="'Noto Sans JP', sans-serif">あ</text>
+            </svg>
+          </button>
+        )}
         <button
           type="button"
           className={btnCx(showTranslation, false)}
@@ -215,6 +241,22 @@ export function PlayerControlBar({
             <text x="5" y="17" fontSize="14" fontWeight="600" fill="currentColor" fontFamily="sans-serif">Aa</text>
           </svg>
         </button>
+        {onCycleListeningMode && (
+          <button
+            type="button"
+            className={cn("c-speed c-mode", listeningMode === "primed" && "on")}
+            onClick={onCycleListeningMode}
+            disabled={disabled}
+            aria-label={`Listening mode: ${listeningMode === "primed" ? "Primed" : "Normal"}`}
+            title={
+              listeningMode === "primed"
+                ? "Primed listening: read the translation, listen with Japanese hidden, then see the Japanese. Click for normal playback."
+                : "Normal playback. Click for primed listening (translation first, then listen, then reveal)."
+            }
+          >
+            {listeningMode === "primed" ? "Primed" : "Normal"}
+          </button>
+        )}
         <button
           type="button"
           className="c-speed"
