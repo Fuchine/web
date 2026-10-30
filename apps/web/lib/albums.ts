@@ -10,8 +10,7 @@ import {
   userWordStats,
   savedWords,
 } from "@fuchine/db";
-import { wordTierSql } from "./word-status";
-import { coverageFromTierCounts, emptyTierCounts, type TierCounts } from "./known-words";
+import { coverageFromTierCounts, emptyTierCounts, loadKnownWordParams, wordTierSqlFor, type TierCounts } from "./known-words";
 import { isUuid } from "./ids";
 
 export type Result = { status: number; body: Record<string, unknown> };
@@ -114,6 +113,8 @@ export type AlbumView = {
  * album aggregate). Pinned first, then newest.
  */
 export async function listAlbumsForView(db: Database, userId: string): Promise<AlbumView[]> {
+  const params = await loadKnownWordParams(db, userId);
+  const wordTierSql = wordTierSqlFor(params.likelyMinViews);
   const base = await db
     .select({
       id: albums.id,
@@ -164,7 +165,7 @@ export async function listAlbumsForView(db: Database, userId: string): Promise<A
       pinned: a.pinnedAt != null,
       videoCount: Number(a.videoCount),
       words: total,
-      pct: coverageFromTierCounts(c)?.headline ?? 0,
+      pct: coverageFromTierCounts(c, params.likelyWeight)?.headline ?? 0,
       coverIds: (a.coverIds ?? []).slice(0, 4),
     };
   });

@@ -13,7 +13,7 @@ import {
   userWordStats,
   wordEntries,
 } from "@fuchine/db";
-import { signalsFromRow, wordTier } from "./known-words";
+import { loadKnownWordParams, signalsFromRow, wordTier } from "./known-words";
 import { dayKey } from "./stats";
 import { isUuid } from "./ids";
 import { withTokenOverrides } from "./token-overrides";
@@ -160,7 +160,11 @@ export async function bumpWordReviews(
     .leftJoin(userWordStats, and(eq(userWordStats.userId, userId), eq(userWordStats.wordEntryId, wordEntries.id)))
     .leftJoin(savedWords, and(eq(savedWords.userId, userId), eq(savedWords.wordEntryId, wordEntries.id)))
     .where(inArray(wordEntries.id, unique));
-  const tierBefore = new Map(before.map((r) => [r.wordEntryId, wordTier(signalsFromRow(r), r.manual, now)]));
+  // The threshold in force (calibrated, T3.10) — the snapshot must describe
+  // the tier the user actually saw, or the next calibration measures a rule
+  // that was never applied.
+  const { likelyMinViews } = await loadKnownWordParams(db, userId);
+  const tierBefore = new Map(before.map((r) => [r.wordEntryId, wordTier(signalsFromRow(r), r.manual, now, likelyMinViews)]));
 
   await db
     .insert(userWordStats)
