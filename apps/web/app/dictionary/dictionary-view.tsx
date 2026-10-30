@@ -434,12 +434,12 @@ function Detail({
 
 /* ---------- Main View ---------- */
 
-export function DictionaryView() {
+export function DictionaryView({ initialQuery = "" }: { initialQuery?: string } = {}) {
   const router = useRouter();
   const [tab, setTab] = useState<Kind>("vocabulary");
   const [type, setType] = useState("all");
-  const [q, setQ] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [q, setQ] = useState(initialQuery);
+  const [searchOpen, setSearchOpen] = useState(initialQuery !== "");
 
   // Browse mode (type === "all"): accumulated items with infinite scroll
   const [browseItems, setBrowseItems] = useState<BrowseItem[]>([]);
@@ -464,7 +464,7 @@ export function DictionaryView() {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const reqId = useRef(0);
   const debTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const [debouncedQ, setDebouncedQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState(initialQuery);
   const hasMoreRef = useRef(hasMore);
   const loadingRef = useRef(loading);
   const nextCursorRef = useRef(nextCursor);
