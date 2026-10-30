@@ -7,7 +7,20 @@
 #   - production: SITE_ADDRESS=fuchine.example.com   (auto HTTPS)
 #   - local test: SITE_ADDRESS=localhost             (local CA) or :80 (no TLS)
 
+#
+# Caddy REPLACES any client-sent X-Forwarded-For with the real peer address (it
+# only trusts XFF from `trusted_proxies`, none here), so the per-IP magic-link
+# rate limit can't be spoofed. A different proxy in front must do the same.
+
 {$SITE_ADDRESS:localhost} {
+	# Cap every request body (B1). The largest legit body is an extension import
+	# (a 3h video ≈ 3k caption lines ≈ 0.5 MB of JSON). Over the cap → 413.
+	# Test: head -c 3000000 /dev/zero | curl -sk -o /dev/null -w '%{http_code}\n' \
+	#         -X POST -H 'Content-Type: application/json' --data-binary @- \
+	#         https://$SITE_ADDRESS/api/import          # expect 413
+	request_body {
+		max_size 2MB
+	}
 	encode gzip
 	reverse_proxy web:3000
 }
