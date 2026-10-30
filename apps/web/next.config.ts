@@ -62,6 +62,11 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@fuchine/core", "@fuchine/db", "@fuchine/jobs", "@fuchine/llm", "@fuchine/nlp", "@fuchine/ui"],
   // kuromoji loads its dictionary from disk at runtime — never bundle it.
   serverExternalPackages: ["kuromoji"],
+  // Render <head> metadata up front for every client, not streamed into <body>
+  // (Next ≥ 15.2 streams it for non-bot UAs). Chrome only reads the web app
+  // manifest <link> from <head>, so streaming broke PWA installability (T3.13).
+  // Our metadata is static, so blocking on it costs nothing.
+  htmlLimitedBots: /.*/,
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
