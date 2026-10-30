@@ -57,6 +57,9 @@ export type { ListeningMode, FuriganaMode, WordStatus } from "./lib/listening";
 
 // T1.4 — dict popup + T1.6 — sentence mining
 export { DictPopup } from "./components/DictPopup/DictPopup";
+// T3.2 — pitch accent (Kanjium)
+export { PitchAccent, PitchPatternMarks, pitchSourceLabel } from "./components/PitchAccent/PitchAccent";
+export type { PitchInfo, PitchAccentProps } from "./components/PitchAccent/PitchAccent";
 export { MinedCard } from "./components/MinedCard/MinedCard";
 
 // T3.6 — mine now, curate later

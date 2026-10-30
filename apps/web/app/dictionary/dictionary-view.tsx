@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { BrowseItem } from "@/app/api/dictionary/browse/route";
 import type { CollectionItem } from "@/app/api/dictionary/collection/route";
 import type { GrammarItem } from "@/app/api/dictionary/grammar/route";
+import { PitchAccent, type PitchInfo } from "@fuchine/ui";
 
 type Item = BrowseItem | CollectionItem | GrammarItem;
 type Kind = "vocabulary" | "grammar";
@@ -212,6 +213,7 @@ function Detail({
   idx,
   saved,
   sources,
+  pitch,
   onSave,
   onSetStatus,
   onClose,
@@ -221,6 +223,8 @@ function Detail({
   idx: number;
   saved: boolean;
   sources: Example[];
+  /** Pitch accent from GET /api/dictionary?id= (T3.2); undefined while loading. */
+  pitch?: PitchInfo[];
   onSave: () => void;
   onSetStatus: (s: string) => void;
   onClose: () => void;
@@ -274,6 +278,7 @@ function Detail({
               {"r" in item && item.r && (
                 <div className="text-[15px] text-muted mt-[5px] tracking-[0.04em]">{item.r}</div>
               )}
+              <PitchAccent pitch={pitch} size="md" className="mt-[10px]" />
             </div>
             <span className="text-[13px] font-semibold text-faint tabular-nums pt-[6px]">#{idx}</span>
           </div>
@@ -454,6 +459,7 @@ export function DictionaryView({ initialQuery = "" }: { initialQuery?: string } 
   const [sel, setSel] = useState<string | null>(null);
   const [savedSet, setSavedSet] = useState<Set<string>>(() => new Set());
   const [sources, setSources] = useState<Record<string, Example[]>>({});
+  const [pitchById, setPitchById] = useState<Record<string, PitchInfo[]>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [showRomaji, setShowRomaji] = useState(true);
   const [showSkills, setShowSkills] = useState(true);
@@ -625,6 +631,16 @@ export function DictionaryView({ initialQuery = "" }: { initialQuery?: string } 
 
   const select = useCallback(async (id: string) => {
     setSel(id);
+    if (!pitchById[id]) {
+      // The entry payload carries its pitch accent; fetched alongside the
+      // examples so the list endpoints stay one cheap query per page.
+      fetch(`/api/dictionary?id=${encodeURIComponent(id)}`)
+        .then((res) => (res.ok ? (res.json() as Promise<{ entry: { pitch?: PitchInfo[] } }>) : null))
+        .then((data) => {
+          if (data) setPitchById((prev) => ({ ...prev, [id]: data.entry.pitch ?? [] }));
+        })
+        .catch(() => { /* pitch is optional */ });
+    }
     if (!sources[id]) {
       try {
         const res = await fetch(`/api/dictionary/${id}/examples`);
@@ -634,7 +650,7 @@ export function DictionaryView({ initialQuery = "" }: { initialQuery?: string } 
         }
       } catch { /* ignore */ }
     }
-  }, [sources]);
+  }, [sources, pitchById]);
 
   // Items to display (raw)
   const displayItems = useMemo(() => {
@@ -914,6 +930,7 @@ export function DictionaryView({ initialQuery = "" }: { initialQuery?: string } 
           idx={selIdx}
           saved={savedSet.has(selItem.id)}
           sources={sources[selItem.id] ?? []}
+          pitch={pitchById[selItem.id]}
           onSave={() => void toggleSaved(selItem.id)}
           onSetStatus={(s) => setStatus(selItem.id, s)}
           onClose={() => setSel(null)}

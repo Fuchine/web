@@ -112,6 +112,33 @@ export const NoLemma: Story = {
   } as DictPopupProps,
 };
 
+// T3.2 — pitch accent (Kanjium) under the tags, one story per category.
+const withPitch = (word: string, reading: string, gloss: string, ...positions: number[]): DictPopupProps => ({
+  position: POSITION,
+  entry: {
+    word,
+    reading,
+    pos: "n",
+    frequencyRank: 4,
+    definitions: [{ glosses: [gloss], partsOfSpeech: ["noun"] }],
+    lemma: null,
+    pitch: [{ reading, positions, source: "kanjium" }],
+  },
+  loading: false,
+  error: null,
+  saved: false,
+  onExplain: () => {},
+  onSaveWord: () => {},
+  onClose: () => {},
+});
+
+export const PitchHeiban: Story = { args: withPitch("端", "はし", "edge; end", 0) };
+export const PitchAtamadaka: Story = { args: withPitch("箸", "はし", "chopsticks", 1) };
+export const PitchNakadaka: Story = { args: withPitch("日本", "にほん", "Japan", 2) };
+export const PitchOdaka: Story = { args: withPitch("橋", "はし", "bridge", 2) };
+/** Several accents for one reading — all listed. */
+export const PitchMultiple: Story = { args: withPitch("二つ", "ふたつ", "two (things)", 0, 3) };
+
 export const Dark: Story = {
   decorators: [
     (Story) => (

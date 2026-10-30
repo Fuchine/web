@@ -245,6 +245,31 @@ export const wordEntries = pgTable(
   ],
 );
 
+// Pitch accent per (lemma, reading), from an attributed source (T3.2: Kanjium,
+// CC BY-SA 4.0). Its own table, joined to word_entries by the natural key
+// (language, lemma, reading) — no FK, so the JMdict and pitch seeds run in any
+// order and re-seeding one never touches the other; `source` keeps provenance
+// and lets more sources (T3.4, Yomitan pitch dictionaries) sit side by side.
+// See docs/plans/2026-10-30-pitch-accent-spec.md.
+export const wordPitch = pgTable(
+  "word_pitch",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    language: text("language").notNull().default("ja"),
+    lemma: text("lemma").notNull(),
+    reading: text("reading").notNull(), // kana; = lemma for kana-only words
+    // Downstep positions (mora after which the pitch drops; 0 = heiban), in
+    // source order. Several accents per word are common — all are kept.
+    positions: integer("positions").array().notNull(),
+    source: text("source").notNull(), // e.g. "kanjium"
+  },
+  (t) => [
+    // Seed upsert identity; its (language, lemma, reading) prefix serves the
+    // join from word_entries.
+    uniqueIndex("word_pitch_lemma_reading_source_uq").on(t.language, t.lemma, t.reading, t.source),
+  ],
+);
+
 export const wordExamples = pgTable(
   "word_examples",
   {

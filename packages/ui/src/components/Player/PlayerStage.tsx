@@ -40,6 +40,7 @@ export interface PlayerStageProps {
     frequencyRank: number | null;
     definitions: { glosses: string[]; partsOfSpeech: string[]; tags?: string[] }[];
     lemma?: { word: string; reading: string } | null;
+    pitch?: { reading: string; positions: number[]; source: string }[] | null;
   } | null;
   dictLoading: boolean;
   dictError: string | null;

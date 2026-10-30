@@ -6,12 +6,21 @@
  *
  *   DATABASE_URL=postgres://... pnpm --filter @fuchine/web exec tsx scripts/e2e-dictionary.ts
  */
-import { inArray, eq } from "drizzle-orm";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { and, inArray, eq } from "drizzle-orm";
 import {
-  createDb, wordEntries, wordExamples, subtitleLines, videos,
+  createDb, wordEntries, wordExamples, wordPitch, subtitleLines, videos,
   type Database, type Definition,
 } from "@fuchine/db";
-import { lookupById, searchDictionary, getWordExamples, searchByGloss } from "../lib/dictionary";
+import { KANJIUM_SOURCE, parseKanjiumAccents, seedPitchFile } from "@fuchine/db/seed/pitch";
+import { pitchPattern } from "@fuchine/core";
+import { lookupById, searchDictionary, getWordExamples, searchByGloss, withPitch } from "../lib/dictionary";
+
+// Committed Kanjium excerpt (T3.2) — the same file `seed:pitch:fixture` loads.
+const PITCH_FIXTURE = fileURLToPath(
+  new URL("../../../packages/db/seeds/fixtures/kanjium-accents-sample.txt", import.meta.url),
+);
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -126,7 +135,65 @@ async function main() {
   check("gloss search finds 猫 by its meaning", byGloss.some((e) => e.lemma === "猫"), byGloss.map((e) => e.lemma));
   check("no gloss match => []", (await searchByGloss(db, "zzzznomatch")).length === 0);
 
+  // --- 5. pitch accent (T3.2): fixture seed + entry payloads ---
+  console.log("5. pitch accent");
+  const fixtureRows = parseKanjiumAccents(readFileSync(PITCH_FIXTURE, "utf8"));
+  const fixtureKey = (r: { lemma: string; reading: string }) => `${r.lemma}\t${r.reading}`;
+  // Only remove at cleanup what this run added (a fully seeded DB keeps its rows).
+  const preexisting = new Set(
+    (
+      await db
+        .select({ lemma: wordPitch.lemma, reading: wordPitch.reading })
+        .from(wordPitch)
+        .where(
+          and(
+            eq(wordPitch.source, KANJIUM_SOURCE),
+            inArray(wordPitch.lemma, [...new Set(fixtureRows.map((r) => r.lemma))]),
+          ),
+        )
+    ).map(fixtureKey),
+  );
+  const countFixture = async () =>
+    (
+      await db
+        .select({ lemma: wordPitch.lemma, reading: wordPitch.reading })
+        .from(wordPitch)
+        .where(and(eq(wordPitch.source, KANJIUM_SOURCE), inArray(wordPitch.lemma, fixtureRows.map((r) => r.lemma))))
+    ).filter((r) => fixtureRows.some((f) => fixtureKey(f) === fixtureKey(r))).length;
+
+  const written = await seedPitchFile(db, PITCH_FIXTURE);
+  check("fixture seed writes one row per (lemma, reading)", written === fixtureRows.length, { written, parsed: fixtureRows.length });
+  const afterFirst = await countFixture();
+  await seedPitchFile(db, PITCH_FIXTURE);
+  check("re-seeding is idempotent (no duplicates)", (await countFixture()) === afterFirst && afterFirst === fixtureRows.length, { afterFirst });
+
+  const nekoP = await lookupById(db, nekoId);
+  check("lookupById carries pitch (猫 ねこ [1], Kanjium)", JSON.stringify(nekoP?.pitch) === JSON.stringify([{ reading: "ねこ", positions: [1], source: "kanjium" }]), nekoP?.pitch);
+  const nekoPat = nekoP?.pitch[0] ? pitchPattern(nekoP.pitch[0].reading, nekoP.pitch[0].positions[0]!) : null;
+  check("payload renders as atamadaka", nekoPat?.category === "atamadaka", nekoPat);
+
+  const hashi = await searchDictionary(db, "はし");
+  const pos = (lemma: string) => hashi.find((e) => e.lemma === lemma)?.pitch.map((p) => p.positions);
+  check("search payload: 箸 はし [1] (atamadaka)", JSON.stringify(pos("箸")) === "[[1]]", pos("箸"));
+  check("search payload: 橋 はし [2] (odaka) — homophones keep their own accent", JSON.stringify(pos("橋")) === "[[2]]", pos("橋"));
+
+  const glossP = await searchByGloss(db, nekoGloss);
+  check("gloss search payload carries pitch", glossP.find((e) => e.lemma === "猫")?.pitch.length === 1, glossP.map((e) => e.pitch));
+
+  const none = await withPitch(db, [
+    { language: "ja", lemma: "存在しない語", reading: "そんざいしないご" },
+    { language: "ja", lemma: "猫", reading: null },
+    { language: "ja", lemma: "猫", reading: "ぬこ" },
+  ]);
+  check("no pitch row / no reading / other reading => pitch: []", none.every((e) => e.pitch.length === 0), none);
+
   // --- Cleanup ---
+  const added = fixtureRows.filter((r) => !preexisting.has(fixtureKey(r)));
+  for (const r of added) {
+    await db
+      .delete(wordPitch)
+      .where(and(eq(wordPitch.source, KANJIUM_SOURCE), eq(wordPitch.lemma, r.lemma), eq(wordPitch.reading, r.reading)));
+  }
   await db.delete(videos).where(eq(videos.id, vid.id));
   await db.delete(wordEntries).where(inArray(wordEntries.id, ids));
 

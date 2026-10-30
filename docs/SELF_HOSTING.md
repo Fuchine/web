@@ -23,8 +23,9 @@ Portuguese day-of-deploy runbook, with the full smoke test, is
 - A Linux host (a small VPS is fine) with ports **80 and 443** reachable from
   the internet, and a **domain name** whose A/AAAA record points at it. Caddy
   needs both to get a Let's Encrypt certificate.
-- Outbound internet access: the dictionary seed downloads JMdict from GitHub,
-  and the AI providers are remote (unless you run Ollama).
+- Outbound internet access: the dictionary seeds download JMdict and Kanjium
+  (pitch accent) from GitHub, and the AI providers are remote (unless you run
+  Ollama).
 - **A sign-in method:** a Google OAuth client, or an SMTP account for e-mail
   magic links. Production refuses to boot without one.
 - **AI (optional):** an API key for an OpenAI-compatible provider (MiniMax,
@@ -91,6 +92,7 @@ Start the stack and seed the dictionary once:
 ```bash
 docker compose up -d --build     # builds the images; migrate → web + worker → caddy
 docker compose run --rm migrate pnpm --filter @fuchine/db seed:jmdict   # ~298k entries, one time
+docker compose run --rm migrate pnpm --filter @fuchine/db seed:pitch    # ~124k pitch accents (Kanjium), one time
 ```
 
 The first build takes several minutes. The `migrate` service applies database
@@ -400,7 +402,8 @@ docker compose run --rm worker pnpm --filter @fuchine/worker backfill:explain   
 ```
 
 Re-running the JMdict seed is safe (it upserts) and picks up the latest
-dictionary release.
+dictionary release. The pitch seed (`seed:pitch`) is safe to re-run too; it
+reads a pinned Kanjium revision (set `KANJIUM_REF` to move it).
 
 ## 8. Health endpoint
 
@@ -434,8 +437,9 @@ All run through the worker image (`docker compose run --rm worker pnpm --filter 
 | `rotate:key` | Re-encrypt every saved BYOK key from `OLD_ENCRYPTION_KEY` to `FUCHINE_ENCRYPTION_KEY`. Pass both, then put the new key in `.env`: `docker compose run --rm -e OLD_ENCRYPTION_KEY=<old> -e FUCHINE_ENCRYPTION_KEY=<new> worker pnpm --filter @fuchine/worker rotate:key`. Safe to re-run. |
 | `backfill:level`, `backfill:daily-stats`, `backfill:explain` | One-off backfills (§7). |
 
-The dictionary seed runs through the migrate image:
-`docker compose run --rm migrate pnpm --filter @fuchine/db seed:jmdict`.
+The dictionary seeds run through the migrate image:
+`docker compose run --rm migrate pnpm --filter @fuchine/db seed:jmdict`, then
+`… seed:pitch` (pitch accent).
 
 ## 10. Troubleshooting
 
@@ -449,6 +453,7 @@ The dictionary seed runs through the migrate image:
 | Google: `redirect_uri_mismatch` | Register `https://<domain>/api/auth/callback/google` and make `AUTH_URL` match the domain exactly. |
 | No certificate / browser TLS error | DNS does not point at the host, or ports 80/443 are blocked. `docker compose logs caddy` shows the ACME error. |
 | Dictionary pop-up is empty | The JMdict seed did not run. Run it (§2). |
+| No pitch accent in the pop-up | The pitch seed did not run (`seed:pitch`, §2), or the word is not in Kanjium. |
 | Import stays "processing", `workerAlive: false` | `docker compose logs worker`. Most often the worker was OOM-killed while loading kuromoji: give it more memory (§1). The worker re-queues stuck imports when it restarts; a failure reason is shown on the video. |
 | Seed killed with exit code 137 | Out of memory while parsing JMdict. Add swap or memory temporarily (§1) and re-run. |
 | No translations, explanations fail | `LLM_PROVIDER` is `echo` (see the boot warning), the key is wrong, or `houseBudget` is `exhausted`. Check `docker compose logs web worker` and the `usage` CLI. |

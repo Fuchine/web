@@ -148,7 +148,7 @@ Every step is idempotent: re-running a job does not duplicate data.
 
 ## 6. Data model (summary)
 
-21 tables (18 app + 3 Auth.js adapter); full schema in
+22 tables (19 app + 3 Auth.js adapter); full schema in
 [`packages/db/src/schema.ts`](../packages/db/src/schema.ts).
 
 | Table | Purpose |
@@ -160,6 +160,7 @@ Every step is idempotent: re-running a job does not duplicate data.
 | `subtitle_lines` | Per-line timestamps, original text, translation, tokens (jsonb, each token referencing a `word_entry_id`). |
 | `subtitle_translation_chunks` | Which translation chunks of a video are done. |
 | `word_entries` | JMdict entries: **`language`**, lemma, reading, POS, definitions (jsonb), frequency rank. |
+| `word_pitch` | Pitch accent per (lemma, reading) from an attributed source (Kanjium, CC BY-SA 4.0): every downstep position, joined to `word_entries` by the natural key. |
 | `word_examples` | Word ↔ line ↔ video; powers "examples in video". |
 | `sentence_cards` | Mined cards with the clip window and their own FSRS state. |
 | `review_logs` | Complete review history (lets FSRS be re-optimized later). |
