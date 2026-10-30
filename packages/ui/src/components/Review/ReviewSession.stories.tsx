@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
 import { ReviewSession, type ReviewItem } from "./ReviewSession";
 import type { ReviewMode } from "./review-modes";
+import { InstallAppPrompt } from "../Pwa/InstallApp";
 
 const now = new Date();
 const later = (mins: number) => new Date(now.getTime() + mins * 60000);
@@ -168,4 +169,55 @@ export const ModeCloze: Story = {
 /** Shadow this line: loop the clip, record in memory, A/B compare. No score. */
 export const ModeShadow: Story = {
   render: () => <Wrapper queue={mockQueue} initialMode="shadow" />,
+};
+
+// T3.13 — the review PWA on a phone. The app wraps the session in `.rev-screen`
+// (full-screen below 760 px): grade buttons pinned in thumb reach, safe-area
+// insets, compact top bar with the install button slot.
+
+function PhoneWrapper({ initialMode }: { initialMode?: ReviewMode }) {
+  const [done, setDone] = useState(false);
+  if (done) return <p className="p-6 text-center">Session complete!</p>;
+  return (
+    <div className="rev-screen">
+      <ReviewSession
+        queue={mockQueue}
+        onComplete={() => setDone(true)}
+        initialMode={initialMode}
+        topBarActions={
+          <InstallAppPrompt canInstall compact showIosHint={false} onInstall={() => {}} onDismissIosHint={() => {}} />
+        }
+      />
+    </div>
+  );
+}
+
+const phone = (viewport: "phone360" | "phone375" | "phone430") => ({
+  bare: true,
+  layout: "fullscreen" as const,
+  viewport: { defaultViewport: viewport },
+});
+
+/** 360 px Android: classic card — tap "Show answer", then the four grades sit at the bottom edge. */
+export const PhoneClassic360: Story = {
+  render: () => <PhoneWrapper initialMode="classic" />,
+  parameters: phone("phone360"),
+};
+
+/** 375 px iPhone: cloze. The field is not auto-focused on touch, so the keyboard only opens on tap. */
+export const PhoneCloze375: Story = {
+  render: () => <PhoneWrapper initialMode="cloze" />,
+  parameters: phone("phone375"),
+};
+
+/** 430 px iPhone Pro Max: listen first (the clip plays inline, `playsinline`). */
+export const PhoneListen430: Story = {
+  render: () => <PhoneWrapper initialMode="listen" />,
+  parameters: phone("phone430"),
+};
+
+/** 360 px: shadowing controls wrap under the looping clip. */
+export const PhoneShadow360: Story = {
+  render: () => <PhoneWrapper initialMode="shadow" />,
+  parameters: phone("phone360"),
 };

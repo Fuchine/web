@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 export interface ReviewTopBarProps {
   current: number;
   total: number;
@@ -5,6 +7,8 @@ export interface ReviewTopBarProps {
   learnCount: number;
   dueCount: number;
   onExit: () => void;
+  /** Trailing controls (e.g. the install-app button). */
+  actions?: ReactNode;
 }
 
 export function ReviewTopBar({
@@ -14,10 +18,11 @@ export function ReviewTopBar({
   learnCount,
   dueCount,
   onExit,
+  actions,
 }: ReviewTopBarProps) {
   return (
     <div className="rev-top">
-      <button className="rev-exit" onClick={onExit} aria-label="Exit review">
+      <button className="rev-exit" type="button" onClick={onExit} aria-label="Exit review">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -44,19 +49,21 @@ export function ReviewTopBar({
       </div>
 
       <div className="rev-pills">
-        <span className="pill again">
+        <span className="pill again" aria-label={`${againCount} relearning`}>
           <i />
           {againCount}
         </span>
-        <span className="pill learn">
+        <span className="pill learn" aria-label={`${learnCount} learning`}>
           <i />
           {learnCount}
         </span>
-        <span className="pill due">
+        <span className="pill due" aria-label={`${dueCount} left`}>
           <i />
           {dueCount}
         </span>
       </div>
+
+      {actions}
     </div>
   );
 }

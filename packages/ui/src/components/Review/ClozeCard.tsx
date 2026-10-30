@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { cn } from "../../lib/cn";
 import { splitSentence } from "./cloze";
 import { ReviewDetails } from "./ReviewDetails";
@@ -25,8 +25,21 @@ export interface ClozeCardProps {
  */
 export function ClozeCard({ sentence, target, result, source, notes, onSubmit, onPlayClip, onEditNotes }: ClozeCardProps) {
   const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const parts = splitSentence(sentence.text, target);
   const checked = result !== null;
+
+  // Focus the answer field with a mouse/trackpad only. On a phone, popping the
+  // keyboard on every new card would cover the sentence before it is read and
+  // shift the page (T3.13); the learner taps the field when ready.
+  useEffect(() => {
+    if (checked) return;
+    try {
+      if (window.matchMedia?.("(pointer: fine)").matches) inputRef.current?.focus({ preventScroll: true });
+    } catch {
+      // no matchMedia: leave focus alone
+    }
+  }, [checked]);
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     // Enter confirms an IME conversion first; only a plain Enter submits.
@@ -73,7 +86,8 @@ export function ClozeCard({ sentence, target, result, source, notes, onSubmit, o
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}
-            autoFocus
+            enterKeyHint="done"
+            ref={inputRef}
           />
           <button className="cloze-check" type="button" onClick={() => onSubmit(value)} disabled={value.trim() === ""}>
             Check

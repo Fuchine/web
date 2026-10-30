@@ -9,6 +9,7 @@ import { ReviewModePicker } from "./ReviewModePicker";
 import { ListenRevealCard } from "./ListenRevealCard";
 import { ClozeCard } from "./ClozeCard";
 import { ShadowCard } from "./ShadowCard";
+import { useWakeLock } from "../Pwa/usePwa";
 import { checkClozeAnswer, pickClozeTarget } from "./answer";
 import {
   canGrade,
@@ -53,6 +54,8 @@ export interface ReviewSessionProps {
    * (localStorage). Stories use it; the app leaves it unset.
    */
   initialMode?: ReviewMode;
+  /** Extra controls at the end of the top bar (the app puts the install button there). */
+  topBarActions?: ReactNode;
 }
 
 interface GradeOption {
@@ -182,7 +185,7 @@ function ReviewSummary({ cardsReviewed, onDone }: ReviewSummaryProps) {
   );
 }
 
-export function ReviewSession({ queue, onComplete, initialMode }: ReviewSessionProps) {
+export function ReviewSession({ queue, onComplete, initialMode, topBarActions }: ReviewSessionProps) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [sessionDone, setSessionDone] = useState(0);
   const [embedPlaying, setEmbedPlaying] = useState(false);
@@ -223,6 +226,9 @@ export function ReviewSession({ queue, onComplete, initialMode }: ReviewSessionP
   function dispatch(action: ReviewStepAction) {
     setStepState({ key: stepKey, step: reviewStepReducer(step, action) });
   }
+
+  // Keep a phone's screen on for the whole session (T3.13); released on exit.
+  useWakeLock(!sessionComplete && queue.length > 0);
 
   // New card: stop any clip; "listen first" starts it straight away.
   useEffect(() => {
@@ -382,6 +388,7 @@ export function ReviewSession({ queue, onComplete, initialMode }: ReviewSessionP
         learnCount={learnCount}
         dueCount={dueCount}
         onExit={onComplete}
+        actions={topBarActions}
       />
 
       <ReviewModePicker mode={mode} onChange={changeMode} />

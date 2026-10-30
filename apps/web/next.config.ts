@@ -25,6 +25,10 @@ const securityHeaders = [
       "base-uri 'self'",
       "frame-ancestors 'none'",
       "form-action 'self' https://accounts.google.com",
+      // PWA (T3.13): only our own /sw.js and /manifest.webmanifest. Without a
+      // default-src these would otherwise be unrestricted.
+      "worker-src 'self'",
+      "manifest-src 'self'",
     ].join("; "),
   },
   { key: "X-Frame-Options", value: "DENY" },
@@ -58,8 +62,24 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@fuchine/core", "@fuchine/db", "@fuchine/jobs", "@fuchine/llm", "@fuchine/nlp", "@fuchine/ui"],
   // kuromoji loads its dictionary from disk at runtime — never bundle it.
   serverExternalPackages: ["kuromoji"],
+  // Render <head> metadata up front for every client, not streamed into <body>
+  // (Next ≥ 15.2 streams it for non-bot UAs). Chrome only reads the web app
+  // manifest <link> from <head>, so streaming broke PWA installability (T3.13).
+  // Our metadata is static, so blocking on it costs nothing.
+  htmlLimitedBots: /.*/,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // The service worker must be revalidated on every check, or a fixed
+      // worker can sit behind an HTTP cache after a deploy.
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+        ],
+      },
+    ];
   },
 };
 

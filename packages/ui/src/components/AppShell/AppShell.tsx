@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { cn } from "../../lib/cn";
 import { Avatar } from "../Avatar/Avatar";
 
@@ -56,17 +56,40 @@ export function AppShell({
 }: AppShellProps) {
   const [internal, setInternal] = useState(defaultCollapsed);
   const collapsed = controlledCollapsed ?? internal;
+
+  // On a phone the expanded 252px sidebar would leave almost no room for the
+  // page (e.g. the review PWA's start screen, T3.13): start collapsed there.
+  // Until that runs (SSR, first paint) CSS already shows the collapsed rail
+  // below `sm`, so a phone never flashes the expanded sidebar.
+  const [narrowChecked, setNarrowChecked] = useState(false);
+  useEffect(() => {
+    if (controlledCollapsed === undefined) {
+      try {
+        if (window.matchMedia?.("(width < 40rem)").matches) setInternal(true);
+      } catch {
+        // no matchMedia: keep the default
+      }
+    }
+    setNarrowChecked(true);
+    // Only on mount: after that the learner's toggle wins.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const narrowFallback = controlledCollapsed === undefined && !narrowChecked;
+  const narrowHide = narrowFallback && "max-sm:pointer-events-none max-sm:opacity-0";
   const toggle = () => {
     const next = !collapsed;
     onCollapsedChange?.(next);
     if (controlledCollapsed === undefined) setInternal(next);
   };
 
-  const hideText = cn("transition-opacity duration-200", collapsed && "pointer-events-none opacity-0");
+  const hideText = cn("transition-opacity duration-200", collapsed && "pointer-events-none opacity-0", narrowHide);
 
   return (
     <div
-      className="grid h-full transition-[grid-template-columns] duration-300 ease-[var(--ease)]"
+      className={cn(
+        "grid h-full transition-[grid-template-columns] duration-300 ease-[var(--ease)]",
+        narrowFallback && "max-sm:[grid-template-columns:76px_1fr]!",
+      )}
       style={{ gridTemplateColumns: collapsed ? "76px 1fr" : "252px 1fr" }}
     >
       <aside className="relative flex flex-col overflow-hidden border-r border-border bg-bg-2 px-[14px] pb-4 pt-[18px]">
@@ -111,6 +134,7 @@ export function AppShell({
                       "ml-auto rounded-full px-[7px] py-px text-[11px] font-[600] tabular-nums transition-opacity duration-200",
                       item.active ? "bg-on-accent/15 text-on-accent" : "bg-accent-soft-2 text-link",
                       collapsed && "opacity-0",
+                      narrowHide,
                     )}
                   >
                     {item.badge}
