@@ -1,9 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { getVideoWithLines, getWordStatuses } from "@/lib/study";
+import { getComprehensionByVideo, getVideoWithLines, getWordStatuses } from "@/lib/study";
 import { isUuid } from "@/lib/ids";
-import { getSavedWordIds } from "@/lib/dictionary";
+import { getSavedStatuses, getSavedWordIds } from "@/lib/dictionary";
 import { hiraToRomaji } from "@fuchine/nlp";
 import { PlayerView } from "./player-view";
 import { ErrorScreen } from "./error-screen";
@@ -39,16 +39,24 @@ export default async function VideoPage({
   // Known-word signals for the words in this video (T3.8).
   // Corrected tokens (T3.7): a fixed word is colored by its corrected entry.
   const wordIds = result.lines.flatMap((l) => l.tokens.flatMap((t) => (t.wordEntryId ? [t.wordEntryId] : [])));
-  const [savedWordIds, wordStatuses] = await Promise.all([
+  // Coverage (T3.9): the same per-user number the library shows.
+  const [savedWordIds, wordStatuses, coverageMap, manual] = await Promise.all([
     getSavedWordIds(db, userId),
     getWordStatuses(db, userId, wordIds),
+    getComprehensionByVideo(db, userId, [id]),
+    getSavedStatuses(db, userId),
   ]);
+  const cov = coverageMap.get(id);
+  const inVideo = new Set(wordIds);
+  const markedUnknownIds = Object.keys(manual).filter((w) => manual[w] === "new" && inVideo.has(w));
 
   return (
     <PlayerView
       initialLineId={initialLineId}
       savedWordIds={savedWordIds}
       wordStatuses={wordStatuses}
+      coverage={cov ? { headline: cov.headline, low: cov.low, high: cov.high, unique: cov.unique } : null}
+      markedUnknownIds={markedUnknownIds}
       video={{
         id: result.video.id,
         title: result.video.title,

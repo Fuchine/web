@@ -15,7 +15,7 @@ export default async function LibraryPage() {
 
   const userId = session.user.id;
   // Fetch the library first so comprehension can be scoped to the videos we
-  // actually render (word_examples is catalog-sized — see backlog
+  // actually render (video_word_counts is catalog-sized — see backlog
   // library-comprehension-full-scan); the rest don't depend on it.
   const { items: rows, nextCursor } = await listVideos(db);
   const [reviewDue, comprehension, kpis, flags, albums] = await Promise.all([

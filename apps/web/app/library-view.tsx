@@ -17,7 +17,10 @@ export type LibraryVideo = {
   status: "pending" | "processing" | "done" | "failed";
   statusReason?: string | null;
   level: number | null;
+  /** Token-weighted coverage headline (T3.9); the client "Most comprehensible" sort key. */
   comprehension: number | null;
+  /** Its confidence band + unique-word coverage; null with comprehension. */
+  coverageBand?: { low: number; high: number; unique: number } | null;
   embeddable?: boolean | null; // false = owner blocked embedded playback
   category?: string | null;
 };
@@ -317,6 +320,7 @@ function VideoCardWithMenu({
         durationLabel={dur(v.durationS)}
         level={v.level ?? undefined}
         comprehension={v.comprehension ?? undefined}
+        comprehensionBand={v.coverageBand ?? undefined}
         thumbnailUrl={v.source === "youtube" ? youtubeThumbnail(v.sourceId) : undefined}
         onPlay={() => router.push(`/videos/${v.id}`)}
         onOverflow={handleOverflow}

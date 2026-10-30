@@ -9,7 +9,7 @@ import { toLibraryVideo } from "@/lib/library";
 // Paginated: ?cursor=...&limit=24, plus server-side ?q= (title/channel),
 // ?category= and ?sort= (newest|short|level) over the whole catalog. Returns
 // the same enriched LibraryVideo shape the server page builds, so appended
-// pages render identically (comprehension scoped to the page — word_examples
+// pages render identically (coverage scoped to the page — video_word_counts
 // is catalog-sized). First page (no cursor) includes `total` under the same
 // filters, for real header counts.
 export async function GET(req: Request) {
