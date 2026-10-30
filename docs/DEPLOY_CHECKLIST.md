@@ -56,6 +56,26 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
       container do web **inacessível por fora dele** — `trustHost: true`
       (`auth.ts:50`) confia nesses headers; bypass = risco de envenenamento de
       magic link
+- [ ] **`X-Forwarded-For` sobrescrito pelo proxy**: o limite do magic link por
+      IP lê o primeiro valor de `X-Forwarded-For`. O Caddy do compose descarta
+      o XFF do cliente (não há `trusted_proxies`) e grava o IP real. Um proxy
+      próprio (nginx, Traefik, CDN) **na frente** precisa fazer o mesmo —
+      nginx: `proxy_set_header X-Forwarded-For $remote_addr;` (não
+      `$proxy_add_x_forwarded_for`); atrás de CDN, confiar só nos IPs dela.
+      Se o proxy só *acrescentar* ao XFF, o cliente escolhe o próprio "IP" e
+      fura o limite
+- [ ] **Teto de body (413)**: o Caddyfile corta requisições acima de 2 MB.
+      Conferir: `head -c 3000000 /dev/zero | curl -sk -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/json' --data-binary @- https://<domínio>/api/import`
+      → `413`. Proxy próprio: configurar o equivalente
+      (nginx `client_max_body_size 2m;`)
+- [ ] **Segredos fora do proxy**: `docker inspect fuchine-caddy-1 --format '{{json .Config.Env}}'`
+      não lista `AUTH_SECRET`, `FUCHINE_ENCRYPTION_KEY`, `LLM_API_KEY` nem
+      senhas — o serviço `caddy` recebe só `SITE_ADDRESS`
+- [ ] **Headers de segurança** em `/`: `curl -skI https://<domínio>/` mostra
+      `Content-Security-Policy` com `frame-ancestors 'none'`,
+      `X-Frame-Options: DENY` e `Permissions-Policy`
+- [ ] **Magic link fail-closed**: com o Redis parado, pedir um magic link
+      **não** envia e-mail (o limitador recusa em vez de liberar)
 
 ## 4. Dimensionamento
 
