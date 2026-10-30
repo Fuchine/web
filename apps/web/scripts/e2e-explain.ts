@@ -160,6 +160,8 @@ async function main() {
   const served = await explainLine(db, user.id, line.id, { encryptionKey: "" });
   check("cache hit => 200", served.status === 200, served);
   check("cache hit marked cached:true", served.body.cached === true, served.body.cached);
+  // The UI labels explanations with their prompt version (T3.12): from data.
+  check("cache hit carries promptVersion", served.body.promptVersion === PROMPT_VERSION, served.body.promptVersion);
 
   // A fresh line with no cache + no BYOK + house provider = echo (default env)
   // → echo throws → degrade to 502, never a 500.
@@ -188,6 +190,7 @@ async function main() {
   const genMiss = await explainLine(db, user.id, line4.id, { provider: libProv });
   check("miss generates (200, cached:false)", genMiss.status === 200 && genMiss.body.cached === false, genMiss);
   check("miss called the provider once", libProv.calls === 1, libProv.calls);
+  check("miss carries promptVersion", genMiss.body.promptVersion === PROMPT_VERSION, genMiss.body.promptVersion);
 
   const genHit = await explainLine(db, user.id, line4.id, { provider: libProv });
   check("cache hit (200, cached:true)", genHit.status === 200 && genHit.body.cached === true, genHit);

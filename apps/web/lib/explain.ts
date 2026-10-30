@@ -68,7 +68,7 @@ export async function explainLine(
     if (!rl.ok) return tooManyRequests(rl, "Too many regenerations today — try again later.");
   } else {
     const cached = await getCachedExplanation(db, key);
-    if (cached) return { status: 200, body: { explanation: cached, cached: true } };
+    if (cached) return { status: 200, body: { explanation: cached, cached: true, promptVersion: PROMPT_VERSION } };
     const rl = await enforceRateLimit("explainMiss", userId);
     if (!rl.ok) return tooManyRequests(rl, "Too many explanation requests right now — try again shortly.");
   }
@@ -139,7 +139,7 @@ export async function explainLine(
       force: opts.force,
       meta: { userId, videoId: line.videoId, keySource },
     });
-    return { status: 200, body: { explanation, cached: false } };
+    return { status: 200, body: { explanation, cached: false, promptVersion: PROMPT_VERSION } };
   } catch (err) {
     if (err instanceof ProviderError) {
       return { status: 502, body: { error: "could not generate an explanation right now" } };
