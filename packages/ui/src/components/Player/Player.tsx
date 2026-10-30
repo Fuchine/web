@@ -116,6 +116,12 @@ export interface PlayerProps {
   /** Persist "Mark as unknown" (true) or clear it (false). */
   onMarkUnknown?: (wordEntryId: string, unknown: boolean) => Promise<void>;
   /**
+   * i+1 lines (T3.10, server-computed per user): line id → index of the one
+   * unknown word in the line's tokens. Marked in the transcript, filterable,
+   * and offered as "Mine this i+1 line" — never mined automatically.
+   */
+  iPlusOne?: Readonly<Record<string, number>>;
+  /**
    * Per-user token correction (T3.7). When set, every word in the focal line
    * opens the popup (even without an entry) and the popup offers "Fix".
    */
@@ -176,9 +182,11 @@ function toFocal(
 function toTranscript(
   lines: PlayerSubtitleLine[],
   translations: Map<string, string | null>,
+  iPlusOne?: Readonly<Record<string, number>>,
 ): TranscriptLine[] {
   return lines.map<TranscriptLine>((l) => ({
     id: l.id,
+    iPlusOneIdx: iPlusOne?.[l.id] ?? null,
     idx: l.idx,
     tStartMs: l.tStartMs,
     textOriginal: l.textOriginal,
@@ -197,7 +205,7 @@ function toExplainFocal(focal: FocalLine): ExplainFocal {
   return { textOriginal: focal.textOriginal, textTranslation: focal.textTranslation, focusSurface: null };
 }
 
-export function Player({ video, lines: linesProp, account, translatedChunks, onFetchChunk, onFetchExplanation, explanationPromptVersion, onBack, onNavigate, className, initialLineId, savedWordIds, onSaveWord, onProgress, wordStatuses, coverage, markedUnknownIds, onMarkUnknown, onSaveTokens, onResetTokens, onSearchEntries }: PlayerProps) {
+export function Player({ video, lines: linesProp, account, translatedChunks, onFetchChunk, onFetchExplanation, explanationPromptVersion, onBack, onNavigate, className, initialLineId, savedWordIds, onSaveWord, onProgress, wordStatuses, coverage, markedUnknownIds, onMarkUnknown, onSaveTokens, onResetTokens, onSearchEntries, iPlusOne }: PlayerProps) {
   // Token corrections saved in this session (T3.7) patch the server's lines.
   const [tokenPatches, setTokenPatches] = useState<ReadonlyMap<string, LineTokensUpdate>>(() => new Map());
   const lines = useMemo(
@@ -1050,10 +1058,14 @@ export function Player({ video, lines: linesProp, account, translatedChunks, onF
     else tokenIdxRefs.current.delete(idx);
   }, []);
 
-  const handleMine = useCallback(() => {
-    const line = currentLineIdx >= 0 ? (lines[currentLineIdx] as PlayerSubtitleLine) : undefined;
+  // Lines mined this session (the transcript's i+1 "Mine" turns into "Mined").
+  const [minedLineIds, setMinedLineIds] = useState<ReadonlySet<string>>(() => new Set());
+  const mineLine = useCallback((lineIdx: number) => {
+    const line = lineIdx >= 0 ? (lines[lineIdx] as PlayerSubtitleLine | undefined) : undefined;
     if (!line || isMining) return;
-    const targetToken = line.tokens.find((t) => t.wordEntryId != null);
+    // i+1 lines target their one new word; otherwise the first dictionary word.
+    const ip1 = iPlusOne?.[line.id];
+    const targetToken = (ip1 != null ? line.tokens[ip1] : undefined) ?? line.tokens.find((t) => t.wordEntryId != null);
     setMiningEntry({
       text: line.textOriginal,
       translation: translations.get(line.id) ?? null,
@@ -1073,13 +1085,16 @@ export function Player({ video, lines: linesProp, account, translatedChunks, onF
       .then((data: { card?: { id: string; subtitleLineId: string }; created?: boolean }) => {
         if (data.card) {
           setMinedCard({ cardId: data.card.id, lineId: data.card.subtitleLineId, created: Boolean(data.created) });
+          const minedId = data.card.subtitleLineId;
+          setMinedLineIds((prev) => (prev.has(minedId) ? prev : new Set(prev).add(minedId)));
         }
       })
       .catch(() => {
         /* degrade silently — no toast on network failure for MVP */
       })
       .finally(() => setIsMining(false));
-  }, [currentLineIdx, isMining, lines, translations]);
+  }, [isMining, lines, translations, iPlusOne]);
+  const handleMine = useCallback(() => mineLine(currentLineIdx), [mineLine, currentLineIdx]);
   const handleMineRef = useRef(handleMine);
   handleMineRef.current = handleMine;
 
@@ -1147,7 +1162,9 @@ export function Player({ video, lines: linesProp, account, translatedChunks, onF
   // line only when the current line moves. Both feed React.memo'd children, so
   // a pure time tick re-renders just the control bar, not the 600-line list.
   const currentLine = currentLineIdx >= 0 ? (lines[currentLineIdx] as PlayerSubtitleLine | undefined) : undefined;
-  const transcriptLines = useMemo(() => toTranscript(lines, translations), [lines, translations]);
+  const transcriptLines = useMemo(() => toTranscript(lines, translations, iPlusOne), [lines, translations, iPlusOne]);
+  const [onlyIPlusOne, setOnlyIPlusOne] = useState(false);
+  const onToggleIPlusOne = useCallback(() => setOnlyIPlusOne((v) => !v), []);
   const focal = useMemo(() => toFocal(currentLine, translations), [currentLine, translations]);
 
   // Stable toggle callbacks so the memoized PlayerTranscript/control bar aren't
@@ -1360,6 +1377,10 @@ export function Player({ video, lines: linesProp, account, translatedChunks, onF
                 onToggleTranslation={onToggleTranslation}
                 onCycleFurigana={onCycleFurigana}
                 onToggleColorKnown={onToggleColorKnown}
+                onlyIPlusOne={onlyIPlusOne}
+                onToggleIPlusOne={iPlusOne ? onToggleIPlusOne : undefined}
+                onMineLine={iPlusOne ? mineLine : undefined}
+                minedLineIds={minedLineIds}
                 formatTimecode={fmt}
                 railRef={railRef}
                 lineRefs={lineRefs}

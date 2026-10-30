@@ -14,7 +14,8 @@
     "backfill:word-counts": "tsx src/scripts/backfill-word-counts.ts",
     "rotate:key": "tsx src/scripts/rotate-encryption-key.ts",
     "invite": "tsx src/scripts/invite.ts",
-    "usage": "tsx src/scripts/usage.ts"
+    "usage": "tsx src/scripts/usage.ts",
+    "refresh:metadata": "tsx src/scripts/refresh-metadata.ts"
   },
   "dependencies": {
     "@fuchine/db": "workspace:*",

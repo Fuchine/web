@@ -55,3 +55,22 @@ export type DailyGoals = {
   reviewMinutesPerDay?: number;
   watchMinutesPerDay?: number;
 };
+
+/**
+ * Measured known-word parameters (T3.10), written by the daily calibration job
+ * (runKnownWordCalibration) to instance_settings["known_words"] and, when a
+ * user has enough data of their own, to user_settings.known_word_params. The
+ * coverage formula and the tier rule read them instead of the constants.
+ */
+export type KnownWordCalibration = {
+  /** P(first review OK | likely) — the headline weight of a likely token. */
+  likelyWeight: number;
+  /** Suggested views threshold for "likely" (the tier rule uses it). */
+  likelyMinViews: number;
+  /** Exact "likely" first reviews the numbers rest on (≥ CALIBRATION_MIN_SAMPLE). */
+  samples: number;
+  /** Unrounded P(OK | likely), for the report. */
+  okRate: number;
+  scope: "instance" | "user";
+  computedAt: string; // ISO
+};

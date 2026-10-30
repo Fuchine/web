@@ -1,0 +1,19 @@
+{
+  "$comment": "Explore cold start (T3.10): curated comprehensible-input channels for Japanese. Names only (no YouTube fetch, no Data API) — links are YouTube searches by name. Levels are a suggestion. Curated 2026-10-30; see docs/plans/2026-10-30-explore-spec.md for sources and what was left out.",
+  "language": "ja",
+  "channels": [
+    { "name": "Comprehensible Japanese", "level": "beginner", "note": "Picture-supported stories in slow, simple Japanese; graded from complete beginner up." },
+    { "name": "Nihongo no Jikan", "level": "beginner", "note": "Short comprehensible-input videos graded from complete beginner to advanced." },
+    { "name": "Learn Japanese with Noriko", "level": "beginner", "note": "Everyday topics in easy Japanese with visual support." },
+    { "name": "Akane's Japanese Class", "level": "beginner", "note": "Easy Japanese listening on daily life, spoken slowly." },
+    { "name": "Nihongo con Teppei", "level": "beginner", "note": "Short podcast episodes; the beginner series is a gentle first step into audio-only input." },
+    { "name": "Japanese Ammo with Misa", "level": "beginner", "note": "Grammar lessons explained mostly in English — good for structure, less pure input." },
+    { "name": "Japanese with Shun", "level": "intermediate", "note": "Natural conversations and vlogs with Japanese subtitles." },
+    { "name": "Speak Japanese Naturally", "level": "intermediate", "note": "Monologues on culture and daily life in natural-speed Japanese." },
+    { "name": "Miku Real Japanese", "level": "intermediate", "note": "Real-life spoken Japanese and casual expressions." },
+    { "name": "YuYu no Nihongo Podcast", "level": "intermediate", "note": "Podcast in clear, natural Japanese about life and culture." },
+    { "name": "Onomappu", "level": "intermediate", "note": "Japanese-only talks and podcasts with Japanese subtitles." },
+    { "name": "Sayuri Saying", "level": "intermediate", "note": "Talks about Japanese life and language, mostly in Japanese." },
+    { "name": "Nihongo no Mori", "level": "advanced", "note": "JLPT N3–N1 grammar and vocabulary explained in Japanese." }
+  ]
+}

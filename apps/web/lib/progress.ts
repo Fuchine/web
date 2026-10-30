@@ -10,10 +10,12 @@ import {
   savedWords,
   subtitleLines,
   userDailyStats,
+  userVideoProgress,
   userWordStats,
+  videos,
   wordEntries,
 } from "@fuchine/db";
-import { signalsFromRow, wordTier } from "./known-words";
+import { loadKnownWordParams, signalsFromRow, wordTier } from "./known-words";
 import { dayKey } from "./stats";
 import { isUuid } from "./ids";
 import { withTokenOverrides } from "./token-overrides";
@@ -160,7 +162,11 @@ export async function bumpWordReviews(
     .leftJoin(userWordStats, and(eq(userWordStats.userId, userId), eq(userWordStats.wordEntryId, wordEntries.id)))
     .leftJoin(savedWords, and(eq(savedWords.userId, userId), eq(savedWords.wordEntryId, wordEntries.id)))
     .where(inArray(wordEntries.id, unique));
-  const tierBefore = new Map(before.map((r) => [r.wordEntryId, wordTier(signalsFromRow(r), r.manual, now)]));
+  // The threshold in force (calibrated, T3.10) — the snapshot must describe
+  // the tier the user actually saw, or the next calibration measures a rule
+  // that was never applied.
+  const { likelyMinViews } = await loadKnownWordParams(db, userId);
+  const tierBefore = new Map(before.map((r) => [r.wordEntryId, wordTier(signalsFromRow(r), r.manual, now, likelyMinViews)]));
 
   await db
     .insert(userWordStats)
@@ -182,6 +188,30 @@ export async function bumpWordReviews(
         updatedAt: now,
       },
     });
+}
+
+/**
+ * Per-(user, video) watch progress (T3.10): Explore's narrow-viewing signal
+ * (channels watched recently) and "already watched" exclusion. Written only
+ * for a video that exists (the id is client-sent), in one statement.
+ */
+export async function bumpVideoProgress(
+  db: DbOrTx,
+  userId: string,
+  videoId: string,
+  bump: { msWatched: number; linesSeen: number },
+  now: Date = new Date(),
+): Promise<void> {
+  if (!isUuid(videoId)) return;
+  await db.execute(sql`
+    insert into ${userVideoProgress} ("user_id", "video_id", "ms_watched", "lines_seen", "last_watched_at")
+    select ${userId}::uuid, ${videos}."id", ${bump.msWatched}::int, ${bump.linesSeen}::int, ${now.toISOString()}::timestamptz
+    from ${videos} where ${videos}."id" = ${videoId}::uuid
+    on conflict ("user_id", "video_id") do update set
+      "ms_watched" = least(${userVideoProgress}."ms_watched"::bigint + excluded."ms_watched", 2000000000)::int,
+      "lines_seen" = ${userVideoProgress}."lines_seen" + excluded."lines_seen",
+      "last_watched_at" = excluded."last_watched_at"
+  `);
 }
 
 /** Record a progress beacon: watch time + which lines were seen. */
@@ -212,6 +242,7 @@ export async function recordProgress(
     await bumpDailyStats(db, userId, { msWatched, linesSeen: lines.length });
   }
   await bumpWordViews(db, userId, wordCounts);
+  await bumpVideoProgress(db, userId, videoId, { msWatched, linesSeen: lines.length });
 
   return {
     status: 200,

@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { getComprehensionByVideo, getVideoWithLines, getWordStatuses } from "@/lib/study";
 import { isUuid } from "@/lib/ids";
 import { getSavedStatuses, getSavedWordIds } from "@/lib/dictionary";
+import { getIPlusOneLines } from "@/lib/i-plus-one";
+import { loadKnownWordParams } from "@/lib/known-words";
 import { hiraToRomaji } from "@fuchine/nlp";
 import { PlayerView } from "./player-view";
 import { ErrorScreen } from "./error-screen";
@@ -40,11 +42,14 @@ export default async function VideoPage({
   // Corrected tokens (T3.7): a fixed word is colored by its corrected entry.
   const wordIds = result.lines.flatMap((l) => l.tokens.flatMap((t) => (t.wordEntryId ? [t.wordEntryId] : [])));
   // Coverage (T3.9): the same per-user number the library shows.
-  const [savedWordIds, wordStatuses, coverageMap, manual] = await Promise.all([
+  // i+1 lines (T3.10): one query over the corrected tokens, same tier rule.
+  const knownParams = await loadKnownWordParams(db, userId);
+  const [savedWordIds, wordStatuses, coverageMap, manual, iPlusOne] = await Promise.all([
     getSavedWordIds(db, userId),
-    getWordStatuses(db, userId, wordIds),
-    getComprehensionByVideo(db, userId, [id]),
+    getWordStatuses(db, userId, wordIds, knownParams),
+    getComprehensionByVideo(db, userId, [id], knownParams),
     getSavedStatuses(db, userId),
+    getIPlusOneLines(db, userId, result.lines, result.video.language, knownParams),
   ]);
   const cov = coverageMap.get(id);
   const inVideo = new Set(wordIds);
@@ -57,6 +62,7 @@ export default async function VideoPage({
       wordStatuses={wordStatuses}
       coverage={cov ? { headline: cov.headline, low: cov.low, high: cov.high, unique: cov.unique } : null}
       markedUnknownIds={markedUnknownIds}
+      iPlusOne={Object.fromEntries([...iPlusOne].map(([lineId, hit]) => [lineId, hit.tokenIdx]))}
       video={{
         id: result.video.id,
         title: result.video.title,

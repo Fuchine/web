@@ -26,6 +26,7 @@ export function wordStatusFromStats(
   stats: WordSignals | null | undefined,
   manual?: ManualStatus,
   now: Date = new Date(),
+  minViews?: number,
 ): WordStatus {
-  return TIER_TO_STATUS[wordTier(stats, manual, now)];
+  return TIER_TO_STATUS[wordTier(stats, manual, now, minViews)];
 }

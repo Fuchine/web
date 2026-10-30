@@ -17,14 +17,17 @@ import { countCoverageWords } from "@fuchine/nlp";
 import { decodeListCursor, encodeListCursor, escapeLike } from "./list-query";
 import { isUuid } from "./ids";
 import { LEVEL } from "./library";
-import { wordStatusFromStats, wordTierSql, type WordStatus } from "./word-status";
+import { wordStatusFromStats, type WordStatus } from "./word-status";
 import {
   applyCountDeltas,
   coverageFromTierCounts,
   diffCounts,
   emptyTierCounts,
+  loadKnownWordParams,
   signalsFromRow,
+  wordTierSqlFor,
   type Coverage,
+  type KnownWordParams,
   type TierCounts,
 } from "./known-words";
 import { withTokenOverrides, type TokenSpan } from "./token-overrides";
@@ -190,8 +193,12 @@ export async function getComprehensionByVideo(
   db: Database,
   userId: string,
   videoIds?: string[],
+  knownParams?: KnownWordParams,
 ): Promise<Map<string, Coverage>> {
   if (videoIds && videoIds.length === 0) return new Map();
+  // Calibrated likely threshold + headline weight (T3.10), else the constants.
+  const params = knownParams ?? (await loadKnownWordParams(db, userId));
+  const wordTierSql = wordTierSqlFor(params.likelyMinViews);
   const rows = await db
     .select({
       videoId: videoWordCounts.videoId,
@@ -213,11 +220,11 @@ export async function getComprehensionByVideo(
     counts.set(r.videoId, c);
   }
 
-  await applyUserCorrections(db, userId, counts, videoIds);
+  await applyUserCorrections(db, userId, counts, videoIds, wordTierSql);
 
   const map = new Map<string, Coverage>();
   for (const [videoId, c] of counts) {
-    const cov = coverageFromTierCounts(c);
+    const cov = coverageFromTierCounts(c, params.likelyWeight);
     if (cov) map.set(videoId, cov);
   }
   return map;
@@ -233,6 +240,7 @@ async function applyUserCorrections(
   userId: string,
   counts: Map<string, TierCounts>,
   videoIds: string[] | undefined,
+  wordTierSql: ReturnType<typeof wordTierSqlFor>,
 ): Promise<void> {
   const corrected = await db
     .selectDistinct({ id: subtitleLines.id, videoId: subtitleLines.videoId, tokens: subtitleLines.tokens, language: videos.language })
@@ -296,9 +304,11 @@ export async function getWordStatuses(
   db: Database,
   userId: string,
   wordEntryIds: readonly string[],
+  knownParams?: KnownWordParams,
 ): Promise<Record<string, Exclude<WordStatus, "unknown">>> {
   const ids = [...new Set(wordEntryIds)];
   if (ids.length === 0) return {};
+  const params = knownParams ?? (await loadKnownWordParams(db, userId));
   const rows = await db
     .select({
       wordEntryId: wordEntries.id,
@@ -320,7 +330,7 @@ export async function getWordStatuses(
   const now = new Date();
   const out: Record<string, Exclude<WordStatus, "unknown">> = {};
   for (const r of rows) {
-    const status = wordStatusFromStats(signalsFromRow(r), r.manual, now);
+    const status = wordStatusFromStats(signalsFromRow(r), r.manual, now, params.likelyMinViews);
     if (status !== "unknown") out[r.wordEntryId] = status;
   }
   return out;

@@ -83,3 +83,32 @@ export function getExplainQueue(redis: Redis): Queue<ExplainJob> {
     defaultJobOptions: DEFAULT_JOB_OPTIONS,
   });
 }
+
+export const MAINTENANCE_QUEUE = "maintenance";
+
+/**
+ * Background maintenance (T3.10), one queue for small per-user/per-instance
+ * recomputations:
+ * - `calibrate-known-words`: the daily known-word calibration (a BullMQ job
+ *   scheduler the worker upserts on boot);
+ * - `refresh-coverage`: re-materialize one user's Explore candidate table
+ *   (user_video_coverage), enqueued by /explore when it is stale. Producers
+ *   pass `jobId: refreshCoverageJobId(userId)` so repeat visits collapse.
+ */
+export type MaintenanceJob =
+  | { kind: "calibrate-known-words" }
+  | { kind: "refresh-coverage"; userId: string };
+
+/** Dedup key of a user's pending coverage refresh. */
+export const refreshCoverageJobId = (userId: string) => `refresh-coverage:${userId}`;
+
+/** Daily calibration schedule (cron, worker TZ): 04:17, off the hour. */
+export const CALIBRATION_SCHEDULE = "17 4 * * *";
+
+/** Producer-side handle to the maintenance queue. */
+export function getMaintenanceQueue(redis: Redis): Queue<MaintenanceJob> {
+  return new Queue<MaintenanceJob>(MAINTENANCE_QUEUE, {
+    connection: bullConnection(redis),
+    defaultJobOptions: { ...DEFAULT_JOB_OPTIONS, attempts: 2, removeOnFail: 100 },
+  });
+}

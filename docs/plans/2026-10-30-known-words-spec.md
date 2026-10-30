@@ -160,12 +160,11 @@ E2E (`apps/web/scripts/e2e-comprehension.ts`, real Postgres): 70 running tokens 
 words; with the fixture's signals v1 would say 8/25 = **32%**; the new model gives
 **47% (16–60)**, unique 18% (12–20).
 
-## Not done here (T3.10)
+## Not done here
 
-- i+1 per line, "Explore" ordering by personal coverage (the aggregate is per page today;
-  ordering the catalog by it needs a per-user materialization or a candidate pre-filter);
-- replacing `LIKELY_WEIGHT` / `LIKELY_MIN_VIEWS` with calibrated values, and a periodic
-  report;
+- ~~i+1 per line, "Explore" ordering by personal coverage; replacing `LIKELY_WEIGHT` /
+  `LIKELY_MIN_VIEWS` with calibrated values and a periodic report~~ — done in T3.10, see
+  `docs/plans/2026-10-30-explore-spec.md` (the model now lives in `packages/db/src/known-words.ts`);
 - per-word attribution of sentence reviews (today a review confirms every word of the
   line — optimistic for long sentences);
 - tokens without an entry are excluded, not counted as unknown; revisit with SudachiPy.

@@ -19,6 +19,77 @@ function fmtMs(ms: number): string {
 
 type CardUi = { status: CurateCardStatus; error: string | null };
 
+type Suggestion = {
+  lineId: string;
+  tStartMs: number;
+  textOriginal: string;
+  textTranslation: string | null;
+  target: { surface: string; reading: string | null };
+};
+
+/**
+ * i+1 lines of this video the user has not mined (T3.10): offered, never
+ * mined automatically — each needs its own "Mine this i+1 line" click.
+ */
+function IPlusOneSuggestions({ videoId }: { videoId: string }) {
+  const [items, setItems] = useState<Suggestion[] | null>(null);
+  const [state, setState] = useState<Record<string, "mining" | "mined" | "error">>({});
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/videos/${videoId}/i-plus-one?limit=3`)
+      .then((r) => (r.ok ? r.json() : { lines: [] }))
+      .then((d: { lines?: Suggestion[] }) => { if (live) setItems(d.lines ?? []); })
+      .catch(() => { if (live) setItems([]); });
+    return () => { live = false; };
+  }, [videoId]);
+  const mine = async (lineId: string) => {
+    setState((s) => ({ ...s, [lineId]: "mining" }));
+    try {
+      const res = await fetch("/api/cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subtitleLineId: lineId }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setState((s) => ({ ...s, [lineId]: "mined" }));
+    } catch {
+      setState((s) => ({ ...s, [lineId]: "error" }));
+    }
+  };
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="mt-3 rounded-[var(--radius-lg)] border border-dashed border-border bg-bg-2 px-4 py-3">
+      <p className="m-0 text-[12.5px] font-[600] text-muted">
+        i+1 lines in this video <span className="font-[500] text-faint">· one new word each</span>
+      </p>
+      <ul className="m-0 mt-2 list-none space-y-2 p-0">
+        {items.map((l) => {
+          const st = state[l.lineId];
+          return (
+            <li key={l.lineId} className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="jp m-0 text-[14.5px] leading-[1.55] text-fg">{l.textOriginal}</p>
+                <p className="m-0 text-[12px] text-faint">
+                  {fmtMs(l.tStartMs)} · new word <span className="jp text-link">{l.target.surface}</span>
+                  {l.textTranslation ? ` · ${l.textTranslation}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="shrink-0 rounded-[8px] border border-border bg-surface px-2.5 py-1 text-[12.5px] font-[550] text-link hover:bg-accent-soft-2 disabled:cursor-default disabled:text-faint"
+                onClick={() => void mine(l.lineId)}
+                disabled={st === "mining" || st === "mined"}
+              >
+                {st === "mined" ? "Mined" : st === "mining" ? "Mining…" : st === "error" ? "Retry" : "Mine this i+1 line"}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 const SHORTCUTS: [string, string][] = [
   ["J / K", "next / previous"],
   ["R", "replay clip"],
@@ -236,6 +307,7 @@ export function CurateView({
                       wordEntries={entries}
                       explanation={c.explanation}
                       time={fmtMs(c.tStartMs)}
+                      iPlusOneWord={patch ? null : c.iPlusOneWord}
                       notes={drafts[c.cardId] ?? ""}
                       onNotesChange={(v) => setDrafts((cur) => ({ ...cur, [c.cardId]: v }))}
                       maxNotes={maxNotes}
@@ -269,6 +341,7 @@ export function CurateView({
                   );
                 })}
               </div>
+              <IPlusOneSuggestions videoId={g.videoId} />
             </section>
           ))}
           {hasMore && (

@@ -28,19 +28,25 @@ function fmt(ms: number): string {
 // 毎朝 known, 歩いて seen, 川沿い unknown.
 const STATUSES: Record<string, WordStatus> = { w1: "known", w3: "seen" };
 
-function Demo({ currentIdx = 2, furigana = "off", translation = true, colorKnown = false }: {
+// i+1 (T3.10): line c has exactly one unknown word, 川沿い (token 1).
+const WITH_IP1 = SAMPLE.map((l) => (l.id === "c" ? { ...l, iPlusOneIdx: 1 } : l));
+
+function Demo({ currentIdx = 2, furigana = "off", translation = true, colorKnown = false, iPlusOne = false }: {
   currentIdx?: number;
   furigana?: FuriganaMode;
   translation?: boolean;
   colorKnown?: boolean;
+  iPlusOne?: boolean;
 }) {
   const [furi, setFuri] = useState<FuriganaMode>(furigana);
   const [tr, setTr] = useState(translation);
   const [color, setColor] = useState(colorKnown);
+  const [only, setOnly] = useState(false);
+  const [mined, setMined] = useState<ReadonlySet<string>>(() => new Set());
   return (
     <div className="bg-bg-2" style={{ height: 480 }}>
       <PlayerTranscript
-        lines={SAMPLE}
+        lines={iPlusOne ? WITH_IP1 : SAMPLE}
         currentLineIdx={currentIdx}
         furigana={furi}
         wordStatuses={STATUSES}
@@ -50,6 +56,10 @@ function Demo({ currentIdx = 2, furigana = "off", translation = true, colorKnown
         onCycleFurigana={() => setFuri((x) => nextInCycle(FURIGANA_MODES, x))}
         onToggleColorKnown={() => setColor((x) => !x)}
         onToggleTranslation={() => setTr((x) => !x)}
+        onlyIPlusOne={only}
+        onToggleIPlusOne={iPlusOne ? () => setOnly((x) => !x) : undefined}
+        onMineLine={iPlusOne ? (idx) => setMined((m) => new Set(m).add(SAMPLE[idx]!.id)) : undefined}
+        minedLineIds={mined}
         formatTimecode={fmt}
       />
     </div>
@@ -69,6 +79,8 @@ export const WithFurigana: Story = { render: () => <Demo furigana="all" /> };
 export const KnownWordColors: Story = { render: () => <Demo colorKnown /> };
 /** Furigana only over words not yet known: 毎朝 (known) has none. */
 export const FuriganaUnknownOnly: Story = { render: () => <Demo furigana="unknown" colorKnown /> };
+/** i+1 lines: marker, dotted target word, "Show i+1 lines" filter and "Mine this i+1 line". */
+export const IPlusOne: Story = { render: () => <Demo iPlusOne colorKnown /> };
 export const Dark: Story = {
   render: () => (
     <div data-theme="dark">
