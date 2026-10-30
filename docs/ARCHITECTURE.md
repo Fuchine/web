@@ -148,7 +148,7 @@ Every step is idempotent: re-running a job does not duplicate data.
 
 ## 6. Data model (summary)
 
-23 tables (20 app + 3 Auth.js adapter); full schema in
+27 tables (24 app + 3 Auth.js adapter); full schema in
 [`packages/db/src/schema.ts`](../packages/db/src/schema.ts).
 
 | Table | Purpose |
@@ -156,7 +156,7 @@ Every step is idempotent: re-running a job does not duplicate data.
 | `users`, `accounts`, `sessions`, `verification_tokens` | Auth.js identity and database sessions. |
 | `user_settings` | Per-user LLM provider, **encrypted** BYOK key, explanation language, daily goals. |
 | `invites` | E-mail-bound, expiring, single-use registration invites. |
-| `videos` | `source` + `source_id` (unique — the basis of the shared catalog), title, channel, duration, **`language`**, status, level estimate. |
+| `videos` | `source` + `source_id` (unique — the basis of the shared catalog), title, channel, duration, **`language`**, status, level estimate, **`fetched_at`** (T3.10: last metadata capture by the extension — never the YouTube Data API; re-imports refresh it and `refresh:metadata` lists rows older than 30 days for re-capture or, with `--expire`, clears channel/duration). |
 | `subtitle_lines` | Per-line timestamps, original text, translation, tokens (jsonb, each token referencing a `word_entry_id`). |
 | `subtitle_translation_chunks` | Which translation chunks of a video are done. |
 | `word_entries` | JMdict entries: **`language`**, lemma, reading, POS, definitions (jsonb), frequency rank. |
@@ -169,6 +169,9 @@ Every step is idempotent: re-running a job does not duplicate data.
 | `albums`, `album_videos` | User collections. |
 | `user_video_flags` | Per-user saved / hidden / not-interested flags on the shared catalog. |
 | `video_word_counts` | Running-word frequency per video (T3.9): occurrences of each dictionary word over coverage tokens (no proper nouns, interjections, numerals, symbols). Written at import; the base of token-weighted coverage. |
+| `user_video_coverage` | Explore's per-user candidate pre-filter (T3.10, 0022): tier sums of every catalog video's coverage for one user, materialized by one `INSERT … SELECT` and refreshed stale-while-revalidate by the worker. The shown page is recomputed exactly (token corrections applied). |
+| `user_video_progress` | Per-(user, video) watch progress from the player beacon (T3.10): narrow viewing (channels watched in the last 30 days) and the "already watched" exclusion. |
+| `instance_settings` | Instance-wide key/value written by jobs (T3.10). `known_words` = the daily known-word calibration (measured `LIKELY_WEIGHT`, suggested `LIKELY_MIN_VIEWS`); per-user values with enough data live in `user_settings.known_word_params`. |
 | `user_word_stats`, `saved_words`, `user_daily_stats` | Per-word stats (incl. the known-word tier signals: last lookup, last review outcome, first-review snapshot for calibration), saved words with the manual known/learning/new override, daily activity (streaks, charts). |
 | `llm_usage` | One row per LLM call: function, provider, model, tokens, latency, `key_source` (`house`/`byok`). Never the key or the content. |
 

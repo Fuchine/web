@@ -44,7 +44,7 @@ UI é em inglês.
 - `screens.md` — guia para gerar telas (handoff para IA): sistema visual,
   fluxo component-first, tokens/utilitários, componentes prontos em
   `@fuchine/ui` e os shapes de API por tela.
-- `packages/db/src/schema.ts` — schema Drizzle: 24 tabelas (21 do app + 3 do
+- `packages/db/src/schema.ts` — schema Drizzle: 27 tabelas (24 do app + 3 do
   adapter Auth.js).
 
 ## Decisões que NÃO podem ser violadas
@@ -139,7 +139,19 @@ palavra conhecida em três níveis — unknown/likely/confirmed em `lib/known-wo
 TS + SQL — e cobertura **ponderada por token** com faixa de confiança; migration
 0021: `video_word_counts` + sinais em `user_word_stats`; "Mark as unknown" no popup;
 calibração `scripts/calibrate-known-words.ts`; spec em
-`docs/plans/2026-10-30-known-words-spec.md`), T3.6 (fila "curar depois":
+`docs/plans/2026-10-30-known-words-spec.md`), T3.10 (calibração, i+1 e
+**Explore** — migration 0022; spec `docs/plans/2026-10-30-explore-spec.md`:
+`/explore` ordena o catálogo por cobertura pessoal na faixa-alvo 90–95%
+(presets 85–90/95–98), novidade (palavras comuns desconhecidas, rank ≤ 5000)
+e narrow viewing (mesmo canal de algo visto em 30 dias), excluindo
+hidden/not_interested, vistos ≥ 80% e ≥ 98% cobertos; pré-filtro
+materializado `user_video_coverage` (stale-while-revalidate pelo worker) +
+cobertura exata da página; cold start com 13 canais curados em
+`lib/starter-channels.json`; linhas **i+1** marcadas no transcript do player
+(filtro "Show i+1 lines", "Mine this i+1 line") e na curadoria — nunca minera
+sozinho; job diário `calibrate-known-words` grava `LIKELY_WEIGHT` medido e
+`LIKELY_MIN_VIEWS` sugerido em `instance_settings`/`user_settings.known_word_params`;
+`videos.fetched_at` + `refresh:metadata`), T3.6 (fila "curar depois":
 `/phrases/curate` lista cards com `notes IS NULL` e nunca revisados — `notes = ""`
 = curado sem nota; "Rewatch ×2"; minerar com **M**; badge de revisão conta só o
 que a fila serve hoje), T3.11
@@ -162,18 +174,25 @@ lint, test, build), `e2e.yml` (migrate + suítes E2E contra Postgres real), `dco
 
 Pacotes e seus pontos de entrada:
 
-- `packages/db` — schema Drizzle com 24 tabelas: 21 do app (`users`,
-  `user_settings`, `invites`, `videos`, `subtitle_lines`,
+- `packages/db` — schema Drizzle com 27 tabelas: 24 do app (`users`,
+  `user_settings`, `instance_settings`, `invites`, `videos`, `subtitle_lines`,
   `subtitle_translation_chunks`, `word_entries`, `word_pitch`, `word_examples`,
   `sentence_cards`, `review_logs`, `ai_explanations`, `albums`, `album_videos`,
   `user_video_flags`, `user_word_stats`, `saved_words`, `user_daily_stats`,
-  `token_overrides`, `video_word_counts`, `llm_usage`) + 3 do adapter Auth.js (`accounts`, `sessions`,
+  `token_overrides`, `video_word_counts`, `user_video_progress`,
+  `user_video_coverage`, `llm_usage`) + 3 do adapter Auth.js (`accounts`, `sessions`,
   `verification_tokens`). Tipos jsonb (`Token`, `Explanation`, `Definition`,
   `DailyGoals`) + `createDb()` (pool configurável, `DB_POOL_MAX`) +
   `ensureUserSettings` + helpers de convite (`invites.ts`) e `normalizeEmail`.
   Exporta também `Transaction`/`DbOrTx` (handle de transação do Drizzle) para
   helpers que rodam tanto standalone quanto dentro de `db.transaction(...)`.
-  Migrations em `drizzle/` de `0000_init` a `0021` com meta journal
+  Desde a T3.10 também o **modelo de palavra conhecida compartilhado** com o
+  worker: `known-words.ts` (regra de níveis TS + `wordTierSqlFor(minViews)`,
+  cobertura), `calibration.ts` (`runKnownWordCalibration`,
+  `loadKnownWordParams`: usuário → instância → constantes), `user-coverage.ts`
+  (`refreshUserVideoCoverage`) e o núcleo puro das correções de token no
+  subpath `@fuchine/db/token-overrides` (reexportado por `@fuchine/core`).
+  Migrations em `drizzle/` de `0000_init` a `0022` com meta journal
   (`pnpm db:migrate`; a `0013` cria a extensão `pg_trgm`). Seed JMdict +
   frequência em `src/seed/` (`pnpm --filter @fuchine/db seed`/`seed:jmdict`;
   fixture em `seeds/fixtures/`).
@@ -220,7 +239,7 @@ Pacotes e seus pontos de entrada:
   inválidos). Security headers + CSP em `next.config.ts`. Rate limits por
   usuário/IP em Redis (`lib/rate-limit.ts`: explain miss/force, translate miss,
   import novo, busca do dicionário, magic link, beacon, click, correção de token).
-  Rotas (34): `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
+  Rotas (35): `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
   estudo (F1, completa): `GET /api/videos` (biblioteca), `GET /api/videos/[id]`
   (payload do player), `POST /api/cards` (minerar, dedup), `GET
   /api/review/queue` + `POST /api/review/[cardId]` (FSRS), `GET /api/dictionary`
@@ -232,7 +251,8 @@ Pacotes e seus pontos de entrada:
   com criação inline; E2E em `scripts/e2e-albums.ts`). Também: `GET
   /api/phrases`, `PATCH`/`DELETE /api/cards/[id]` (id validado com `isUuid`), flags por
   usuário `POST/DELETE /api/videos/[id]/flags` (`saved`/`hidden`/
-  `not_interested` em `user_video_flags`), tradução lazy `POST
+  `not_interested` em `user_video_flags`), linhas i+1 ainda não mineradas de um
+  vídeo `GET /api/videos/[id]/i-plus-one` (T3.10, curadoria), tradução lazy `POST
   /api/videos/[id]/translate`, dicionário (`browse`, `collection`, `grammar`,
   `saved`, `[id]/examples`, `[id]/saved` — palavras salvas em `saved_words`),
   export Anki `GET /api/export/deck` (T3.3; TSV texto-só, clipe como deep link
@@ -281,15 +301,24 @@ Pacotes e seus pontos de entrada:
   sem entrada, 記号/感動詞/フィラー, 固有名詞/数, numerais/latim; partículas
   contam) ⋈ `user_word_stats` ⋈ `saved_words`; correções de token do usuário
   entram como deltas. Biblioteca/álbum/player mostram "93% (89–95)" com
-  tooltip dos limiares 80/90/95/98. Calibração (base de T3.10):
-  `pnpm --filter @fuchine/web exec tsx scripts/calibrate-known-words.ts`. O
+  tooltip dos limiares 80/90/95/98. Calibração (T3.10): o job diário do worker
+  (`runKnownWordCalibration`, ≥ 30 primeiros reviews exatos de palavras
+  "likely") grava o peso medido e o limiar sugerido, que cobertura, cores e
+  snapshot passam a usar; relatório detalhado em
+  `pnpm --filter @fuchine/web exec tsx scripts/calibrate-known-words.ts [--apply]`.
+  **i+1** (`lib/i-plus-one.ts`): exatamente uma palavra contável não
+  confirmed/likely (por palavra distinta, mínimo 2 conhecidas), uma query por
+  página após correções. **Explore** (`lib/explore.ts` + ranking puro em
+  `lib/explore-rank.ts`; bench `scripts/bench-explore.ts`). O beacon do player
+  também grava `user_video_progress`; um re-import pela extensão atualiza
+  título/canal/duração e `videos.fetched_at`. O
   StatBar da biblioteca usa horas/palavras/streak reais de `getStats` (dias ativos
   vêm só de `user_daily_stats` — 1 linha/dia, sem scan de histórico). O badge de
   review (dashboard/biblioteca) usa `countDueCards` e o "Continue watching" usa
   `getLatestVideo` — em vez de montar a fila/biblioteca inteira só para um número. Metas diárias: `PATCH
   /api/settings` aceita `dailyGoals` (validado com teto por campo, merge
   parcial no jsonb); o stepper "New cards per day" em `/settings` persiste
-  `newCardsPerDay`. E2E: `e2e-progress.ts`, `e2e-comprehension.ts`. Lógica testável em
+  `newCardsPerDay`. E2E: `e2e-progress.ts`, `e2e-comprehension.ts`, `e2e-explore.ts`. Lógica testável em
   `lib/` (`import`, `study`, `cards`, `dictionary`, `explain`, `albums`,
   `progress`, `translate` — chunk lazy com `houseMtProvider()`: MT dedicado via
   env `MT_PROVIDER`/`MT_API_KEY` (DeepL recomendado) com `FallbackProvider`
@@ -303,7 +332,7 @@ Pacotes e seus pontos de entrada:
   `/` (dashboard: revisões do dia, metas, "Continue watching"), `/library`,
   `/import` (cola URL → bridge da extensão), `/videos/[id]` (player),
   `/review` + `/summary` (sessão FSRS e resumo), `/phrases`, `/dictionary`,
-  `/albums`, `/stats`, `/settings`, `/extension` e `/kana`, mais
+  `/explore` (T3.10), `/albums`, `/stats`, `/settings`, `/extension` e `/kana`, mais
   `error`/`global-error`/`not-found`. E2E em `apps/web/scripts/e2e-*.ts`
   (runner `e2e-all.ts`; `e2e-restore-verify.ts` é o verificador manual do
   ensaio de restore).
@@ -331,8 +360,13 @@ Pacotes e seus pontos de entrada:
   próprio JMdict no seed (`mapper.ts` `nfRankFromTags` — bandas de 500,
   license-clean, sem lista externa); uma lista TSV opcional ainda sobrepõe se
   fornecida. O banco de dev precisa re-rodar o `seed` + `backfill:level` para
-  popular os ranks. Outros CLIs do worker: `rotate:key`, `invite`, `usage`.
-- `packages/jobs` — nomes das filas (`import`, `explain`), tipos dos jobs,
+  popular os ranks. Fila `maintenance` (T3.10): job diário
+  `calibrate-known-words` (job scheduler, 04:17) e `refresh-coverage` por usuário
+  (enfileirado pelo `/explore`, jobId deduplicado). Outros CLIs do worker:
+  `rotate:key`, `invite`, `usage`, `refresh:metadata` (vídeos com metadados de
+  mais de 30 dias para re-captura; `--expire` limpa canal/duração — nunca chama
+  o YouTube).
+- `packages/jobs` — nomes das filas (`import`, `explain`, `maintenance`), tipos dos jobs,
   conexão Redis e `defaultJobOptions` (retry/backoff).
 - `packages/ui` — componentes React + Tailwind v4 documentados no Storybook
   (`AppShell`, `VideoCard`, `Player`, `Login`, …); `src/lib/errors.ts` traduz
