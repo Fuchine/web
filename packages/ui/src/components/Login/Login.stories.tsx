@@ -16,3 +16,10 @@ export const SignIn: Story = {};
 export const SignUp: Story = { args: { defaultMode: "signup" } };
 export const Loading: Story = { args: { loading: true } };
 export const Error: Story = { args: { error: "Email or password is incorrect." } };
+export const InviteOnly: Story = { args: { footnote: "Invite-only instance. Existing members can sign in." } };
+export const AccessDenied: Story = {
+  args: {
+    error: "This Fuchine instance is invite-only. Ask its operator for an invite.",
+    footnote: "Invite-only instance. Existing members can sign in.",
+  },
+};

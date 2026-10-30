@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { Button } from "../Button/Button";
 import { TextField } from "../Field/TextField";
 import { BrandPanel } from "../BrandPanel/BrandPanel";
@@ -17,6 +17,8 @@ export interface LoginProps {
   onSubmit?: (values: LoginValues, mode: LoginMode) => void;
   onGoogle?: () => void;
   onForgotPassword?: () => void;
+  /** Optional one-line note under the form (e.g. "Invite-only instance"). */
+  footnote?: ReactNode;
 }
 
 const GoogleIcon = () => (
@@ -38,6 +40,7 @@ export function Login({
   onSubmit,
   onGoogle,
   onForgotPassword,
+  footnote,
 }: LoginProps) {
   const [internalMode, setInternalMode] = useState<LoginMode>(defaultMode);
   const mode = controlledMode ?? internalMode;
@@ -126,6 +129,8 @@ export function Login({
                 {isSignup ? "Sign in" : "Create one"}
               </button>
             </p>
+
+            {footnote && <p className="mt-3 text-center text-[12.5px] text-faint">{footnote}</p>}
           </form>
         </div>
       </div>

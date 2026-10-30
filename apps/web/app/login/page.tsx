@@ -1,28 +1,29 @@
-"use client";
+import { ACCESS_DENIED_MESSAGE, parseRegistrationEnv } from "@/lib/registration";
+import { LoginView } from "./login-view";
 
-import { useEffect, useState } from "react";
-import { signIn, getProviders } from "next-auth/react";
-import { Login } from "@fuchine/ui";
+// Server wrapper: maps Auth.js' ?error= to a user-facing message and tells the
+// view whether this instance is invite-only (the mode is not a secret). Every
+// denial reason shows the same text (no account enumeration — T2.3 spec).
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+  const env = parseRegistrationEnv(process.env, process.env.NODE_ENV);
+  const inviteOnly = !env.ok || env.mode !== "open";
 
-export default function LoginPage() {
-  // Only offer Google when it's actually a registered provider — otherwise the
-  // button leads to Auth.js's "Configuration" error (no AUTH_GOOGLE_ID/SECRET).
-  const [hasGoogle, setHasGoogle] = useState(false);
-  useEffect(() => {
-    getProviders()
-      .then((providers) => setHasGoogle(Boolean(providers?.google)))
-      .catch(() => setHasGoogle(false));
-  }, []);
+  const message =
+    error === "AccessDenied"
+      ? ACCESS_DENIED_MESSAGE
+      : error
+        ? "Sign-in failed. Please try again."
+        : undefined;
 
   return (
-    <div className="h-dvh">
-      <Login
-        onGoogle={hasGoogle ? () => signIn("google", { callbackUrl: "/" }) : undefined}
-        onSubmit={(values) => {
-          // Email magic link (the Nodemailer provider, when SMTP is configured).
-          void signIn("nodemailer", { email: values.email, callbackUrl: "/" });
-        }}
-      />
-    </div>
+    <LoginView
+      error={message}
+      footnote={inviteOnly ? "Invite-only instance. Existing members can sign in." : undefined}
+    />
   );
 }
