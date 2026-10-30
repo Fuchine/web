@@ -4,6 +4,7 @@ import { type ReactNode } from "react";
 import { cn } from "../../lib/cn";
 import { posLabel } from "../../lib/pos";
 import { Skeleton } from "../Skeleton/Skeleton";
+import { PitchAccent, type PitchInfo } from "../PitchAccent/PitchAccent";
 
 export type DictPopupProps = {
   position: { left: number; bottom: number; arrowLeft: number; w: number };
@@ -14,6 +15,8 @@ export type DictPopupProps = {
     frequencyRank: number | null;
     definitions: { glosses: string[]; partsOfSpeech: string[]; tags?: string[] }[];
     lemma?: { word: string; reading: string } | null;
+    /** Pitch accent per source (T3.2); omitted or empty = nothing shown. */
+    pitch?: PitchInfo[] | null;
   } | null;
   loading: boolean;
   error: string | null;
@@ -185,6 +188,8 @@ export function DictPopup({
               {entry.pos && <span className="dp-pos">{posLabel(entry.pos)}</span>}
               {freq > 0 && <FreqDots n={freq} />}
             </div>
+
+            <PitchAccent pitch={entry.pitch} className="dp-pitch" />
 
             {entry.lemma && (
               <div className="dp-lemma">

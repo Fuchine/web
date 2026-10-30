@@ -33,6 +33,10 @@ import type { FocalLine, FocalToken } from "./PlayerFocalSubtitles";
 import { RATES, type PlaybackRate } from "./PlayerControlBar";
 import { PlayerExplain, type ExplainFocal } from "./PlayerExplain";
 import type { Explanation, WordEntry } from "@fuchine/db";
+import type { PitchInfo } from "../PitchAccent/PitchAccent";
+
+/** GET /api/dictionary?id= payload: the row plus its pitch accent (T3.2). */
+type DictApiEntry = WordEntry & { pitch?: PitchInfo[] };
 
 function ListIcon() {
   return (
@@ -303,7 +307,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   // ---- Dict popup state ----
   const [openWordId, setOpenWordId] = useState<string | null>(null);
   const [dictPopup, setDictPopup] = useState<DictPopupState | null>(null);
-  const [dictEntry, setDictEntry] = useState<WordEntry | null>(null);
+  const [dictEntry, setDictEntry] = useState<DictApiEntry | null>(null);
   const [dictLoading, setDictLoading] = useState(false);
   const [dictError, setDictError] = useState<string | null>(null);
   const [savedWord, setSavedWord] = useState(false);
@@ -863,7 +867,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
         if (!r.ok) throw new Error(r.status === 404 ? "not found" : "fetch failed");
         return r.json();
       })
-      .then((data: { entry: WordEntry }) => setDictEntry(data.entry))
+      .then((data: { entry: DictApiEntry }) => setDictEntry(data.entry))
       .catch((err: Error) => setDictError(err.message === "not found" ? "No dictionary entry." : "Could not load definition."))
       .finally(() => setDictLoading(false));
   }, [openWordId]);
@@ -1100,6 +1104,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     frequencyRank: freqTier(dictEntry.frequencyRank),
     definitions: dictEntry.definitions,
     lemma: dictEntry.reading ? { word: dictEntry.lemma, reading: dictEntry.reading } : null,
+    pitch: dictEntry.pitch ?? null,
   } : null;
 
   return (
