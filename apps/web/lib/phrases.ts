@@ -9,6 +9,7 @@ import { PROMPT_VERSION } from "@fuchine/llm";
 import type { WordEntryData, WordEntryRow } from "./cards";
 import { decodeListCursor, encodeListCursor, escapeLike } from "./list-query";
 import { isUuid } from "./ids";
+import { withTokenOverrides, type TokenSpan } from "./token-overrides";
 
 export type PhraseRow = {
   cardId: string;
@@ -249,6 +250,8 @@ export type UncuratedCard = {
   textOriginal: string;
   textTranslation: string | null;
   tokens: Token[];
+  /** Set when the user corrected this line's tokens (T3.7); parallel to tokens. */
+  tokenSpans?: TokenSpan[];
   tStartMs: number;
   tEndMs: number;
   videoId: string;
@@ -315,7 +318,8 @@ export async function listUncuratedCards(
     .limit(limit + 1);
 
   const hasMore = rows.length > limit;
-  const page = rows.slice(0, limit);
+  // The user's token corrections (T3.7), before collecting the entries.
+  const page = await withTokenOverrides(db, userId, rows.slice(0, limit), (r) => r.lineId);
   const lineIds = page.map((r) => r.lineId);
   const wordIds = [
     ...new Set(

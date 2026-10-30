@@ -21,7 +21,8 @@ export default async function VideoPage({
 
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const result = await getVideoWithLines(db, id);
+  const userId = session.user.id as string;
+  const result = await getVideoWithLines(db, id, { userId });
   if (!result) notFound();
   if (result.video.status === "failed") {
     return (
@@ -35,11 +36,9 @@ export default async function VideoPage({
 
   const { line } = await searchParams;
   const initialLineId = line && result.lines.some((l) => l.id === line) ? line : undefined;
-  const userId = session.user.id as string;
   // Known-word signals for the words in this video (T3.8).
-  const wordIds = result.lines.flatMap((l) =>
-    ((l.tokens ?? []) as { wordEntryId?: string | null }[]).flatMap((t) => (t.wordEntryId ? [t.wordEntryId] : [])),
-  );
+  // Corrected tokens (T3.7): a fixed word is colored by its corrected entry.
+  const wordIds = result.lines.flatMap((l) => l.tokens.flatMap((t) => (t.wordEntryId ? [t.wordEntryId] : [])));
   const [savedWordIds, wordStatuses] = await Promise.all([
     getSavedWordIds(db, userId),
     getWordStatuses(db, userId, wordIds),
@@ -63,17 +62,11 @@ export default async function VideoPage({
         tEndMs: l.tEndMs,
         textOriginal: l.textOriginal,
         textTranslation: l.textTranslation,
-        tokens: ((l.tokens ?? []) as {
-          surface: string;
-          lemma: string;
-          reading: string | null;
-          romaji: string | null;
-          pos: string | null;
-          wordEntryId: string | null;
-        }[]).map((t) => ({
+        tokens: l.tokens.map((t) => ({
           ...t,
           romaji: t.romaji ?? (t.reading ? hiraToRomaji(t.reading) : null),
         })),
+        ...("tokenSpans" in l && l.tokenSpans ? { tokenSpans: l.tokenSpans } : {}),
       }))}
       translatedChunks={result.translatedChunks}
       account={{

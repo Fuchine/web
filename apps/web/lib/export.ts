@@ -23,6 +23,7 @@ import { kataToHira } from "@fuchine/nlp/client";
 import { type ClozeEntry, pickClozeTarget } from "@fuchine/ui/answer";
 import { withPitch } from "./dictionary";
 import { escapeHtml } from "./html";
+import { withTokenOverrides } from "./token-overrides";
 
 /* ------------------------------------------------------------------ */
 /* Options                                                             */
@@ -467,9 +468,10 @@ export async function getLapisExport(
   userId: string,
   filter: ExportFilter = "all",
 ): Promise<{ cards: LapisCard[]; entries: Record<string, ExportEntry> }> {
-  const rows = await db
+  const sharedRows = await db
     .select({
       cardId: sentenceCards.id,
+      lineId: sentenceCards.subtitleLineId,
       sentence: subtitleLines.textOriginal,
       translation: subtitleLines.textTranslation,
       notes: sentenceCards.notes,
@@ -491,10 +493,12 @@ export async function getLapisExport(
     .innerJoin(videos, eq(videos.id, sentenceCards.videoId))
     .where(cardWhere(userId, filter))
     .orderBy(asc(sentenceCards.createdAt), asc(sentenceCards.id));
+  // The user's token corrections (T3.7) drive the target word and furigana.
+  const rows = await withTokenOverrides(db, userId, sharedRows, (r) => r.lineId);
 
   const cards: LapisCard[] = rows.map((r) => ({
     cardId: r.cardId, sentence: r.sentence, translation: r.translation, notes: r.notes,
-    tokens: r.tokens ?? [], source: r.source, sourceId: r.sourceId, startMs: r.startMs,
+    tokens: r.tokens, source: r.source, sourceId: r.sourceId, startMs: r.startMs,
     videoTitle: r.videoTitle, channel: r.channel,
     fsrs: { state: r.state, due: r.due, stability: r.stability, difficulty: r.difficulty, reps: r.reps, lapses: r.lapses },
   }));

@@ -14,6 +14,7 @@ import {
 } from "@fuchine/db";
 import { dayKey } from "./stats";
 import { isUuid } from "./ids";
+import { withTokenOverrides } from "./token-overrides";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
@@ -160,14 +161,17 @@ export async function recordProgress(
   const { msWatched, lineIds } = parsed.value;
 
   // Only lines that actually belong to this video count (ids are client-sent).
-  const lines = lineIds.length > 0
+  const shared = lineIds.length > 0
     ? await db
         .select({ id: subtitleLines.id, tokens: subtitleLines.tokens })
         .from(subtitleLines)
         .where(and(eq(subtitleLines.videoId, videoId), inArray(subtitleLines.id, lineIds)))
     : [];
+  // Views go to the words as this user sees them (T3.7 corrections); stats
+  // recorded before a correction are not rewritten.
+  const lines = await withTokenOverrides(db, userId, shared, (l) => l.id);
 
-  const wordCounts = countWordOccurrences(lines.map((l) => (l.tokens as Token[]) ?? []));
+  const wordCounts = countWordOccurrences(lines.map((l) => l.tokens));
 
   if (msWatched > 0 || lines.length > 0) {
     await bumpDailyStats(db, userId, { msWatched, linesSeen: lines.length });
