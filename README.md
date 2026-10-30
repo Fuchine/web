@@ -69,6 +69,9 @@ The full stack runs from compose — Caddy (automatic HTTPS) in front of the web
 and worker containers, over Postgres + Redis. No Node toolchain needed on the
 host, just Docker.
 
+The complete guide is [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md); the
+essentials follow.
+
 ```bash
 cp .env.example .env
 # Edit .env — at minimum:
@@ -76,7 +79,7 @@ cp .env.example .env
 #   a sign-in method: AUTH_GOOGLE_ID/SECRET or EMAIL_SERVER
 #   AUTH_ALLOWED_EMAILS=you@example.com   (production is invite-only by default)
 #   SITE_ADDRESS=your.domain.com          (Caddy gets a Let's Encrypt cert)
-#   change the Postgres password in docker-compose.yml for a real deploy
+#   POSTGRES_PASSWORD, REDIS_PASSWORD     (set before the first run)
 
 docker compose up -d --build            # migrate → web + worker → caddy
 docker compose run --rm migrate pnpm --filter @fuchine/db seed:jmdict   # one-time
@@ -153,6 +156,17 @@ AI just degrades gracefully.
 | `docs/` | Architecture, AI contract, screen inventory — the source of truth |
 
 ## Documentation
+
+- [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md) — run your own instance with
+  only Docker: configuration, local AI with Ollama, TLS, backups, upgrades,
+  troubleshooting.
+- [`docs/EXTENSION.md`](docs/EXTENSION.md) — install the browser extension,
+  point it at your instance, permissions and privacy.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — English summary of the
+  architecture: vision, open-core model, locked decisions (D1–D8), components,
+  data model, AI layers and cache.
+
+Internal docs are in Portuguese and are the source of truth:
 
 - [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) — vision, open-core model, locked
   decisions (D1–D8), system architecture, roadmap.
