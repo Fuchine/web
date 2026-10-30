@@ -471,3 +471,68 @@
   .cloze-form { flex-direction: column; align-items: stretch; }
   .cloze-input { width: 100%; }
 }
+
+/* ============================================================
+   Phone layout (T3.13) — the review PWA at 360–430 px.
+   Thumb-reach grade buttons pinned to the bottom, safe-area insets
+   (viewport-fit=cover), no hover jiggle on touch, no iOS focus zoom.
+   ============================================================ */
+
+/* Full-screen session shell. The app wraps ReviewSession in it; on a phone
+   it covers the sidebar shell and owns the whole (dynamic) viewport. */
+.rev-screen { display: flex; flex-direction: column; min-height: 0; }
+.rev-screen > .rev-main { flex: 1; min-height: 0; }
+@media (max-width: 760px) {
+  .rev-screen {
+    position: fixed; inset: 0; z-index: 40;
+    height: 100vh; height: 100dvh;
+    background: var(--bg);
+    overscroll-behavior: contain;
+  }
+}
+
+.rev-main { -webkit-tap-highlight-color: transparent; }
+.grade, .show-btn, .rev-mode, .rev-exit, .card-audio, .shadow-btn, .cloze-check, .summary-btn { touch-action: manipulation; }
+.cloze-input { scroll-margin-block: 96px; }
+
+@media (hover: none) {
+  .grade:hover { transform: none; }
+}
+
+@media (max-width: 560px) {
+  .rev-top {
+    gap: 10px;
+    padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left));
+  }
+  .rev-exit { width: 40px; height: 40px; }
+  .rev-progress { gap: 8px; }
+  .rev-pills { gap: 4px; }
+  .pill { gap: 5px; padding: 3px 8px 3px 7px; font-size: 12px; }
+
+  .rev-modes { padding: 8px 12px 0; }
+  .rev-mode { height: 34px; padding: 0 12px; }
+
+  .rev-stage {
+    align-items: flex-start;
+    padding: 12px max(12px, env(safe-area-inset-right)) 16px max(12px, env(safe-area-inset-left));
+  }
+  .rev-stack { gap: 12px; }
+  .card-sentence { font-size: 24px; line-height: 1.65; }
+  .card-en { font-size: 15px; margin-top: 14px; }
+  .card-reveal { margin-top: 22px; padding-top: 18px; }
+  .cr-row { grid-template-columns: 96px 1fr; }
+  /* < 16px makes iOS Safari zoom the page on focus. */
+  .cr-notes-input { font-size: 16px; }
+
+  .rev-dock {
+    padding: 10px max(12px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .show-btn { width: 100%; height: 56px; justify-content: center; padding: 0 20px; font-size: 16px; }
+  .show-btn kbd { display: none; }
+  .grades { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; max-width: none; }
+  .grade { height: 68px; justify-content: center; gap: 2px; }
+  .g-label { margin-top: 0; font-size: 15.5px; }
+  .g-when { font-size: 12px; }
+}

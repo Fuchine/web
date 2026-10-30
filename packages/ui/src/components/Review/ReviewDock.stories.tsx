@@ -36,3 +36,9 @@ export const AnswerRevealed: Story = {
     onGrade: (grade: 1 | 2 | 3 | 4) => console.log("graded", grade),
   },
 };
+
+/** T3.13 — at phone width the grades fill the row as 68 px thumb targets above the home indicator. */
+export const AnswerRevealedPhone: Story = {
+  args: AnswerRevealed.args,
+  parameters: { layout: "fullscreen", viewport: { defaultViewport: "phone360" } },
+};

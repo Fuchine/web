@@ -66,6 +66,12 @@ export type { ReviewSessionProps, ReviewItem } from "./components/Review/ReviewS
 export { REVIEW_MODES } from "./components/Review/review-modes";
 export type { ReviewMode } from "./components/Review/review-modes";
 
+// T3.13 — review PWA: install affordance + screen wake lock
+export { InstallAppButton, InstallAppPrompt } from "./components/Pwa/InstallApp";
+export type { InstallAppButtonProps, InstallAppPromptProps } from "./components/Pwa/InstallApp";
+export { useInstallPrompt, useWakeLock } from "./components/Pwa/usePwa";
+export type { InstallPromptState } from "./components/Pwa/usePwa";
+
 export { cn } from "./lib/cn";
 export { UserFacingError } from "./lib/errors";
 export { posLabel } from "./lib/pos";
