@@ -22,6 +22,7 @@ export function dbUsageSink(db: Database): UsageSink {
         outTokens: r.outTokens ?? null,
         ms: r.ms,
         ok: r.ok,
+        keySource: r.keySource ?? "house",
       })
       .catch((err: unknown) => {
         console.error("[llm_usage] insert failed", err);

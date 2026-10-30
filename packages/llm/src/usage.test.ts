@@ -75,3 +75,24 @@ describe("dbUsageSink", () => {
     });
   });
 });
+
+describe("key source", () => {
+  it("defaults unmarked records to house in the DB sink", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    let inserted: Record<string, unknown> | undefined;
+    const fakeDb = {
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          inserted = v;
+          return { catch: () => undefined };
+        },
+      }),
+    };
+    const sink = dbUsageSink(fakeDb as never);
+    sink({ fn: "explainLine", provider: "openai", ms: 1, ok: true, ts: "t" });
+    expect(inserted?.keySource).toBe("house");
+    sink({ fn: "explainLine", provider: "openai", ms: 1, ok: true, ts: "t", keySource: "byok" });
+    expect(inserted?.keySource).toBe("byok");
+    vi.restoreAllMocks();
+  });
+});

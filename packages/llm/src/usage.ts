@@ -12,7 +12,11 @@ export type UsageMeta = {
   userId?: string;
   videoId?: string;
   lineId?: string;
+  /** Whose key paid. Omitted = "house", so unmarked calls count against the house budget. */
+  keySource?: KeySource;
 };
+
+export type KeySource = "house" | "byok";
 
 export type UsageContext = UsageMeta & {
   fn: UsageFn;

@@ -492,9 +492,13 @@ export const llmUsage = pgTable(
     outTokens: integer("out_tokens"),
     ms: integer("ms").notNull(),
     ok: boolean("ok").notNull(),
+    // Whose key paid: "house" (operator) or "byok" (the user's own). Defaults to
+    // house so an unmarked call counts against the house budget (T2.4).
+    keySource: text("key_source").notNull().default("house"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    index("llm_usage_source_time_idx").on(t.keySource, t.createdAt), // house spend today (T2.4)
     index("llm_usage_video_idx").on(t.videoId), // cost per video (prewarm summary)
     index("llm_usage_user_time_idx").on(t.userId, t.createdAt), // cost per user/day (F3)
   ],

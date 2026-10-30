@@ -201,6 +201,7 @@ function defaultChat(config: Required<Omit<OpenAICompatibleConfig, "chat" | "usa
       userId: ctx?.userId,
       videoId: ctx?.videoId,
       lineId: ctx?.lineId,
+      keySource: ctx?.keySource,
     };
 
     const t0 = Date.now();

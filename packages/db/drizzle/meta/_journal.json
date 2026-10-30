@@ -120,6 +120,13 @@
       "when": 1793364408208,
       "tag": "0016_aberrant_puppet_master",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793372833805,
+      "tag": "0017_sweet_blackheart",
+      "breakpoints": true
     }
   ]
 }
