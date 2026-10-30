@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { UserFacingError } from "../../lib/errors";
 import { cn } from "../../lib/cn";
 import { pickPrefetchTarget } from "../../lib/prefetch";
+import { rewatchTick, startRewatch, type RewatchEffect, type RewatchPlan } from "../../lib/rewatch";
 import {
   DEFAULT_PLAYER_PREFS,
   FURIGANA_MODES,
@@ -314,6 +315,23 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     target: { surface: string; reading: string | null };
   } | null>(null);
   const [isMining, setIsMining] = useState(false);
+  // "Rewatch now" (T3.6, lib/rewatch.ts): the poll loop advances the plan.
+  const rewatchRef = useRef<RewatchPlan | null>(null);
+  const [rewatching, setRewatching] = useState(false);
+  const applyRewatchEffects = useCallback((effects: RewatchEffect[]) => {
+    const h = handleRef.current;
+    for (const e of effects) {
+      if (e.type === "seek") {
+        h?.seekTo(e.ms / 1000);
+        setCurrentMs(e.ms);
+      } else h?.play();
+    }
+  }, []);
+  const cancelRewatch = useCallback(() => {
+    if (!rewatchRef.current) return;
+    rewatchRef.current = null;
+    setRewatching(false);
+  }, []);
 
   // ---- Study-activity accumulators (flushed via onProgress) ----
   const pendingMsRef = useRef(0);
@@ -335,6 +353,18 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       if (newIdx >= 0 && newIdx < lines.length) {
         pendingLinesRef.current.add((lines[newIdx] as PlayerSubtitleLine).id);
       }
+      // Rewatch running: it owns seeking (loop-line waits), lines still follow.
+      if (rewatchRef.current) {
+        const step = rewatchTick(rewatchRef.current, ms);
+        rewatchRef.current = step.plan;
+        applyRewatchEffects(step.effects);
+        if (!step.plan) setRewatching(false);
+        if (newIdx !== previousLineIdxRef.current) {
+          previousLineIdxRef.current = newIdx;
+          setCurrentLineIdx(newIdx);
+        }
+        return;
+      }
       // Primed cycle running: it owns line changes (and loop-line).
       if (primedRef.current.phase !== "idle") {
         dispatchPrimed({ type: "tick", ms });
@@ -354,7 +384,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       }
     }, POLL_MS);
     return () => window.clearInterval(id);
-  }, [isReady, isPlaying, loopLine, lines, dispatchPrimed]);
+  }, [isReady, isPlaying, loopLine, lines, dispatchPrimed, applyRewatchEffects]);
 
   // Flush accumulated watch time + seen lines: every PROGRESS_FLUSH_MS, when
   // the tab is hidden, and on unmount. No-op when nothing accumulated.
@@ -418,6 +448,10 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       } else if (e.key === "k" || e.key === "K") {
         e.preventDefault();
         seekToLine(Math.min(lines.length - 1, currentLineIdxRef.current + 1));
+      } else if ((e.key === "m" || e.key === "M") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        // One-key mining (T3.6): never pauses or seeks the video.
+        e.preventDefault();
+        handleMineRef.current();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -519,6 +553,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
   const seekToLine = useCallback(
     (idx: number) => {
       if (idx < 0 || idx >= lines.length) return;
+      cancelRewatch();
       if (primedRef.current.phase !== "idle") {
         // Restart the primed cycle on the target line (it seeks).
         dispatchPrimed({ type: "seek", lineIdx: idx });
@@ -532,7 +567,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       setUserIsScrolling(true);
       window.setTimeout(() => setUserIsScrolling(false), CLICK_GRACE_MS);
     },
-    [lines, dispatchPrimed],
+    [lines, dispatchPrimed, cancelRewatch],
   );
 
   // Deep-link from the dictionary: once the iframe is ready, seek to the line.
@@ -563,6 +598,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     (ms: number) => {
       const h = handleRef.current;
       if (!h) return;
+      cancelRewatch();
       if (primedRef.current.phase !== "idle") {
         const idx = lineAtOrAfter(lines, ms);
         if (idx >= 0) {
@@ -574,7 +610,7 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       h.seekTo(ms / 1000);
       setCurrentMs(ms);
     },
-    [lines, dispatchPrimed],
+    [lines, dispatchPrimed, cancelRewatch],
   );
 
   const onSkip = useCallback(
@@ -631,7 +667,8 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
     // from idle, and "paused" only counts as the user's while listening (the
     // machine pauses for preview/reveal itself). Through refs: PlayerVideo
     // binds this callback once, when the iframe is created.
-    if (s === "playing" && phase === "idle") {
+    // A rewatch's own play() must not start a primed cycle.
+    if (s === "playing" && phase === "idle" && !rewatchRef.current) {
       const idx = primedStartLineRef.current();
       if (idx >= 0) dispatchPrimedRef.current({ type: "start", lineIdx: idx });
     } else if ((s === "paused" || s === "ended") && phase === "listen") {
@@ -917,6 +954,26 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
       })
       .finally(() => setIsMining(false));
   }, [currentLineIdx, isMining, lines, translations]);
+  const handleMineRef = useRef(handleMine);
+  handleMineRef.current = handleMine;
+
+  // "Rewatch ×2": replay the mined line's exact clip twice, then resume.
+  const handleMinedRewatch = useCallback(() => {
+    const h = handleRef.current;
+    if (!h || !minedCard) return;
+    const line = (lines as PlayerSubtitleLine[]).find((l) => l.id === minedCard.lineId);
+    if (!line) return;
+    if (primedRef.current.phase !== "idle") dispatchPrimed({ type: "userPause" });
+    const t = h.getCurrentTime();
+    const step = startRewatch(
+      { startMs: line.tStartMs, endMs: line.tEndMs },
+      Number.isNaN(t) ? line.tEndMs : t * 1000,
+    );
+    if (!step.plan) return;
+    rewatchRef.current = step.plan;
+    setRewatching(true);
+    applyRewatchEffects(step.effects);
+  }, [minedCard, lines, dispatchPrimed, applyRewatchEffects]);
 
   const handleMinedUndo = useCallback(() => {
     // Undo: DELETE the card we just created
@@ -1094,6 +1151,8 @@ export function Player({ video, lines, account, translatedChunks, onFetchChunk, 
             onMinedClose={handleMinedClose}
             minedAlbums={albums}
             onMinedAddToAlbum={handleMinedAddToAlbum}
+            onMinedRewatch={handleMinedRewatch}
+            minedRewatching={rewatching}
             controlBar={{
               // Mid-cycle the machine holds the video paused between phases.
               isPlaying: isPlaying || primedPhase === "preview" || primedPhase === "reveal",
