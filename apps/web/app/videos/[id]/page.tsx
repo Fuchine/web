@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { getVideoWithLines } from "@/lib/study";
+import { getVideoWithLines, getWordStatuses } from "@/lib/study";
 import { getSavedWordIds } from "@/lib/dictionary";
 import { hiraToRomaji } from "@fuchine/nlp";
 import { PlayerView } from "./player-view";
@@ -33,12 +33,21 @@ export default async function VideoPage({
 
   const { line } = await searchParams;
   const initialLineId = line && result.lines.some((l) => l.id === line) ? line : undefined;
-  const savedWordIds = await getSavedWordIds(db, session.user.id as string);
+  const userId = session.user.id as string;
+  // Known-word signals for the words in this video (T3.8).
+  const wordIds = result.lines.flatMap((l) =>
+    ((l.tokens ?? []) as { wordEntryId?: string | null }[]).flatMap((t) => (t.wordEntryId ? [t.wordEntryId] : [])),
+  );
+  const [savedWordIds, wordStatuses] = await Promise.all([
+    getSavedWordIds(db, userId),
+    getWordStatuses(db, userId, wordIds),
+  ]);
 
   return (
     <PlayerView
       initialLineId={initialLineId}
       savedWordIds={savedWordIds}
+      wordStatuses={wordStatuses}
       video={{
         id: result.video.id,
         title: result.video.title,
