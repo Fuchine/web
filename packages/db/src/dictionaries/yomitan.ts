@@ -32,6 +32,15 @@ import type { DictDefinition, DictTagMeta } from "../types";
 import { sanitizeStructuredContent } from "./structured-content";
 
 export const DEFAULT_MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024;
+
+/**
+ * The uncompressed-size cap from `DICT_MAX_UNCOMPRESSED_MB` (default 200).
+ * Invalid values fall back to the default rather than lifting the cap.
+ */
+export function maxUncompressedBytesFromEnv(env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env.DICT_MAX_UNCOMPRESSED_MB);
+  return env.DICT_MAX_UNCOMPRESSED_MB && Number.isFinite(n) && n > 0 ? Math.floor(n * 1024 * 1024) : DEFAULT_MAX_UNCOMPRESSED_BYTES;
+}
 const MAX_ENTRIES = 50_000;
 const MAX_FIELD = 2000;
 const MAX_TERM = 200;
