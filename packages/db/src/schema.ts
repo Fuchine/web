@@ -157,6 +157,32 @@ export const invites = pgTable(
   ],
 );
 
+// Per-user API tokens (T2.11). Lets the browser extension (and other clients)
+// call POST /api/import with `Authorization: Bearer fch_…` instead of relying
+// on the session cookie being sent cross-origin. Only a SHA-256 hash of the
+// token is stored: the token is 32 random bytes (256 bits of entropy), so a
+// fast unsalted hash is not brute-forceable and allows an indexed lookup —
+// bcrypt/argon2 exist to slow down guessing LOW-entropy passwords and would
+// force a scan. `prefix` (first chars of the token) is for display only.
+// Revocation is a soft delete (revoked_at) so the list keeps an audit trail.
+export const apiTokens = pgTable(
+  "api_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull().unique(), // hex SHA-256 of the full token
+    prefix: text("prefix").notNull(), // e.g. "fch_AbC1" — display only
+    scopes: text("scopes").array().notNull().default(sql`'{import}'::text[]`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [index("api_tokens_user_idx").on(t.userId, t.createdAt)],
+);
+
 /* ------------------------------------------------------------------ */
 /* Content: videos, subtitle lines, dictionary, examples              */
 /* ------------------------------------------------------------------ */
