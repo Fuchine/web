@@ -58,4 +58,38 @@ describe("crossSiteBlockReason", () => {
     expect(check({ ...cross, pathname: "/api/importer" })).not.toBeNull();
     expect(check({ ...cross, pathname: "/api/authx" })).not.toBeNull();
   });
+
+  describe("/api/import (T2.11)", () => {
+    const bearer = "Bearer fch_0123456789abcdefghijABCDEFGHIJ0123456789abc";
+
+    it("lets a Bearer-authenticated import through from any origin", () => {
+      expect(check({ pathname: "/api/import", secFetchSite: "cross-site", origin: "chrome-extension://abc", authorization: bearer })).toBeNull();
+      expect(check({ pathname: "/api/import", secFetchSite: "cross-site", origin: "https://other.test", authorization: bearer })).toBeNull();
+      expect(check({ pathname: "/api/import", origin: null, secFetchSite: null, authorization: bearer })).toBeNull();
+    });
+
+    it("keeps the deprecated cookie path only for extension origins", () => {
+      for (const origin of ["chrome-extension://abc", "moz-extension://abc-def", "safari-web-extension://x"]) {
+        expect(check({ pathname: "/api/import", secFetchSite: "cross-site", origin })).toBeNull();
+      }
+    });
+
+    it("blocks a cross-site web page posting to /api/import with cookies only", () => {
+      expect(check({ pathname: "/api/import", secFetchSite: "cross-site", origin: "https://evil.test" })).not.toBeNull();
+      expect(check({ pathname: "/api/import", secFetchSite: null, origin: "https://evil.test" })).not.toBeNull();
+      expect(check({ pathname: "/api/import", authorization: "Basic abc", origin: "https://evil.test", secFetchSite: null })).not.toBeNull();
+      expect(check({ pathname: "/api/import", origin: "chrome-extension://abc/evil", secFetchSite: "cross-site" })).not.toBeNull();
+    });
+
+    it("still allows the same-origin cookie import", () => {
+      expect(check({ pathname: "/api/import" })).toBeNull();
+    });
+
+    it("does not weaken any other route when a Bearer header is present", () => {
+      for (const pathname of ["/api/cards", "/api/tokens", "/api/import/x", "/api/account"]) {
+        expect(check({ pathname, secFetchSite: "cross-site", origin: "https://evil.test", authorization: bearer })).not.toBeNull();
+        expect(check({ pathname, secFetchSite: "cross-site", origin: "chrome-extension://abc" })).not.toBeNull();
+      }
+    });
+  });
 });

@@ -11,8 +11,19 @@
 // Exempt:
 //   - /api/auth/*  — Auth.js has its own CSRF token (double-submit cookie) and
 //                    receives OAuth provider callbacks / magic-link clicks.
-//   - /api/import  — the browser extension POSTs from a chrome-extension://
-//                    origin with the user's cookies (until T2.11's API tokens).
+//   - /api/import  with `Authorization: Bearer …` (T2.11) — a bearer token is
+//                    not ambient (browsers never attach it on their own), so
+//                    the request can't be forged cross-site; the route itself
+//                    validates the token. Applies to /api/import only: every
+//                    other route ignores tokens and keeps the full check.
+//   - /api/import  from a browser-extension Origin (chrome-extension://,
+//                    moz-extension://, safari-web-extension://) WITHOUT a
+//                    token — DEPRECATED cookie path for Fuchine Importer
+//                    < 0.2.0, which POSTs with the session cookie. A web page
+//                    can't send an extension Origin, so this no longer exempts
+//                    arbitrary cross-site pages (it did before T2.11). Planned
+//                    removal: once 0.2.0 is the oldest supported extension
+//                    (see docs/EXTENSION.md, "Deprecations").
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -23,21 +34,34 @@ export type CsrfInput = {
   host: string | null;
   origin: string | null;
   secFetchSite: string | null;
+  /** Raw `Authorization` header, if any. */
+  authorization?: string | null;
 };
 
-function isExempt(pathname: string): boolean {
-  return (
-    pathname.startsWith("/api/auth/") ||
-    pathname === "/api/import" ||
-    pathname.startsWith("/api/import/")
-  );
+/** Routes that accept a per-user API token (keep in sync with lib/request-auth.ts users). */
+const TOKEN_ROUTES = new Set(["/api/import"]);
+
+const EXTENSION_ORIGIN_RE = /^(chrome|moz|safari-web)-extension:\/\/[^/]+$/i;
+
+function hasBearer(authorization: string | null | undefined): boolean {
+  return !!authorization && /^Bearer[ \t]+\S/i.test(authorization);
+}
+
+function isExempt(req: CsrfInput): boolean {
+  if (req.pathname.startsWith("/api/auth/")) return true;
+  if (TOKEN_ROUTES.has(req.pathname)) {
+    if (hasBearer(req.authorization)) return true;
+    // Deprecated: pre-0.2.0 extension, session cookie from an extension origin.
+    if (req.origin && EXTENSION_ORIGIN_RE.test(req.origin)) return true;
+  }
+  return false;
 }
 
 /** Returns the reason to block, or null when the request may proceed. */
 export function crossSiteBlockReason(req: CsrfInput): string | null {
   if (!MUTATING.has(req.method.toUpperCase())) return null;
   if (!req.pathname.startsWith("/api/")) return null;
-  if (isExempt(req.pathname)) return null;
+  if (isExempt(req)) return null;
 
   if (req.secFetchSite?.toLowerCase() === "cross-site") return "cross-site request";
 
