@@ -21,6 +21,10 @@ export default function ExtensionPage() {
           <code>extension/.output/chrome-mv3</code> when built from source).
         </li>
         <li>In the extension popup, set <strong>Fuchine URL</strong> to this instance&apos;s address.</li>
+        <li>
+          Create a token in <a href="/settings">Settings → Extension &amp; API</a> and paste it into the
+          popup&apos;s <strong>API token</strong> field.
+        </li>
         <li>Sign in to Fuchine, then paste a YouTube link on the Import page and click <strong>Import</strong>.</li>
       </ol>
       <p>
