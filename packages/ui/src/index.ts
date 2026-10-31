@@ -96,3 +96,7 @@ export type { InstallPromptState } from "./components/Pwa/usePwa";
 export { cn } from "./lib/cn";
 export { UserFacingError } from "./lib/errors";
 export { posLabel } from "./lib/pos";
+// T3.4 — imported Yomitan dictionaries (structured content, sections, ranks)
+export { StructuredContent, DictDefinitionView } from "./components/StructuredContent/StructuredContent";
+export { DictSections, DictFrequencyChips } from "./components/DictSources/DictSources";
+export type { DictSectionInfo, DictFrequencyInfo } from "./components/DictSources/DictSources";

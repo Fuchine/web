@@ -5,6 +5,12 @@ import { cn } from "../../lib/cn";
 import { posLabel } from "../../lib/pos";
 import { Skeleton } from "../Skeleton/Skeleton";
 import { PitchAccent, type PitchInfo } from "../PitchAccent/PitchAccent";
+import {
+  DictFrequencyChips,
+  DictSections,
+  type DictFrequencyInfo,
+  type DictSectionInfo,
+} from "../DictSources/DictSources";
 
 export type DictPopupProps = {
   position: { left: number; bottom: number; arrowLeft: number; w: number };
@@ -17,6 +23,10 @@ export type DictPopupProps = {
     lemma?: { word: string; reading: string } | null;
     /** Pitch accent per source (T3.2); omitted or empty = nothing shown. */
     pitch?: PitchInfo[] | null;
+    /** The user's enabled imported dictionaries, in their order (T3.4). */
+    dictionaries?: DictSectionInfo[] | null;
+    /** Ranks from the user's enabled frequency lists (T3.4). */
+    frequencies?: DictFrequencyInfo[] | null;
   } | null;
   loading: boolean;
   error: string | null;
@@ -227,6 +237,7 @@ export function DictPopup({
             <div className="dp-tags">
               {entry.pos && <span className="dp-pos">{posLabel(entry.pos)}</span>}
               {freq > 0 && <FreqDots n={freq} />}
+              <DictFrequencyChips frequencies={entry.frequencies} />
               {corrected && <span className="dp-corrected">Corrected by you</span>}
             </div>
 
@@ -259,6 +270,8 @@ export function DictPopup({
                 </li>
               ))}
             </ol>
+
+            <DictSections sections={entry.dictionaries} />
 
             <div className="dp-foot">
               <button type="button" className="dp-action primary" onClick={onExplain}>
