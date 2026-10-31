@@ -5,7 +5,17 @@ import { useRouter } from "next/navigation";
 import type { BrowseItem } from "@/app/api/dictionary/browse/route";
 import type { CollectionItem } from "@/app/api/dictionary/collection/route";
 import type { GrammarItem } from "@/app/api/dictionary/grammar/route";
-import { PitchAccent, type PitchInfo } from "@fuchine/ui";
+import {
+  DictFrequencyChips,
+  DictSections,
+  PitchAccent,
+  type DictFrequencyInfo,
+  type DictSectionInfo,
+  type PitchInfo,
+} from "@fuchine/ui";
+
+/** What GET /api/dictionary?id= adds to a list item: pitch (T3.2), imported dictionaries and ranks (T3.4). */
+type EntryExtras = { pitch: PitchInfo[]; dictionaries: DictSectionInfo[]; frequencies: DictFrequencyInfo[] };
 
 type Item = BrowseItem | CollectionItem | GrammarItem;
 type Kind = "vocabulary" | "grammar";
@@ -213,7 +223,7 @@ function Detail({
   idx,
   saved,
   sources,
-  pitch,
+  extras,
   onSave,
   onSetStatus,
   onClose,
@@ -223,8 +233,8 @@ function Detail({
   idx: number;
   saved: boolean;
   sources: Example[];
-  /** Pitch accent from GET /api/dictionary?id= (T3.2); undefined while loading. */
-  pitch?: PitchInfo[];
+  /** Pitch, imported dictionaries and ranks from GET /api/dictionary?id=; undefined while loading. */
+  extras?: EntryExtras;
   onSave: () => void;
   onSetStatus: (s: string) => void;
   onClose: () => void;
@@ -278,7 +288,7 @@ function Detail({
               {"r" in item && item.r && (
                 <div className="text-[15px] text-muted mt-[5px] tracking-[0.04em]">{item.r}</div>
               )}
-              <PitchAccent pitch={pitch} size="md" className="mt-[10px]" />
+              <PitchAccent pitch={extras?.pitch} size="md" className="mt-[10px]" />
             </div>
             <span className="text-[13px] font-semibold text-faint tabular-nums pt-[6px]">#{idx}</span>
           </div>
@@ -291,10 +301,14 @@ function Detail({
               </span>
             )}
             <FreqDots n={item.freq} />
+            <DictFrequencyChips frequencies={extras?.frequencies} />
           </div>
 
           {/* Definition */}
           <p className="text-base leading-[1.55] text-fg mt-4 [text-wrap:pretty]">{item.def}</p>
+
+          {/* The user's imported dictionaries, in their order (T3.4) */}
+          <DictSections sections={extras?.dictionaries} className="mt-5" />
 
           {/* Status selector */}
           <div className="mt-5">
@@ -459,7 +473,7 @@ export function DictionaryView({ initialQuery = "" }: { initialQuery?: string } 
   const [sel, setSel] = useState<string | null>(null);
   const [savedSet, setSavedSet] = useState<Set<string>>(() => new Set());
   const [sources, setSources] = useState<Record<string, Example[]>>({});
-  const [pitchById, setPitchById] = useState<Record<string, PitchInfo[]>>({});
+  const [extrasById, setExtrasById] = useState<Record<string, EntryExtras>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [showRomaji, setShowRomaji] = useState(true);
   const [showSkills, setShowSkills] = useState(true);
@@ -631,13 +645,22 @@ export function DictionaryView({ initialQuery = "" }: { initialQuery?: string } 
 
   const select = useCallback(async (id: string) => {
     setSel(id);
-    if (!pitchById[id]) {
+    if (!extrasById[id]) {
       // The entry payload carries its pitch accent; fetched alongside the
       // examples so the list endpoints stay one cheap query per page.
       fetch(`/api/dictionary?id=${encodeURIComponent(id)}`)
-        .then((res) => (res.ok ? (res.json() as Promise<{ entry: { pitch?: PitchInfo[] } }>) : null))
+        .then((res) => (res.ok ? (res.json() as Promise<{ entry: Partial<EntryExtras> }>) : null))
         .then((data) => {
-          if (data) setPitchById((prev) => ({ ...prev, [id]: data.entry.pitch ?? [] }));
+          if (data) {
+            setExtrasById((prev) => ({
+              ...prev,
+              [id]: {
+                pitch: data.entry.pitch ?? [],
+                dictionaries: data.entry.dictionaries ?? [],
+                frequencies: data.entry.frequencies ?? [],
+              },
+            }));
+          }
         })
         .catch(() => { /* pitch is optional */ });
     }
@@ -650,7 +673,7 @@ export function DictionaryView({ initialQuery = "" }: { initialQuery?: string } 
         }
       } catch { /* ignore */ }
     }
-  }, [sources, pitchById]);
+  }, [sources, extrasById]);
 
   // Items to display (raw)
   const displayItems = useMemo(() => {
@@ -930,7 +953,7 @@ export function DictionaryView({ initialQuery = "" }: { initialQuery?: string } 
           idx={selIdx}
           saved={savedSet.has(selItem.id)}
           sources={sources[selItem.id] ?? []}
-          pitch={pitchById[selItem.id]}
+          extras={extrasById[selItem.id]}
           onSave={() => void toggleSaved(selItem.id)}
           onSetStatus={(s) => setStatus(selItem.id, s)}
           onClose={() => setSel(null)}

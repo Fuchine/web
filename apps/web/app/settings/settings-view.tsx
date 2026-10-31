@@ -6,6 +6,7 @@ import { Button } from "@fuchine/ui";
 import { DEFAULT_NEW_CARDS_PER_DAY } from "@/lib/srs-defaults";
 import { ExportRows } from "./export-section";
 import { FsrsRows } from "./fsrs-section";
+import { DictionaryRows } from "./dictionaries-section";
 
 /** Starting values when the user turns on an optional limit. */
 const INITIAL_MAX_REVIEWS = 200;
@@ -374,6 +375,14 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
           />
         </Row>
         <FsrsRows />
+      </Group>
+
+      {/* Dictionaries (T3.4) */}
+      <Group
+        icon={(<svg viewBox="0 0 24 24" fill="none"><path d="M5 5.5A1.5 1.5 0 0 1 6.5 4H19v13H6.5A1.5 1.5 0 0 0 5 18.5zM5 18.5A1.5 1.5 0 0 0 6.5 20H19" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>)}
+        title="Dictionaries"
+      >
+        <DictionaryRows />
       </Group>
 
       {/* Data */}

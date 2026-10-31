@@ -20,7 +20,7 @@ describe("ADMIN_EMAILS", () => {
 });
 
 describe("readBodyCapped", () => {
-  const req = (body: Uint8Array, headers: Record<string, string> = {}) =>
+  const req = (body: Uint8Array<ArrayBuffer>, headers: Record<string, string> = {}) =>
     new Request("http://x.test/", { method: "POST", body, headers });
   it("reads a body under the cap", async () => {
     expect(await readBodyCapped(req(new Uint8Array([1, 2, 3])), 10)).toEqual(new Uint8Array([1, 2, 3]));
