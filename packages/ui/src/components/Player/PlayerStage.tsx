@@ -5,7 +5,7 @@ import { cn } from "../../lib/cn";
 import { PlayerVideo, type PlayerVideoHandle, type PlayerVideoProps } from "./PlayerVideo";
 import { PlayerFocalSubtitles, type FocalLine } from "./PlayerFocalSubtitles";
 import { PlayerControlBar, type PlayerControlBarProps } from "./PlayerControlBar";
-import { DictPopup } from "../DictPopup/DictPopup";
+import { DictPopup, type DictPopupProps } from "../DictPopup/DictPopup";
 import type { PrimedPhase, WordStatus } from "../../lib/listening";
 import { MinedCard } from "../MinedCard/MinedCard";
 
@@ -34,15 +34,7 @@ export interface PlayerStageProps {
   colorKnown?: boolean;
   activeWordId: string | null;
   dictPopup: DictPopupState | null;
-  dictEntry: {
-    word: string;
-    reading: string | null;
-    pos: string | null;
-    frequencyRank: number | null;
-    definitions: { glosses: string[]; partsOfSpeech: string[]; tags?: string[] }[];
-    lemma?: { word: string; reading: string } | null;
-    pitch?: { reading: string; positions: number[]; source: string }[] | null;
-  } | null;
+  dictEntry: DictPopupProps["entry"];
   dictLoading: boolean;
   dictError: string | null;
   dictSaved: boolean;

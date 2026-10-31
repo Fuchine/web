@@ -36,9 +36,17 @@ import { RATES, type PlaybackRate } from "./PlayerControlBar";
 import { PlayerExplain, type ExplainFocal } from "./PlayerExplain";
 import type { Explanation, WordEntry } from "@fuchine/db";
 import type { PitchInfo } from "../PitchAccent/PitchAccent";
+import type { DictFrequencyInfo, DictSectionInfo } from "../DictSources/DictSources";
 
-/** GET /api/dictionary?id= payload: the row plus its pitch accent (T3.2). */
-type DictApiEntry = WordEntry & { pitch?: PitchInfo[] };
+/**
+ * GET /api/dictionary?id= payload: the row plus its pitch accent (T3.2) and
+ * the user's imported dictionaries and frequency ranks (T3.4).
+ */
+type DictApiEntry = WordEntry & {
+  pitch?: PitchInfo[];
+  dictionaries?: DictSectionInfo[];
+  frequencies?: DictFrequencyInfo[];
+};
 
 function ListIcon() {
   return (
@@ -1244,6 +1252,8 @@ export function Player({ video, lines: linesProp, account, translatedChunks, onF
     definitions: dictEntry.definitions,
     lemma: dictEntry.reading ? { word: dictEntry.lemma, reading: dictEntry.reading } : null,
     pitch: dictEntry.pitch ?? null,
+    dictionaries: dictEntry.dictionaries ?? null,
+    frequencies: dictEntry.frequencies ?? null,
   } : null;
 
   return (

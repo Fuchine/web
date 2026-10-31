@@ -15,7 +15,10 @@
     "rotate:key": "tsx src/scripts/rotate-encryption-key.ts",
     "invite": "tsx src/scripts/invite.ts",
     "usage": "tsx src/scripts/usage.ts",
-    "refresh:metadata": "tsx src/scripts/refresh-metadata.ts"
+    "refresh:metadata": "tsx src/scripts/refresh-metadata.ts",
+    "dict:import": "tsx src/scripts/dict.ts import",
+    "dict:list": "tsx src/scripts/dict.ts list",
+    "dict:remove": "tsx src/scripts/dict.ts remove"
   },
   "dependencies": {
     "@fuchine/db": "workspace:*",

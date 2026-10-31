@@ -20,7 +20,7 @@ export async function GET(req: Request) {
 
   if (id) {
     if (!isUuid(id)) return NextResponse.json({ error: "not found" }, { status: 404 });
-    const entry = await lookupById(db, id);
+    const entry = await lookupById(db, id, session.user.id);
     if (!entry) return NextResponse.json({ error: "not found" }, { status: 404 });
     return NextResponse.json({ entry });
   }
