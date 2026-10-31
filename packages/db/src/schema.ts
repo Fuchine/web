@@ -19,7 +19,16 @@ import {
   check,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
-import type { Token, Explanation, Definition, DailyGoals, KnownWordCalibration } from "./types";
+import type {
+  Token,
+  Explanation,
+  Definition,
+  DailyGoals,
+  KnownWordCalibration,
+  DictDefinition,
+  DictTagMeta,
+  DictionaryPrefs,
+} from "./types";
 
 /* ------------------------------------------------------------------ */
 /* Enums — the genuine state machines only. Everything else is text.   */
@@ -126,6 +135,9 @@ export const userSettings = pgTable("user_settings", {
   // Known-word parameters measured on THIS user's own reviews (T3.10, 0022);
   // null = not enough data of their own → instance_settings, then constants.
   knownWordParams: jsonb("known_word_params").$type<KnownWordCalibration>(),
+  // Imported dictionaries this user shows, in order, and the frequency list
+  // behind the Lapis FreqSort (T3.4, 0023). Null = JMdict only.
+  dictionaryPrefs: jsonb("dictionary_prefs").$type<DictionaryPrefs>(),
 });
 
 // Small instance-wide key/value settings written by jobs (T3.10, 0022). Today
@@ -279,13 +291,105 @@ export const wordPitch = pgTable(
     // Downstep positions (mora after which the pitch drops; 0 = heiban), in
     // source order. Several accents per word are common — all are kept.
     positions: integer("positions").array().notNull(),
-    source: text("source").notNull(), // e.g. "kanjium"
+    source: text("source").notNull(), // e.g. "kanjium", or an imported dictionary's title
+    // Set for rows from an imported Yomitan pitch dictionary (T3.4, 0023):
+    // re-import/delete cascades, and lookups show them only to users who
+    // enabled that dictionary. Null = a seeded source (Kanjium), always shown.
+    dictionaryId: uuid("dictionary_id").references(() => dictionaries.id, { onDelete: "cascade" }),
   },
   (t) => [
     // Seed upsert identity; its (language, lemma, reading) prefix serves the
     // join from word_entries.
     uniqueIndex("word_pitch_lemma_reading_source_uq").on(t.language, t.lemma, t.reading, t.source),
+    // Re-import / delete of an imported pitch dictionary (cascade) (T3.4).
+    index("word_pitch_dictionary_idx").on(t.dictionaryId),
   ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Imported dictionaries (T3.4) — Yomitan zip format, instance-level    */
+/* ------------------------------------------------------------------ */
+
+// One imported Yomitan dictionary (index.json). Installed by the operator
+// (CLI `dict:import` or the admin upload); each user picks which to show and
+// in what order (user_settings.dictionary_prefs). Fuchine ships none of them:
+// the operator is responsible for the right to use what they import. Title is
+// the identity: re-importing the same title replaces its rows and keeps the id
+// (so users' choices survive an update). See
+// docs/plans/2026-10-31-yomitan-dictionaries-spec.md.
+export const dictionaries = pgTable(
+  "dictionaries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(),
+    revision: text("revision").notNull(),
+    formatVersion: integer("format_version").notNull(), // index.json format|version (3)
+    // Primary kind for the UI: "terms" when it has term banks, else
+    // "frequency" or "pitch" (term_meta banks). The counts say what it holds.
+    type: text("type").notNull(), // terms | pitch | frequency
+    language: text("language").notNull().default("ja"), // index.json sourceLanguage
+    targetLanguage: text("target_language"), // definitions' language; = language → monolingual
+    frequencyMode: text("frequency_mode"), // rank-based | occurrence-based (index.json)
+    author: text("author"),
+    attribution: text("attribution"),
+    url: text("url"),
+    description: text("description"),
+    tagMeta: jsonb("tag_meta").$type<DictTagMeta>().notNull().default({}),
+    termCount: integer("term_count").notNull().default(0),
+    frequencyCount: integer("frequency_count").notNull().default(0),
+    pitchCount: integer("pitch_count").notNull().default(0),
+    importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+    // Instance-wide switch (admin); a disabled dictionary is hidden for everyone.
+    enabled: boolean("enabled").notNull().default(true),
+  },
+  (t) => [uniqueIndex("dictionaries_title_uq").on(t.title)],
+);
+
+// Term entries of an imported dictionary (term_bank_*.json). `definitions`
+// keeps structured content as sanitized JSON (DictDefinition), rendered by
+// @fuchine/ui StructuredContent. A "" reading in the source means "same as
+// the expression"; it is stored resolved (never empty).
+export const dictionaryTerms = pgTable(
+  "dictionary_terms",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    dictionaryId: uuid("dictionary_id")
+      .notNull()
+      .references(() => dictionaries.id, { onDelete: "cascade" }),
+    language: text("language").notNull().default("ja"),
+    expression: text("expression").notNull(),
+    reading: text("reading").notNull(),
+    definitions: jsonb("definitions").$type<DictDefinition[]>().notNull(),
+    tags: text("tags").array().notNull().default(sql`'{}'::text[]`), // definition + term tags
+    score: real("score").notNull().default(0),
+    sequence: integer("sequence"),
+  },
+  (t) => [
+    index("dictionary_terms_expression_idx").on(t.language, t.expression),
+    index("dictionary_terms_reading_idx").on(t.language, t.reading),
+    index("dictionary_terms_dictionary_idx").on(t.dictionaryId),
+  ],
+);
+
+// Frequency of a term in an imported frequency list (term_meta "freq").
+// `value` is the source number; `rank` is always "lower = more frequent" (the
+// value for rank-based lists, the position by descending value for
+// occurrence-based ones) so FreqSort can use either. Reading "" = the source
+// gave none (applies to every reading of the expression).
+export const wordFrequency = pgTable(
+  "word_frequency",
+  {
+    dictionaryId: uuid("dictionary_id")
+      .notNull()
+      .references(() => dictionaries.id, { onDelete: "cascade" }),
+    language: text("language").notNull().default("ja"),
+    expression: text("expression").notNull(),
+    reading: text("reading").notNull().default(""),
+    value: doublePrecision("value").notNull(),
+    displayValue: text("display_value"),
+    rank: integer("rank").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.dictionaryId, t.language, t.expression, t.reading] })],
 );
 
 export const wordExamples = pgTable(
@@ -838,3 +942,5 @@ export type AiExplanation = typeof aiExplanations.$inferSelect;
 export type Album = typeof albums.$inferSelect;
 export type Invite = typeof invites.$inferSelect;
 export type TokenOverrideRow = typeof tokenOverrides.$inferSelect;
+export type Dictionary = typeof dictionaries.$inferSelect;
+export type DictionaryTerm = typeof dictionaryTerms.$inferSelect;

@@ -162,6 +162,13 @@
       "when": 1793388025345,
       "tag": "0022_explore",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793485075861,
+      "tag": "0023_yomitan_dictionaries",
+      "breakpoints": true
     }
   ]
 }

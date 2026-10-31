@@ -10,7 +10,10 @@
     "./schema": "./src/schema.ts",
     "./types": "./src/types.ts",
     "./seed/pitch": "./src/seed/pitch.ts",
-    "./token-overrides": "./src/token-overrides.ts"
+    "./token-overrides": "./src/token-overrides.ts",
+    "./dictionaries": "./src/dictionaries/yomitan.ts",
+    "./dictionaries/fixture": "./src/dictionaries/fixture.ts",
+    "./structured-content": "./src/dictionaries/structured-content.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
