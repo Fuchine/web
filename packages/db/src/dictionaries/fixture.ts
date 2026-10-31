@@ -11,6 +11,10 @@ export function buildYomitanFixture(opts: {
   revision?: string;
   kind: FixtureKind;
   frequencyMode?: "rank-based" | "occurrence-based";
+  /** index.json sourceLanguage (default "ja"); E2E uses "zxx" to stay apart from seeded data. */
+  language?: string;
+  /** index.json targetLanguage for a term dictionary (default = language → monolingual). */
+  targetLanguage?: string;
   /** Extra term rows (term_bank_2.json). */
   extraTerms?: unknown[];
   /** Override files (e.g. to inject a malicious entry). */
@@ -23,8 +27,8 @@ export function buildYomitanFixture(opts: {
     author: "Fuchine tests",
     attribution: "Invented test data",
     url: "https://example.com/dict",
-    sourceLanguage: "ja",
-    targetLanguage: opts.kind === "terms" ? "ja" : undefined,
+    sourceLanguage: opts.language ?? "ja",
+    targetLanguage: opts.kind === "terms" ? opts.targetLanguage ?? opts.language ?? "ja" : undefined,
     ...(opts.frequencyMode ? { frequencyMode: opts.frequencyMode } : {}),
   };
   const files: Zippable = { "index.json": strToU8(JSON.stringify(index)) };
