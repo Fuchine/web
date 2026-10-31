@@ -4,9 +4,19 @@
 //      have been turned on so the player fetched the track.
 //   2) Re-fetch — read the track baseUrl from ytInitialPlayerResponse and fetch
 //      it. Often gated (empty), kept as a fallback.
-// The result is POSTed to the Fuchine import API with the session cookie.
+// The result is POSTed to the Fuchine import API with the API token
+// (`Authorization: Bearer`) when one is set, else with the session cookie.
 import { extractCaptions } from "@/lib/capture";
-import { STATUS_URL, normalizeBase, originPattern } from "@/lib/instance";
+import {
+  STATUS_URL,
+  importRequestInit,
+  isApiTokenFormat,
+  normalizeBase,
+  normalizeToken,
+  originPattern,
+  tokenForOrigin,
+  unauthorizedMessage,
+} from "@/lib/instance";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const setStatus = (msg: string) => {
@@ -16,6 +26,15 @@ const setStatus = (msg: string) => {
 async function getBase(): Promise<string> {
   const { base } = (await browser.storage.local.get("base")) as { base?: string };
   return normalizeBase(base);
+}
+
+/** The stored token for `base`, or null (never logged or echoed in full). */
+async function getToken(base: string): Promise<string | null> {
+  const stored = (await browser.storage.local.get(["base", "apiToken"])) as {
+    base?: string;
+    apiToken?: string;
+  };
+  return tokenForOrigin(stored, base);
 }
 
 /**
@@ -84,14 +103,10 @@ async function doImport() {
     }
 
     setStatus(`Captured ${cap.captions.length} lines (${cap.source}). Sending to ${base}…`);
+    const token = await getToken(base);
     let res: Response;
     try {
-      res = await fetch(`${base}/api/import`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(cap),
-      });
+      res = await fetch(`${base}/api/import`, importRequestInit(cap, token));
     } catch (netErr: any) {
       setStatus(
         `Captured ${cap.captions.length} lines (${cap.source}) ✓\n` +
@@ -102,7 +117,7 @@ async function doImport() {
     }
 
     if (res.status === 401) {
-      setStatus("Sign in to Fuchine first (open the web app), then retry.");
+      setStatus(unauthorizedMessage(token !== null));
       return;
     }
     const body = await res.json().catch(() => ({}));
@@ -140,6 +155,34 @@ async function init() {
       browser.runtime.sendMessage({ type: "REGISTER_BRIDGE", origin: new URL(base).origin }).catch(() => {});
     }
   });
+
+  // API token: write-only from the UI's point of view. The hint shows a short
+  // prefix of the saved token, never the token itself.
+  const tokenInput = $<HTMLInputElement>("token");
+  const tokenHint = $("token-hint");
+  const showTokenHint = async () => {
+    const { apiToken } = (await browser.storage.local.get("apiToken")) as { apiToken?: string };
+    tokenHint.textContent = apiToken
+      ? `Saved (${apiToken.slice(0, 8)}…). Paste a new one to replace it, or clear the field to remove it.`
+      : "Optional. Create one in Fuchine → Settings → Extension & API.";
+  };
+  await showTokenHint();
+  tokenInput.addEventListener("change", async () => {
+    const value = normalizeToken(tokenInput.value);
+    if (!value) {
+      await browser.storage.local.remove("apiToken");
+      setStatus("API token removed. Imports will use your Fuchine sign-in.");
+    } else if (!isApiTokenFormat(value)) {
+      setStatus("That doesn't look like a Fuchine API token (it starts with fch_).");
+      return;
+    } else {
+      await browser.storage.local.set({ apiToken: value });
+      setStatus("API token saved.");
+    }
+    tokenInput.value = "";
+    await showTokenHint();
+  });
+
   $("import").addEventListener("click", doImport);
 }
 
