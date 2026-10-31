@@ -148,19 +148,22 @@ Every step is idempotent: re-running a job does not duplicate data.
 
 ## 6. Data model (summary)
 
-27 tables (24 app + 3 Auth.js adapter); full schema in
+30 tables (27 app + 3 Auth.js adapter); full schema in
 [`packages/db/src/schema.ts`](../packages/db/src/schema.ts).
 
 | Table | Purpose |
 |---|---|
 | `users`, `accounts`, `sessions`, `verification_tokens` | Auth.js identity and database sessions. |
-| `user_settings` | Per-user LLM provider, **encrypted** BYOK key, explanation language, daily goals. |
+| `user_settings` | Per-user LLM provider, **encrypted** BYOK key, explanation language, daily goals, FSRS parameters, `dictionary_prefs` (T3.4: which imported dictionaries to show, in what order, and the frequency list behind the Lapis `FreqSort`). |
 | `invites` | E-mail-bound, expiring, single-use registration invites. |
 | `videos` | `source` + `source_id` (unique — the basis of the shared catalog), title, channel, duration, **`language`**, status, level estimate, **`fetched_at`** (T3.10: last metadata capture by the extension — never the YouTube Data API; re-imports refresh it and `refresh:metadata` lists rows older than 30 days for re-capture or, with `--expire`, clears channel/duration). |
 | `subtitle_lines` | Per-line timestamps, original text, translation, tokens (jsonb, each token referencing a `word_entry_id`). |
 | `subtitle_translation_chunks` | Which translation chunks of a video are done. |
 | `word_entries` | JMdict entries: **`language`**, lemma, reading, POS, definitions (jsonb), frequency rank. |
-| `word_pitch` | Pitch accent per (lemma, reading) from an attributed source (Kanjium, CC BY-SA 4.0): every downstep position, joined to `word_entries` by the natural key. |
+| `word_pitch` | Pitch accent per (lemma, reading) from an attributed source (Kanjium, CC BY-SA 4.0): every downstep position, joined to `word_entries` by the natural key. Imported Yomitan pitch dictionaries (T3.4) land here too, with `source` = the dictionary title and a cascading `dictionary_id`; they show only to users who enabled them. |
+| `dictionaries` | Imported **Yomitan** dictionaries (T3.4, 0023), installed by the operator (`dict:import` CLI or an `ADMIN_EMAILS`-gated upload). Title = identity (re-import replaces in one transaction, keeps the id); attribution/author/url from `index.json`; instance-wide `enabled`. Fuchine ships none: the operator is responsible for the right to use them. |
+| `dictionary_terms` | Their term entries; definitions keep Yomitan structured content as **sanitized** JSON (tag/style whitelist, http(s) links only, images dropped), rendered as React elements. Indexed by `(language, expression)` and `(language, reading)`. |
+| `word_frequency` | Imported frequency lists (`rank` is always lower = more frequent, for rank- and occurrence-based lists alike). |
 | `token_overrides` | A user's correction of a line's tokenization (T3.7): the original tokens `[start_idx, end_idx]` replaced by corrected `tokens` (merge/split/reading/entry). Applied for that user only — player, review queue, curation, Lapis export and word stats from then on; the shared tokens and the AI cache are untouched. The corrected surfaces must spell the original text. |
 | `word_examples` | Word ↔ line ↔ video; powers "examples in video". |
 | `sentence_cards` | Mined cards with the clip window and their own FSRS state. |

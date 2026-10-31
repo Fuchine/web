@@ -231,6 +231,42 @@ is therefore only possible for the **house provider** in `.env`.
 
 `echo` in production means AI is silently off; the boot logs a warning.
 
+### 3.7 Extra dictionaries (Yomitan format)
+
+Fuchine ships JMdict and Kanjium pitch (seeded, §2). Any dictionary in the
+**Yomitan** zip format (format 3: term banks, pitch and frequency lists, with
+an `index.json`) can be added to the instance: monolingual dictionaries
+(国語辞典), other bilingual ones, pitch dictionaries and domain frequency lists
+(YouTube, anime and drama, Netflix, JPDB…). Fuchine distributes none of them.
+**You are responsible for having the right to use the dictionaries you
+import.** Their attribution, author and URL from `index.json` are kept and shown
+in the admin list.
+
+```bash
+# put the zip next to the compose file, then:
+docker compose run --rm -v "$PWD/dicts:/dicts:ro" worker \
+  pnpm --filter @fuchine/worker dict:import /dicts/my-dictionary.zip
+docker compose run --rm worker pnpm --filter @fuchine/worker dict:list
+docker compose run --rm worker pnpm --filter @fuchine/worker dict:remove "Dictionary title"
+```
+
+- Importing a title that already exists **replaces** it (one transaction; the
+  previous revision stays if the import fails) and keeps users' choices.
+- Each user turns dictionaries on, orders them, and picks the frequency list
+  that drives the Anki export's `FreqSort` in **Settings → Dictionaries**.
+  Nothing is shown until a user enables it.
+- Images inside dictionaries are not imported; definitions are rendered from a
+  whitelist of tags and styles (spec: `docs/plans/2026-10-31-yomitan-dictionaries-spec.md`).
+- Size: archives whose banks exceed `DICT_MAX_UNCOMPRESSED_MB` uncompressed
+  (default 200) are rejected. Large monolingual or bilingual dictionaries need
+  more: Jitendex (514 MB of banks) imported in about 50 s with
+  `-e DICT_MAX_UNCOMPRESSED_MB=1000` and takes about 450 MB of database space.
+
+| Variable | Notes |
+|---|---|
+| `ADMIN_EMAILS` | Comma-separated e-mails of instance admins. Admins can upload, disable and remove dictionaries in Settings → Dictionaries (uploads up to 100 MB through Caddy; use the CLI for larger files). Unset = no admins; the CLI still works. |
+| `DICT_MAX_UNCOMPRESSED_MB` | Cap on a dictionary's uncompressed banks, for the CLI and the upload (default 200). |
+
 ## 4. Local AI with Ollama
 
 The house provider can be any OpenAI-compatible endpoint, which includes
@@ -307,7 +343,9 @@ publishes no host port.
   Encrypt certificate automatically. Ports 80 and 443 must be open and DNS must
   point at the host. Certificates live in the `caddy_data` volume.
 - Caddy caps request bodies at **2 MB** (larger requests get `413`); the largest
-  legitimate body, a long video's captions, is about 0.5 MB.
+  legitimate body, a long video's captions, is about 0.5 MB. The one exception
+  is `POST /api/admin/dictionaries` (admin dictionary upload, §3.7): 100 MB. The
+  app rejects non-admins there before reading the body.
 - Caddy **replaces** any client-sent `X-Forwarded-For` with the real peer
   address. The magic-link per-IP rate limit depends on that.
 - Caddy gets no secrets: only `SITE_ADDRESS`.
@@ -318,7 +356,8 @@ publishes no host port.
 way to reach the web container (Auth.js trusts the forwarded host headers), set
 `X-Forwarded-Host`/`X-Forwarded-Proto`, **overwrite** `X-Forwarded-For` rather
 than append to it (nginx: `proxy_set_header X-Forwarded-For $remote_addr;`),
-and cap bodies at 2 MB (nginx: `client_max_body_size 2m;`).
+and cap bodies at 2 MB (nginx: `client_max_body_size 2m;`), except
+`POST /api/admin/dictionaries` if you want admin uploads (100 MB).
 
 ## 6. Backups and restore
 
@@ -435,6 +474,7 @@ All run through the worker image (`docker compose run --rm worker pnpm --filter 
 | `invite add\|list\|revoke` | Manage registration invites (§3.4). |
 | `usage` | Today's house and BYOK token spend (§3.5). |
 | `rotate:key` | Re-encrypt every saved BYOK key from `OLD_ENCRYPTION_KEY` to `FUCHINE_ENCRYPTION_KEY`. Pass both, then put the new key in `.env`: `docker compose run --rm -e OLD_ENCRYPTION_KEY=<old> -e FUCHINE_ENCRYPTION_KEY=<new> worker pnpm --filter @fuchine/worker rotate:key`. Safe to re-run. |
+| `dict:import <zip>`, `dict:list`, `dict:remove <title>` | Install, list and remove Yomitan dictionaries (§3.7). |
 | `backfill:level`, `backfill:daily-stats`, `backfill:explain` | One-off backfills (§7). |
 
 The dictionary seeds run through the migrate image:

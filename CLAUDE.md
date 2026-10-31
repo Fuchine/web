@@ -44,7 +44,7 @@ UI é em inglês.
 - `screens.md` — guia para gerar telas (handoff para IA): sistema visual,
   fluxo component-first, tokens/utilitários, componentes prontos em
   `@fuchine/ui` e os shapes de API por tela.
-- `packages/db/src/schema.ts` — schema Drizzle: 27 tabelas (24 do app + 3 do
+- `packages/db/src/schema.ts` — schema Drizzle: 30 tabelas (27 do app + 3 do
   adapter Auth.js).
 
 ## Decisões que NÃO podem ser violadas
@@ -163,7 +163,20 @@ lock, botão "Install app"; `htmlLimitedBots` no `next.config.ts` para o link do
 manifest ficar no `<head>`) e T3.12 (harness `pnpm --filter @fuchine/llm eval:explain`, gold set
 semente de 36 itens **não revisado**, trava `prompt-version.lock.json` que
 exige bump de `PROMPT_VERSION` ao mudar `prompts.ts`, rótulo "AI-generated ·
-prompt vN"). Próximo: T2.7 (deploy do mantenedor) e a onda 2 da Fase 3.
+prompt vN") e T3.4 (**dicionários Yomitan importados** — migration 0023:
+`dictionaries`/`dictionary_terms`/`word_frequency` + `word_pitch.dictionary_id`
++ `user_settings.dictionary_prefs`; importador `@fuchine/db/dictionaries`
+(zip v3 via fflate, um bank por vez, rejeita zip-slip e > 200 MB
+descomprimidos — `DICT_MAX_UNCOMPRESSED_MB`; reimportar o mesmo título
+substitui numa transação e mantém o id); CLI `dict:import|list|remove` do
+worker; admin (`ADMIN_EMAILS`, `lib/admin.ts`) sobe/desativa/remove em
+Settings → Dictionaries e cada usuário escolhe quais ver, em que ordem e a
+lista do `FreqSort` do Lapis; structured-content sanitizado na importação e
+de novo no `StructuredContent` do `@fuchine/ui` (whitelist, imagens
+descartadas, links só http(s)); popup e dicionário mostram as seções sob o
+JMdict, pitch importado ao lado do Kanjium; spec em
+`docs/plans/2026-10-31-yomitan-dictionaries-spec.md`). Próximo: T2.7 (deploy
+do mantenedor) e a onda 2 da Fase 3.
 `next dev` voltou a funcionar (corpo Node do boot em `instrumentation-node.ts`).
 
 Monorepo pnpm + Turborepo: `pnpm typecheck` e `pnpm test` verdes nos 8
@@ -174,13 +187,14 @@ lint, test, build), `e2e.yml` (migrate + suítes E2E contra Postgres real), `dco
 
 Pacotes e seus pontos de entrada:
 
-- `packages/db` — schema Drizzle com 27 tabelas: 24 do app (`users`,
+- `packages/db` — schema Drizzle com 30 tabelas: 27 do app (`users`,
   `user_settings`, `instance_settings`, `invites`, `videos`, `subtitle_lines`,
   `subtitle_translation_chunks`, `word_entries`, `word_pitch`, `word_examples`,
   `sentence_cards`, `review_logs`, `ai_explanations`, `albums`, `album_videos`,
   `user_video_flags`, `user_word_stats`, `saved_words`, `user_daily_stats`,
   `token_overrides`, `video_word_counts`, `user_video_progress`,
-  `user_video_coverage`, `llm_usage`) + 3 do adapter Auth.js (`accounts`, `sessions`,
+  `user_video_coverage`, `llm_usage`, `dictionaries`, `dictionary_terms`,
+  `word_frequency`) + 3 do adapter Auth.js (`accounts`, `sessions`,
   `verification_tokens`). Tipos jsonb (`Token`, `Explanation`, `Definition`,
   `DailyGoals`) + `createDb()` (pool configurável, `DB_POOL_MAX`) +
   `ensureUserSettings` + helpers de convite (`invites.ts`) e `normalizeEmail`.
@@ -192,7 +206,10 @@ Pacotes e seus pontos de entrada:
   `loadKnownWordParams`: usuário → instância → constantes), `user-coverage.ts`
   (`refreshUserVideoCoverage`) e o núcleo puro das correções de token no
   subpath `@fuchine/db/token-overrides` (reexportado por `@fuchine/core`).
-  Migrations em `drizzle/` de `0000_init` a `0022` com meta journal
+  T3.4: importador Yomitan em `@fuchine/db/dictionaries` (+ fixture em
+  `@fuchine/db/dictionaries/fixture`) e o sanitizador de structured-content
+  em `@fuchine/db/structured-content` (puro, usado também pelo `@fuchine/ui`).
+  Migrations em `drizzle/` de `0000_init` a `0023` com meta journal
   (`pnpm db:migrate`; a `0013` cria a extensão `pg_trgm`). Seed JMdict +
   frequência em `src/seed/` (`pnpm --filter @fuchine/db seed`/`seed:jmdict`;
   fixture em `seeds/fixtures/`).
@@ -239,7 +256,7 @@ Pacotes e seus pontos de entrada:
   inválidos). Security headers + CSP em `next.config.ts`. Rate limits por
   usuário/IP em Redis (`lib/rate-limit.ts`: explain miss/force, translate miss,
   import novo, busca do dicionário, magic link, beacon, click, correção de token).
-  Rotas (35): `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
+  Rotas (38): `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
   estudo (F1, completa): `GET /api/videos` (biblioteca), `GET /api/videos/[id]`
   (payload do player), `POST /api/cards` (minerar, dedup), `GET
   /api/review/queue` + `POST /api/review/[cardId]` (FSRS), `GET /api/dictionary`
@@ -318,7 +335,7 @@ Pacotes e seus pontos de entrada:
   `getLatestVideo` — em vez de montar a fila/biblioteca inteira só para um número. Metas diárias: `PATCH
   /api/settings` aceita `dailyGoals` (validado com teto por campo, merge
   parcial no jsonb); o stepper "New cards per day" em `/settings` persiste
-  `newCardsPerDay`. E2E: `e2e-progress.ts`, `e2e-comprehension.ts`, `e2e-explore.ts`. Lógica testável em
+  `newCardsPerDay`. E2E: `e2e-progress.ts`, `e2e-comprehension.ts`, `e2e-explore.ts`, `e2e-dictionaries.ts` (T3.4, junto das rotas `GET/PUT /api/settings/dictionaries` e, só admin, `GET/POST /api/admin/dictionaries` + `PATCH/DELETE /api/admin/dictionaries/[id]`). Lógica testável em
   `lib/` (`import`, `study`, `cards`, `dictionary`, `explain`, `albums`,
   `progress`, `translate` — chunk lazy com `houseMtProvider()`: MT dedicado via
   env `MT_PROVIDER`/`MT_API_KEY` (DeepL recomendado) com `FallbackProvider`
@@ -363,7 +380,8 @@ Pacotes e seus pontos de entrada:
   popular os ranks. Fila `maintenance` (T3.10): job diário
   `calibrate-known-words` (job scheduler, 04:17) e `refresh-coverage` por usuário
   (enfileirado pelo `/explore`, jobId deduplicado). Outros CLIs do worker:
-  `rotate:key`, `invite`, `usage`, `refresh:metadata` (vídeos com metadados de
+  `rotate:key`, `invite`, `usage`, `dict:import|list|remove` (dicionários
+  Yomitan, T3.4), `refresh:metadata` (vídeos com metadados de
   mais de 30 dias para re-captura; `--expire` limpa canal/duração — nunca chama
   o YouTube).
 - `packages/jobs` — nomes das filas (`import`, `explain`, `maintenance`), tipos dos jobs,
