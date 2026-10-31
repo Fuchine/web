@@ -8,6 +8,32 @@ always called out under **Upgrade notes**.
 
 ## [Unreleased]
 
+### Added
+
+- **Per-user API tokens for imports (T2.11).** Settings → Extension & API
+  creates named tokens (`fch_…`, shown once with a copy button), lists them
+  with prefix, creation and last-use dates, and revokes them; up to 10 active
+  per user, creation rate-limited. `POST /api/import` accepts
+  `Authorization: Bearer fch_…` (scope `import`); every other route stays
+  session-only. Tokens are stored as SHA-256 hashes (migration `0023`, table
+  `api_tokens`) and removed with the account.
+- **Fuchine Importer 0.2.0.** The popup has an optional **API token** field;
+  with it, imports carry the bearer token and no cookies, and a revoked token
+  shows "Token invalid or revoked".
+
+### Security
+
+- The cross-site exemption on `POST /api/import` is narrowed: requests with a
+  bearer token, or with the session cookie from a browser-extension origin
+  (deprecated path for extension < 0.2.0), pass; a cross-site web page is now
+  blocked like on every other route.
+
+### Deprecated
+
+- Cookie-authenticated imports from the extension. They keep working for
+  extension < 0.2.0 and will be removed once 0.2.0 is the oldest supported
+  version; see `docs/EXTENSION.md#deprecations`.
+
 ## [0.1.0] - Unreleased
 
 First tagged release. Everything below is new relative to an untagged checkout

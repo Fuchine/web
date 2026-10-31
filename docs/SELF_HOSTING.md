@@ -110,6 +110,17 @@ curl -s https://fuchine.example.com/api/health
 Open `https://fuchine.example.com`, sign in with the address you put in
 `AUTH_ALLOWED_EMAILS`, then install the browser extension and point it at your
 instance to import your first video: see [`EXTENSION.md`](EXTENSION.md).
+Create an API token for it in **Settings → Extension & API** and paste it into
+the extension popup: imports then authenticate with `Authorization: Bearer`
+instead of depending on the session cookie reaching your instance cross-origin.
+Tokens can only import (no other route accepts them), are stored as SHA-256
+hashes, and are revoked from the same screen. Any client can use one:
+
+```bash
+curl -X POST https://fuchine.example.com/api/import \
+  -H "Authorization: Bearer fch_…" -H "Content-Type: application/json" \
+  -d '{"url":"https://www.youtube.com/watch?v=…","title":"…","captions":[{"startMs":0,"endMs":1500,"text":"…"}]}'
+```
 
 Turn on backups before the first real user (§6):
 

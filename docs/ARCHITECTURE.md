@@ -119,7 +119,8 @@ flowchart LR
 
 1. The extension captures the Japanese caption track the YouTube player
    downloaded and posts `{ url, title, channel, durationS, language, captions[] }`
-   to `POST /api/import`. If the video already exists, it is returned as is
+   to `POST /api/import`, authenticated with the user's API token
+   (`Authorization: Bearer fch_…`, T2.11) or, deprecated, the session cookie. If the video already exists, it is returned as is
    (the shared catalog in action).
 2. The worker tokenizes every line in one batch, resolves the distinct lemmas
    against JMdict in a single query, writes tokens (jsonb) and word examples,
@@ -148,7 +149,7 @@ Every step is idempotent: re-running a job does not duplicate data.
 
 ## 6. Data model (summary)
 
-27 tables (24 app + 3 Auth.js adapter); full schema in
+28 tables (25 app + 3 Auth.js adapter); full schema in
 [`packages/db/src/schema.ts`](../packages/db/src/schema.ts).
 
 | Table | Purpose |
@@ -156,6 +157,7 @@ Every step is idempotent: re-running a job does not duplicate data.
 | `users`, `accounts`, `sessions`, `verification_tokens` | Auth.js identity and database sessions. |
 | `user_settings` | Per-user LLM provider, **encrypted** BYOK key, explanation language, daily goals. |
 | `invites` | E-mail-bound, expiring, single-use registration invites. |
+| `api_tokens` | Per-user API tokens (T2.11, 0023): name, **SHA-256 hash** of the token (unique), display prefix, `scopes` (only `import` today), created / last used (written at most once a minute) / revoked. The raw `fch_…` token (43 base62 chars, 256 bits) is shown once and never stored: a fast unsalted hash is safe for a high-entropy random secret and keeps the lookup a unique-index hit (bcrypt/argon2 protect low-entropy passwords). Only `POST /api/import` accepts `Authorization: Bearer`; every other route is session-only. Cascade on user delete. |
 | `videos` | `source` + `source_id` (unique — the basis of the shared catalog), title, channel, duration, **`language`**, status, level estimate, **`fetched_at`** (T3.10: last metadata capture by the extension — never the YouTube Data API; re-imports refresh it and `refresh:metadata` lists rows older than 30 days for re-capture or, with `--expire`, clears channel/duration). |
 | `subtitle_lines` | Per-line timestamps, original text, translation, tokens (jsonb, each token referencing a `word_entry_id`). |
 | `subtitle_translation_chunks` | Which translation chunks of a video are done. |
