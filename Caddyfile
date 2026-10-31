@@ -18,7 +18,23 @@
 	# Test: head -c 3000000 /dev/zero | curl -sk -o /dev/null -w '%{http_code}\n' \
 	#         -X POST -H 'Content-Type: application/json' --data-binary @- \
 	#         https://$SITE_ADDRESS/api/import          # expect 413
-	request_body {
+	#
+	# One exception (T3.4): the admin dictionary upload (a Yomitan .zip) may be
+	# up to 100 MB. The app rejects non-admins before reading the body and caps
+	# it again at DICT_MAX_UNCOMPRESSED_MB. Exact path + POST only; everything
+	# else keeps the 2 MB cap.
+	@dictUpload {
+		method POST
+		path /api/admin/dictionaries
+	}
+	@notDictUpload not {
+		method POST
+		path /api/admin/dictionaries
+	}
+	request_body @dictUpload {
+		max_size 100MB
+	}
+	request_body @notDictUpload {
 		max_size 2MB
 	}
 	encode gzip

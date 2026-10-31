@@ -22,6 +22,7 @@ import { pitchCategories } from "@fuchine/core";
 import { kataToHira } from "@fuchine/nlp/client";
 import { type ClozeEntry, pickClozeTarget } from "@fuchine/ui/answer";
 import { withPitch } from "./dictionary";
+import { getUserDictionaries, pitchDictionaryIds, ranksInList } from "./dictionaries";
 import { escapeHtml } from "./html";
 import { withTokenOverrides } from "./token-overrides";
 
@@ -256,15 +257,28 @@ export function pitchCategoriesField(reading: string, positions: readonly number
 /** No-data FreqSort value — what Yomitan's `{frequency-harmonic-rank}` writes. */
 export const FREQ_SORT_UNKNOWN = 9999999;
 
-/** Frequency: Yomitan-style list (`JMdict: <rank>`); empty when unranked. */
-export function frequencyField(rank: number | null | undefined): string {
-  if (rank == null) return "";
-  return `<ul style="text-align: left;"><li>JMdict: ${rank}</li></ul>`;
+/** A word's rank in the user's chosen frequency list (T3.4). */
+export type ChosenFrequency = { title: string; rank: number; display: string | null };
+
+/**
+ * Frequency: Yomitan-style list — the user's chosen list first (T3.4), then
+ * `JMdict: <rank>`; empty when neither ranks the word.
+ */
+export function frequencyField(rank: number | null | undefined, chosen?: ChosenFrequency | null): string {
+  const items = [
+    ...(chosen ? [`<li>${cell(chosen.title)}: ${cell(chosen.display ?? String(chosen.rank))}</li>`] : []),
+    ...(rank != null ? [`<li>JMdict: ${rank}</li>`] : []),
+  ];
+  return items.length ? `<ul style="text-align: left;">${items.join("")}</ul>` : "";
 }
 
-/** FreqSort: the numeric rank (lower = more frequent), or 9999999 when unranked. */
-export function freqSortField(rank: number | null | undefined): string {
-  return String(rank ?? FREQ_SORT_UNKNOWN);
+/**
+ * FreqSort: the numeric rank (lower = more frequent) in the user's chosen
+ * frequency list when it has the word (T3.4), else the JMdict rank, else
+ * 9999999.
+ */
+export function freqSortField(rank: number | null | undefined, chosen?: ChosenFrequency | null): string {
+  return String(chosen?.rank ?? rank ?? FREQ_SORT_UNKNOWN);
 }
 
 /* ------------------------------------------------------------------ */
@@ -334,6 +348,8 @@ export type ExportEntry = {
   definitions: Definition[];
   frequencyRank: number | null;
   pitch: number[];
+  /** Rank in the user's chosen frequency list (T3.4); null/absent = not chosen or not listed. */
+  freq?: ChosenFrequency | null;
 };
 
 export type LapisCard = {
@@ -420,8 +436,8 @@ export function lapisNote(
     IsAudioCard: "",
     PitchPosition: entry ? pitchPositionField(entry.pitch) : "",
     PitchCategories: entry ? pitchCategoriesField(reading, entry.pitch) : "",
-    Frequency: frequencyField(entry?.frequencyRank),
-    FreqSort: freqSortField(entry?.frequencyRank),
+    Frequency: frequencyField(entry?.frequencyRank, entry?.freq),
+    FreqSort: freqSortField(entry?.frequencyRank, entry?.freq),
     MiscInfo: misc,
   };
   for (const k of LAPIS_FIELDS) fields[k] = flat(fields[k]);
@@ -523,10 +539,17 @@ export async function getLapisExport(
     entries[e.id] = { lemma: e.lemma, reading: e.reading, definitions: e.definitions, frequencyRank: e.frequencyRank, pitch: [] };
   }
 
-  // Pitch only for the entries that end up as a target word.
+  // Pitch and the chosen frequency list only for the entries that end up as a
+  // target word. Pitch: Kanjium + the user's enabled pitch dictionaries (T3.4).
   const targetIds = new Set(cards.map((c) => exportTarget(c, entries)?.wordEntryId).filter((x): x is string => !!x));
-  const withP = await withPitch(db, entryRows.filter((e) => targetIds.has(e.id)));
-  for (const e of withP) entries[e.id]!.pitch = e.pitch.flatMap((p) => p.positions);
+  const targets = entryRows.filter((e) => targetIds.has(e.id));
+  const mine = await getUserDictionaries(db, userId);
+  const withP = await withPitch(db, targets, pitchDictionaryIds(mine));
+  for (const e of withP) entries[e.id]!.pitch = [...new Set(e.pitch.flatMap((p) => p.positions))];
+  if (mine.frequency) {
+    const ranks = await ranksInList(db, mine.frequency, targets);
+    for (const [id, r] of ranks) entries[id]!.freq = { title: mine.frequency.title, ...r };
+  }
 
   return { cards, entries };
 }

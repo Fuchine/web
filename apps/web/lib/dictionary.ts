@@ -1,8 +1,9 @@
 // Dictionary lookups (F1 popup + F2 search). Auth-agnostic and testable.
 
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { type Database, wordEntries, wordExamples, wordPitch, subtitleLines, videos, savedWords } from "@fuchine/db";
 import { getDictionary } from "@fuchine/nlp";
+import { getUserDictionaries, pitchDictionaryIds, withImportedDictionaries } from "./dictionaries";
 
 /**
  * Pitch accent of an entry (T3.2), one item per source. `positions` are the
@@ -17,10 +18,15 @@ type PitchKeyed = { language: string; lemma: string; reading: string | null };
  * Attach `pitch` to dictionary entries: one indexed query for the whole batch,
  * matched on the natural key (language, lemma, reading). Entries without a
  * reading or without pitch data get `pitch: []`.
+ *
+ * Seeded sources (Kanjium: no dictionary_id) always show; rows of imported
+ * Yomitan pitch dictionaries (T3.4) only for the ids in `dictionaryIds` — the
+ * user's enabled ones — listed after the seeded source in that order.
  */
 export async function withPitch<T extends PitchKeyed>(
   db: Database,
   entries: T[],
+  dictionaryIds: readonly string[] = [],
 ): Promise<(T & { pitch: EntryPitch[] })[]> {
   const keyed = entries.filter((e) => e.reading);
   const rows = keyed.length
@@ -31,16 +37,22 @@ export async function withPitch<T extends PitchKeyed>(
           reading: wordPitch.reading,
           positions: wordPitch.positions,
           source: wordPitch.source,
+          dictionaryId: wordPitch.dictionaryId,
         })
         .from(wordPitch)
         .where(
           and(
             inArray(wordPitch.language, [...new Set(keyed.map((e) => e.language))]),
             inArray(wordPitch.lemma, [...new Set(keyed.map((e) => e.lemma))]),
+            dictionaryIds.length
+              ? or(isNull(wordPitch.dictionaryId), inArray(wordPitch.dictionaryId, [...dictionaryIds]))
+              : isNull(wordPitch.dictionaryId),
           ),
         )
         .orderBy(asc(wordPitch.source))
     : [];
+  const order = (id: string | null) => (id === null ? -1 : dictionaryIds.indexOf(id));
+  rows.sort((a, b) => order(a.dictionaryId) - order(b.dictionaryId));
   const byKey = new Map<string, EntryPitch[]>();
   for (const r of rows) {
     const k = `${r.language}\t${r.lemma}\t${r.reading}`;
@@ -54,16 +66,22 @@ export async function withPitch<T extends PitchKeyed>(
   }));
 }
 
-/** Fetch one entry by id — what the player popup uses for a resolved token. */
-export async function lookupById(db: Database, id: string) {
+/**
+ * Fetch one entry by id — what the player popup and the dictionary detail
+ * use. With a user, it also carries that user's imported dictionaries
+ * (`dictionaries`, `frequencies`) and their enabled pitch sources (T3.4).
+ */
+export async function lookupById(db: Database, id: string, userId?: string) {
   const [entry] = await db
     .select()
     .from(wordEntries)
     .where(eq(wordEntries.id, id))
     .limit(1);
   if (!entry) return null;
-  const [withP] = await withPitch(db, [entry]);
-  return withP!;
+  const mine = userId ? await getUserDictionaries(db, userId) : { ordered: [], frequency: null };
+  const [withP] = await withPitch(db, [entry], pitchDictionaryIds(mine));
+  const [full] = await withImportedDictionaries(db, mine, [withP!]);
+  return full!;
 }
 
 /** Search by lemma or reading (most frequent first). */

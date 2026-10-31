@@ -148,6 +148,15 @@ describe("dictionary fields", () => {
     expect(freqSortField(1500)).toBe("1500");
     expect(freqSortField(null)).toBe(String(FREQ_SORT_UNKNOWN));
   });
+  it("frequency fields with the user's chosen list (T3.4)", () => {
+    const chosen = { title: "JPDB <v2>", rank: 812, display: "812㋕" };
+    expect(frequencyField(1500, chosen)).toBe(
+      '<ul style="text-align: left;"><li>JPDB &lt;v2&gt;: 812㋕</li><li>JMdict: 1500</li></ul>',
+    );
+    expect(frequencyField(null, { ...chosen, display: null })).toBe('<ul style="text-align: left;"><li>JPDB &lt;v2&gt;: 812</li></ul>');
+    expect(freqSortField(1500, chosen)).toBe("812");
+    expect(freqSortField(1500, null)).toBe("1500"); // not in the chosen list → JMdict
+  });
 });
 
 describe("fsrsTags", () => {
