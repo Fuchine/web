@@ -18,6 +18,7 @@ export const RATE_LIMITS = {
   dictionarySearch: { limit: 60, windowSeconds: 60 }, // q-search (seq scan)
   magicLink: { limit: 5, windowSeconds: 3_600 }, // per target email / IP (pre-auth)
   tokenFix: { limit: 120, windowSeconds: 3_600 }, // per-user token corrections (T3.7)
+  tokenCreate: { limit: 10, windowSeconds: 3_600 }, // per-user API token creation (T2.11)
   // Stats writers: caps fabricated watch time / clicks (backlog:
   // stats-writers-daily-caps). Denied requests return 200 + discard (not 429) so
   // the player never breaks. The player flushes every ~15s and also sends a final

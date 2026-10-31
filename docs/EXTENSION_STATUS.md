@@ -32,4 +32,5 @@ Web Store dashboard, then update the row here.
 
 | Version | Date | Notes |
 | ------- | ---- | ----- |
+| 0.2.0   | 2026-10-31 | Optional **API token** field in the popup (T2.11): when set, imports send `Authorization: Bearer fch_…` without cookies, only to the configured instance. Clear 401 message ("Token invalid or revoked"). Without a token it still uses the session cookie (deprecated). |
 | 0.1.0   | 2026-10-30 | Rebuilt with WXT + TypeScript. Renamed listing to "Fuchine Importer"; dropped the `tabs` permission. Adds this "Known issues" link. |

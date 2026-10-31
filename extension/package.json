@@ -1,7 +1,7 @@
 {
   "name": "fuchine-importer",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Fuchine Importer browser extension: send a video's Japanese captions to your Fuchine instance.",
   "license": "AGPL-3.0-only",
   "type": "module",

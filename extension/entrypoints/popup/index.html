@@ -15,6 +15,8 @@
       .settings { margin-top: 14px; border-top: 1px solid #e7e3dc; padding-top: 10px; }
       label { font-size: 11px; color: #888; display: block; margin-bottom: 4px; }
       input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #d8d2c8; border-radius: 6px; font-size: 12px; }
+      label.spaced { margin-top: 8px; }
+      .hint { margin: 4px 0 0; font-size: 11px; color: #888; }
       a { color: #2b4f7e; }
       .footer { margin-top: 10px; display: flex; justify-content: space-between; align-items: baseline; color: #aaa; font-size: 10px; }
       .footer a { font-size: 11px; }
@@ -29,6 +31,9 @@
       <div class="settings">
         <label for="base">Fuchine URL</label>
         <input id="base" type="text" placeholder="http://localhost:3000" />
+        <label for="token" class="spaced">API token</label>
+        <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="fch_…" />
+        <p class="hint" id="token-hint"></p>
       </div>
       <div class="footer">
         <span id="version"></span>

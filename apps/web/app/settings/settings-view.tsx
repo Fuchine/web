@@ -6,6 +6,7 @@ import { Button } from "@fuchine/ui";
 import { DEFAULT_NEW_CARDS_PER_DAY } from "@/lib/srs-defaults";
 import { ExportRows } from "./export-section";
 import { FsrsRows } from "./fsrs-section";
+import { ApiTokenRows } from "./api-tokens-section";
 
 /** Starting values when the user turns on an optional limit. */
 const INITIAL_MAX_REVIEWS = 200;
@@ -374,6 +375,19 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
           />
         </Row>
         <FsrsRows />
+      </Group>
+
+      {/* Extension & API (T2.11) */}
+      <Group
+        icon={(<svg viewBox="0 0 24 24" fill="none"><path d="M14.5 4.5a3 3 0 0 1 5 3.2l-2.2 2.2M9.5 19.5a3 3 0 0 1-5-3.2l2.2-2.2M9 15l6-6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>)}
+        title="Extension & API"
+      >
+        <Row title="Browser extension" desc="Import videos with their Japanese subtitles from YouTube.">
+          <a href="/extension" className="text-[13.5px] font-[550] text-link hover:text-[var(--link-hover)]">
+            Set up
+          </a>
+        </Row>
+        <ApiTokenRows />
       </Group>
 
       {/* Data */}

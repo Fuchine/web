@@ -7,8 +7,11 @@ import {
   BRIDGE_SCRIPT_ID,
   DEFAULT_BASE,
   bridgeMatchPattern,
+  importRequestInit,
   isStaticBridgeOrigin,
   isVideoId,
+  tokenForOrigin,
+  unauthorizedMessage,
 } from "@/lib/instance";
 
 const LOAD_TIMEOUT_MS = 30000;
@@ -90,13 +93,15 @@ async function doImport(videoId: string, base: string): Promise<ImportOutcome> {
     }
     if (!cap.captions || cap.captions.length === 0) return { ok: false, error: "No subtitle lines found." };
 
-    const res = await fetch(`${base}/api/import`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(cap),
-    });
-    if (res.status === 401) return { ok: false, error: "Sign in to Fuchine first, then retry." };
+    // The API token (if any) is only sent to the instance it was configured
+    // for; otherwise this falls back to the session cookie.
+    const stored = (await browser.storage.local.get(["base", "apiToken"])) as {
+      base?: string;
+      apiToken?: string;
+    };
+    const token = tokenForOrigin(stored, base);
+    const res = await fetch(`${base}/api/import`, importRequestInit(cap, token));
+    if (res.status === 401) return { ok: false, error: unauthorizedMessage(token !== null) };
     const body = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: `Import failed (${res.status}): ${body.error || ""}` };
     // body.videoId is the internal DB id (UUID) — the player route keys on it,

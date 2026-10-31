@@ -29,14 +29,29 @@ in `chrome://extensions`.
 
 ## Point it at your instance
 
-1. **Sign in** to your Fuchine instance in the same browser profile. The
-   extension uses your Fuchine session; it has no separate login.
-2. Open the popup and set **Fuchine URL** to your instance, e.g.
+1. Open the popup and set **Fuchine URL** to your instance, e.g.
    `https://fuchine.example.com` (default: `http://localhost:3000` for
    development).
+2. **Create an API token** (recommended, extension 0.2.0+): in Fuchine, open
+   **Settings → Extension & API → API tokens**, type a name (e.g. "Laptop
+   Chrome") and click **Create token**. The token (`fch_…`) is shown **once**:
+   click **Copy**, then paste it into the popup's **API token** field. The popup
+   confirms "API token saved." and from then on shows only its first characters.
 3. The first time you import to a non-localhost instance, Chrome asks for
    permission to access that site. Accept it: it lets the extension send the
    import and enables the in-app bridge on that site.
+
+With a token, each import carries `Authorization: Bearer fch_…` and no cookies,
+so it works regardless of browser cookie policies (`SameSite`, third-party
+cookie blocking). A token can only **import videos**: it cannot read your cards,
+change settings or create other tokens. You can have up to 10 active tokens;
+the list in Settings shows when each was created and last used. Revoke a token
+there if a device is lost; the extension then reports "Token invalid or
+revoked". The token is sent only to the instance it was saved for.
+
+Without a token, the extension falls back to your Fuchine **session cookie**
+(sign in to the instance in the same browser profile). That path is deprecated;
+see [Deprecations](#deprecations).
 
 ## Two ways to import
 
@@ -73,7 +88,7 @@ import there to grant the permission.
 | `https://*/*` (optional) | Requested at runtime for **your** instance only, the first time you import there. Never granted wholesale. |
 | `activeTab`, `scripting` | Read the current video and its captured captions from the YouTube tab. |
 | `tabs` | Open and close the background YouTube tab used by the in-app bridge. |
-| `storage` | Remember the Fuchine URL. |
+| `storage` | Remember the Fuchine URL and, if set, the API token. |
 
 ## Privacy
 
@@ -83,23 +98,24 @@ import there to grant the permission.
 - **What it sends.** On import, one request to **your** instance's
   `/api/import` with the video URL, title, channel, duration, language and the
   Japanese caption lines (text and timestamps). Nothing is sent to anyone else.
-- **What it stores.** Only the instance URL, in the extension's local storage.
+- **What it stores.** The instance URL and, if you set one, the API token, in
+  the extension's local storage (`chrome.storage.local`). The token is never
+  logged or shown back in full; clearing the field removes it.
 - **Never media.** The extension never downloads, records or uploads video or
   audio, and Fuchine never stores any. Clips in the app and in reviews play
   through YouTube's official embedded player.
 - It does not read your YouTube or Google cookies, history or account data. The
-  import request carries your **Fuchine** session cookie so the instance knows
-  who imported.
+  import request carries your **Fuchine** API token (or, without one, your
+  Fuchine session cookie) so the instance knows who imported.
 - The in-app bridge only accepts plain 11-character YouTube video ids from the
   Fuchine page, and runs only on the instance you granted.
 
 ## Known limitations
 
 - **Unpacked install only** until T2.10 (WXT migration + Chrome Web Store).
-- **Session cookie auth.** The import relies on the browser sending your Fuchine
-  session cookie with the extension's request. That is validated on localhost; a
-  full run against a live `https://` instance is still pending (it is in the
-  deploy smoke test). A per-user API token is planned (T2.11).
+- **Live `https://` run pending.** Token and cookie imports are validated on
+  localhost; a full run against a live `https://` instance is still pending (it
+  is in the deploy smoke test).
 - **One instance at a time.** The extension talks to the single URL set in the
   popup; the in-app bridge is registered for that origin only.
 - **Depends on YouTube's player.** Capture works by observing how the player
@@ -117,7 +133,19 @@ import there to grant the permission.
 | "Open a YouTube video first." | The active tab must be a `youtube.com/watch` page. |
 | "Turn on Japanese subtitles (CC) in the player, let it play ~2s, then click Import again." | The player has not downloaded the Japanese track yet. |
 | "No Japanese captions on this video. (has: …)" | The video has no Japanese track; it cannot be imported. |
-| "Sign in to Fuchine first (open the web app), then retry." | Sign in to the instance in this browser profile. |
+| "Token invalid or revoked. …" | The saved API token was revoked or mistyped. Create a new one in **Settings → Extension & API** and paste it into the popup. |
+| "Sign in to Fuchine first, or paste an API token …" | No token is set and there is no session: create a token (recommended) or sign in to the instance in this browser profile. |
+| "That doesn't look like a Fuchine API token" | Paste the whole token, starting with `fch_`. |
 | "couldn't reach Fuchine at …" | Wrong **Fuchine URL**, or the instance is down (check `/api/health`). |
 | "Permission to reach … was denied" | Import again and accept the permission prompt, or grant site access in `chrome://extensions` → Details. |
 | "Import failed (403/429/…)" | The instance refused it: not allowed, rate-limited, or an invalid payload. The message after the code comes from the server. |
+
+## Deprecations
+
+- **Cookie-authenticated import (extension < 0.2.0, or 0.2.0 without a
+  token).** `POST /api/import` still accepts the session cookie from a browser
+  extension origin (`chrome-extension://…`), exempt from the cross-site check
+  only for that case. It will be removed once 0.2.0 is the oldest supported
+  extension version (planned with the first Web Store release, T2.10); after
+  that, the extension needs an API token. A cross-site *web page* can no longer
+  use this path (since T2.11). Same-origin cookie requests are unaffected.

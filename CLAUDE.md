@@ -44,7 +44,7 @@ UI é em inglês.
 - `screens.md` — guia para gerar telas (handoff para IA): sistema visual,
   fluxo component-first, tokens/utilitários, componentes prontos em
   `@fuchine/ui` e os shapes de API por tela.
-- `packages/db/src/schema.ts` — schema Drizzle: 27 tabelas (24 do app + 3 do
+- `packages/db/src/schema.ts` — schema Drizzle: 28 tabelas (25 do app + 3 do
   adapter Auth.js).
 
 ## Decisões que NÃO podem ser violadas
@@ -174,8 +174,8 @@ lint, test, build), `e2e.yml` (migrate + suítes E2E contra Postgres real), `dco
 
 Pacotes e seus pontos de entrada:
 
-- `packages/db` — schema Drizzle com 27 tabelas: 24 do app (`users`,
-  `user_settings`, `instance_settings`, `invites`, `videos`, `subtitle_lines`,
+- `packages/db` — schema Drizzle com 28 tabelas: 25 do app (`users`,
+  `user_settings`, `instance_settings`, `invites`, `api_tokens`, `videos`, `subtitle_lines`,
   `subtitle_translation_chunks`, `word_entries`, `word_pitch`, `word_examples`,
   `sentence_cards`, `review_logs`, `ai_explanations`, `albums`, `album_videos`,
   `user_video_flags`, `user_word_stats`, `saved_words`, `user_daily_stats`,
@@ -192,7 +192,7 @@ Pacotes e seus pontos de entrada:
   `loadKnownWordParams`: usuário → instância → constantes), `user-coverage.ts`
   (`refreshUserVideoCoverage`) e o núcleo puro das correções de token no
   subpath `@fuchine/db/token-overrides` (reexportado por `@fuchine/core`).
-  Migrations em `drizzle/` de `0000_init` a `0022` com meta journal
+  Migrations em `drizzle/` de `0000_init` a `0023` com meta journal
   (`pnpm db:migrate`; a `0013` cria a extensão `pg_trgm`). Seed JMdict +
   frequência em `src/seed/` (`pnpm --filter @fuchine/db seed`/`seed:jmdict`;
   fixture em `seeds/fixtures/`).
@@ -238,8 +238,18 @@ Pacotes e seus pontos de entrada:
   (`DATABASE_URL`, `AUTH_SECRET`, `FUCHINE_ENCRYPTION_KEY`, registro/teto
   inválidos). Security headers + CSP em `next.config.ts`. Rate limits por
   usuário/IP em Redis (`lib/rate-limit.ts`: explain miss/force, translate miss,
-  import novo, busca do dicionário, magic link, beacon, click, correção de token).
-  Rotas (35): `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
+  import novo, busca do dicionário, magic link, beacon, click, correção de token,
+  criação de token de API).
+  **Tokens de API** (T2.11): `lib/api-tokens.ts` (`fch_` + 43 base62, só o SHA-256
+  no banco, tabela `api_tokens`, migration 0023; máx. 10 ativos) e
+  `authenticateRequest` em `lib/request-auth.ts` (sessão **ou** `Authorization:
+  Bearer`; token inválido/revogado → 401 mesmo com sessão) — usado **só** em
+  `POST /api/import` (escopo `import`); `auth-coverage.test.ts` exige 401 para
+  Bearer em toda outra rota. `GET/POST /api/tokens`, `DELETE /api/tokens/[id]`
+  (só sessão) + Settings → Extension & API. O `middleware.ts` isenta
+  `/api/import` do cheque cross-site só com Bearer ou origem de extensão (cookie
+  da extensão < 0.2.0, deprecado). E2E: `e2e-api-tokens.ts`.
+  Rotas (37): `app/api/auth/[...nextauth]`, `POST /api/import` (T0.7) e a API de
   estudo (F1, completa): `GET /api/videos` (biblioteca), `GET /api/videos/[id]`
   (payload do player), `POST /api/cards` (minerar, dedup), `GET
   /api/review/queue` + `POST /api/review/[cardId]` (FSRS), `GET /api/dictionary`
@@ -374,7 +384,7 @@ Pacotes e seus pontos de entrada:
 - `extension/` — MV3 em **WXT + TypeScript** (T2.10), fora do workspace pnpm
   (`package.json`/`package-lock.json` próprios; `npm ci && npm run build` →
   `.output/chrome-mv3`, `npm run zip` → zip de release; CI em
-  `.github/workflows/extension.yml`; versão 0.1.0; nome "Fuchine Importer", sem
+  `.github/workflows/extension.yml`; versão 0.2.0; nome "Fuchine Importer", sem
   "YouTube"; sem a permissão `tabs`). Entradas em `entrypoints/`
   (`inject.content.ts`, `bridge.content.ts`, `background.ts`, `popup/`), captura
   em `lib/capture.ts`; quebras conhecidas em `docs/EXTENSION_STATUS.md`. A
@@ -385,8 +395,10 @@ Pacotes e seus pontos de entrada:
   manual; re-fetch pelo servidor deu 0 bytes). Dois caminhos: popup no YouTube
   e bridge in-app (`bridge` + `background`: o app em `/import` pede, a
   extensão abre a aba, liga o CC, captura, importa e responde). Instância
-  configurável no popup, permissão de origin em runtime. Falta: rodar contra
-  uma instância https ao vivo, token de API (T2.11), ícones + envio à Web Store (T2.10, mantenedor).
+  configurável no popup, permissão de origin em runtime; token de API opcional no
+  popup (T2.11: `Authorization: Bearer` sem cookies, só para a instância
+  configurada; sem token cai no cookie). Falta: rodar contra
+  uma instância https ao vivo, ícones + envio à Web Store (T2.10, mantenedor).
   Fetch server-side (T0.8) segue só como fallback.
 
 **Operação.** `docker-compose.yml` sobe `postgres` e `redis` (sem porta no

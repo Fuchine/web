@@ -13,6 +13,7 @@ export function middleware(req: NextRequest) {
       req.headers.get("x-forwarded-host")?.split(",")[0]?.trim() || req.headers.get("host"),
     origin: req.headers.get("origin"),
     secFetchSite: req.headers.get("sec-fetch-site"),
+    authorization: req.headers.get("authorization"),
   });
   if (reason) {
     return NextResponse.json({ error: "cross-site request blocked" }, { status: 403 });
