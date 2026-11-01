@@ -23,7 +23,7 @@
     "@fuchine/ui": "workspace:*",
     "@open-spaced-repetition/binding-wasm32-wasip1": "0.6.0",
     "dotenv": "^16.4.7",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^0.45.4",
     "next": "^15.5.28",
     "next-auth": "5.0.0-beta.32",
     "nodemailer": "^10.1.4",
