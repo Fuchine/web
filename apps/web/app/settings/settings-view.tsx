@@ -3,6 +3,15 @@
 import { useState, useEffect } from "react";
 import { signOut } from "next-auth/react";
 import { Button } from "@fuchine/ui";
+import { DEFAULT_NEW_CARDS_PER_DAY } from "@/lib/srs-defaults";
+import { ExportRows } from "./export-section";
+import { FsrsRows } from "./fsrs-section";
+import { ApiTokenRows } from "./api-tokens-section";
+import { DictionaryRows } from "./dictionaries-section";
+
+/** Starting values when the user turns on an optional limit. */
+const INITIAL_MAX_REVIEWS = 200;
+const INITIAL_REVIEW_MINUTES = 30;
 
 const CheckIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" className="h-[22px] w-[22px]" aria-hidden="true">
@@ -82,8 +91,11 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
   const [hasApiKey, setHasApiKey] = useState<boolean>(settings.hasApiKey);
   const [keyInput, setKeyInput] = useState("");
   const [editingKey, setEditingKey] = useState(false);
-  const [newCardsPerDay, setNewCardsPerDay] = useState<number>(settings.dailyGoals?.newCardsPerDay ?? 20);
-  const [maxReviewsPerDay, setMaxReviewsPerDay] = useState<number>(settings.dailyGoals?.maxReviewsPerDay ?? 200);
+  const [newCardsPerDay, setNewCardsPerDay] = useState<number>(settings.dailyGoals?.newCardsPerDay ?? DEFAULT_NEW_CARDS_PER_DAY);
+  // Unset = no cap / no budget (null), not a made-up number: the queue only
+  // caps reviews when the user chose a cap.
+  const [maxReviewsPerDay, setMaxReviewsPerDay] = useState<number | null>(settings.dailyGoals?.maxReviewsPerDay ?? null);
+  const [reviewMinutesPerDay, setReviewMinutesPerDay] = useState<number | null>(settings.dailyGoals?.reviewMinutesPerDay ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -313,7 +325,10 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
 
       {/* Review */}
       <Group icon={ICONS.review} title="Review">
-        <Row title="New cards per day" desc="How many freshly mined cards to introduce daily.">
+        <Row
+          title="New cards per day"
+          desc={`How many freshly mined cards to introduce daily. ${DEFAULT_NEW_CARDS_PER_DAY} keeps reviews under an hour a day.`}
+        >
           <Stepper
             value={newCardsPerDay}
             min={1}
@@ -326,12 +341,14 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
             }}
           />
         </Row>
-        <Row title="Maximum reviews per day" desc="Cap on due cards surfaced per day." last>
-          <Stepper
+        <Row title="Maximum reviews per day" desc="Cap on due cards surfaced per day. Cards over the cap wait until tomorrow.">
+          <OptionalStepper
             value={maxReviewsPerDay}
+            initial={INITIAL_MAX_REVIEWS}
             min={1}
             max={9999}
             step={10}
+            offLabel="No limit"
             disabled={saving}
             onChange={(v) => {
               setMaxReviewsPerDay(v);
@@ -339,6 +356,47 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
             }}
           />
         </Row>
+        <Row
+          title="Review time budget"
+          desc="Minutes a day you want to spend reviewing. The home screen warns when tomorrow's estimate goes over."
+        >
+          <OptionalStepper
+            value={reviewMinutesPerDay}
+            initial={INITIAL_REVIEW_MINUTES}
+            min={5}
+            max={1440}
+            step={5}
+            unit="min"
+            offLabel="No budget"
+            disabled={saving}
+            onChange={(v) => {
+              setReviewMinutesPerDay(v);
+              void save({ dailyGoals: { reviewMinutesPerDay: v } });
+            }}
+          />
+        </Row>
+        <FsrsRows />
+      </Group>
+
+      {/* Extension & API (T2.11) */}
+      <Group
+        icon={(<svg viewBox="0 0 24 24" fill="none"><path d="M14.5 4.5a3 3 0 0 1 5 3.2l-2.2 2.2M9.5 19.5a3 3 0 0 1-5-3.2l2.2-2.2M9 15l6-6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>)}
+        title="Extension & API"
+      >
+        <Row title="Browser extension" desc="Import videos with their Japanese subtitles from YouTube.">
+          <a href="/extension" className="text-[13.5px] font-[550] text-link hover:text-[var(--link-hover)]">
+            Set up
+          </a>
+        </Row>
+        <ApiTokenRows />
+      </Group>
+
+      {/* Dictionaries (T3.4) */}
+      <Group
+        icon={(<svg viewBox="0 0 24 24" fill="none"><path d="M5 5.5A1.5 1.5 0 0 1 6.5 4H19v13H6.5A1.5 1.5 0 0 0 5 18.5zM5 18.5A1.5 1.5 0 0 0 6.5 20H19" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>)}
+        title="Dictionaries"
+      >
+        <DictionaryRows />
       </Group>
 
       {/* Data */}
@@ -346,11 +404,7 @@ export function SettingsView({ user, settings }: SettingsViewProps) {
         icon={(<svg viewBox="0 0 24 24" fill="none"><path d="M12 4v10M8 10.5l4 4 4-4M5 19.5h14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>)}
         title="Data"
       >
-        <Row title="Export deck" desc="Download your mined cards as an Anki-importable file.">
-          <Button variant="ghost" size="sm" onClick={() => { window.location.href = "/api/export/deck"; }}>
-            Export deck
-          </Button>
-        </Row>
+        <ExportRows />
         <Row title="Sign out" desc="You can sign back in any time.">
           <Button variant="ghost" size="sm" onClick={() => void signOut({ callbackUrl: "/login" })}>
             Sign out
@@ -394,11 +448,12 @@ function Toggle({ initialOn }: { initialOn: boolean }) {
   );
 }
 
-function Stepper({ value, min = 1, max = 999, step = 1, disabled, onChange }: {
+function Stepper({ value, min = 1, max = 999, step = 1, unit, disabled, onChange }: {
   value: number;
   min?: number;
   max?: number;
   step?: number;
+  unit?: string;
   disabled?: boolean;
   onChange?: (v: number) => void;
 }) {
@@ -410,9 +465,48 @@ function Stepper({ value, min = 1, max = 999, step = 1, disabled, onChange }: {
     <div className="flex items-center gap-0 rounded-[8px] border border-border">
       <button className="grid h-8 w-8 place-items-center text-faint hover:text-fg disabled:opacity-50" aria-label="decrease"
         disabled={disabled || !onChange || value <= min} onClick={() => bump(-1)}>−</button>
-      <span className="w-12 text-center text-[14px] tabular-nums text-fg">{value}</span>
+      <span className={`${unit ? "w-16" : "w-12"} text-center text-[14px] tabular-nums text-fg`}>
+        {value}
+        {unit && <span className="ml-1 text-[12.5px] text-muted">{unit}</span>}
+      </span>
       <button className="grid h-8 w-8 place-items-center text-faint hover:text-fg disabled:opacity-50" aria-label="increase"
         disabled={disabled || !onChange || value >= max} onClick={() => bump(1)}>+</button>
+    </div>
+  );
+}
+
+/**
+ * A stepper for a goal that may be unset. `null` renders the off state with a
+ * "Set" action (starting at `initial`); when set, a "Remove" action sends null,
+ * which clears just that goal server-side.
+ */
+function OptionalStepper({ value, initial, offLabel, disabled, onChange, ...stepper }: {
+  value: number | null;
+  initial: number;
+  offLabel: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+  disabled?: boolean;
+  onChange: (v: number | null) => void;
+}) {
+  if (value == null) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-[13px] text-muted">{offLabel}</span>
+        <Button variant="ghost" size="sm" disabled={disabled} onClick={() => onChange(initial)}>
+          Set
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <Stepper value={value} disabled={disabled} onChange={onChange} {...stepper} />
+      <Button variant="ghost" size="sm" disabled={disabled} onClick={() => onChange(null)}>
+        Remove
+      </Button>
     </div>
   );
 }

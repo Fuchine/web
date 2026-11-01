@@ -14,7 +14,7 @@ Para cada tela há propósito e elementos-chave / estados. Esse nível de detalh
 
 **Fronteira núcleo vs cloud.** Configurações com campo de chave BYOK existe sempre. Billing e cota só existem no modo cloud. O MVP open source não gera as telas de cloud — elas só entram se os sinais de demanda aparecerem (ver roadmap da arquitetura).
 
-**Convenção:** 🟢 núcleo · 🔵 só cloud
+**Convenção:** 🟢 núcleo · 🔵 só cloud. A coluna Escopo diz **onde** a tela existe (no open core ou só na cloud), não **quando**: a fase é a seção em que a tela está. Telas marcadas **F3** são do núcleo mas ficam para a Fase 3 (só com sinais de demanda) — não fazem parte do MVP.
 
 ---
 
@@ -71,8 +71,8 @@ Amplia o uso e a descoberta. Nada aqui começa antes da Fase 1 fechar.
 
 | Tela | Escopo | Propósito | Elementos-chave / estados |
 |---|---|---|---|
-| **Shadowing** | 🟢 | Treinar pronúncia | Toca a frase; grava a voz; mostra score (similaridade, ritmo); aponta trechos a melhorar; estados gravando/processando/resultado |
-| **Quiz de listening** | 🟢 | Treinar o ouvido | Ouve o clipe e escolhe (tradução certa / frase certa / completar lacuna); feedback imediato |
+| **Shadowing** | 🟢 · **F3** | Treinar pronúncia | Toca a frase; grava a voz; mostra score (similaridade, ritmo); aponta trechos a melhorar; estados gravando/processando/resultado |
+| **Quiz de listening** | 🟢 · **F3** | Treinar o ouvido | Ouve o clipe e escolhe (tradução certa / frase certa / completar lacuna); feedback imediato |
 | **Planos / Billing** | 🔵 | Converter e cobrar | Comparativo de planos; upgrade; método de pagamento; preço regional |
 | **Uso & cota** | 🔵 | Transparência de consumo | Consumo de IA do mês vs limite do plano; aviso ao se aproximar do teto |
 

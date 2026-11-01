@@ -5,6 +5,7 @@ import {
   WORKER_HEARTBEAT_KEY,
 } from "@fuchine/jobs";
 import { db } from "@/lib/db";
+import { houseBudget } from "@/lib/house-budget";
 
 // GET /api/health — unauthenticated, cheap liveness probe for compose /
 // proxy / uptime monitors. Confirms Postgres and Redis are reachable and
@@ -59,7 +60,13 @@ async function checkRedis(): Promise<{ redis: boolean; workerAlive: boolean }> {
 }
 
 export async function GET() {
-  const [dbOk, redisState] = await Promise.all([checkDb(), checkRedis()]);
+  const [dbOk, redisState, budget] = await Promise.all([
+    checkDb(),
+    checkRedis(),
+    // State only, no numbers: this endpoint is public. Informational, like
+    // workerAlive — an exhausted budget doesn't fail the probe.
+    withTimeout(houseBudget().state(), "budget").catch(() => "unknown" as const),
+  ]);
   const ok = dbOk && redisState.redis;
   return NextResponse.json(
     {
@@ -67,6 +74,7 @@ export async function GET() {
       db: dbOk,
       redis: redisState.redis,
       workerAlive: redisState.workerAlive,
+      houseBudget: budget,
     },
     { status: ok ? 200 : 503 },
   );

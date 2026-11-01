@@ -2,10 +2,13 @@
 
 import { type ReactNode } from "react";
 import { cn } from "../../lib/cn";
+import { coverageTooltip, coverageZone, formatCoverage, type CoverageInfo } from "../../lib/coverage";
 
 export interface PlayerTopBarProps {
   title: string;
   channel: string | null;
+  /** The viewer's coverage of this video (T3.9); null/absent = no number. */
+  coverage?: CoverageInfo | null;
   onBack: () => void;
   /** Right-side icon buttons. Each is a small button; T1.3 wires them as no-ops. */
   onClickCaptionSettings?: () => void;
@@ -50,6 +53,7 @@ function SettingsIcon() {
 export function PlayerTopBar({
   title,
   channel,
+  coverage,
   onBack,
   onClickCaptionSettings,
   onClickSavedWords,
@@ -65,6 +69,13 @@ export function PlayerTopBar({
         <div className="p-title jp">{title}</div>
         {channel && <div className="p-chan">{channel}</div>}
       </div>
+      {coverage && (
+        <div className="p-coverage" title={coverageTooltip(coverage)} tabIndex={0}>
+          <span className="k">Coverage</span>
+          <span className="v">{formatCoverage(coverage)}</span>
+          <span className="z">{coverageZone(coverage.headline)}</span>
+        </div>
+      )}
       <div className="p-actions">
         <button
           type="button"

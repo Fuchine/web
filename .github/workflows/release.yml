@@ -1,0 +1,222 @@
+name: Release
+
+# Publishes a release (T2.9): on a `vX.Y.Z` tag, builds the web and worker
+# images, scans each with Trivy BEFORE anything is pushed (fails on a CRITICAL
+# vulnerability that has a fix), pushes multi-arch images to GHCR with SBOM +
+# provenance attestations, and creates the GitHub Release from CHANGELOG.md.
+#
+#   ghcr.io/<owner>/fuchine-web:{vX.Y.Z,X.Y.Z,X.Y,latest}
+#   ghcr.io/<owner>/fuchine-worker:{vX.Y.Z,X.Y.Z,X.Y,latest}
+#
+# Pre-release tags (v0.2.0-rc.1) get only their exact tags: no X.Y, no latest.
+# workflow_dispatch re-runs the pipeline for an EXISTING tag (e.g. to rebuild
+# after a base-image CVE fix); it never creates a tag.
+#
+# Third-party actions are pinned by commit SHA (Dependabot keeps them fresh).
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)release, e.g. v0.1.0"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  images:
+    name: Image (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - image: web
+            dockerfile: apps/web/Dockerfile
+            description: "Fuchine web app (Next.js UI + API)"
+          - image: worker
+            dockerfile: apps/worker/Dockerfile
+            description: "Fuchine import/explain worker (BullMQ); also runs migrations"
+
+    steps:
+      - name: Validate tag
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$TAG' is not a vX.Y.Z tag."
+            exit 1
+          fi
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+
+      - name: Image name
+        id: name
+        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/fuchine-${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Metadata (tags, OCI labels)
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        env:
+          # Put the annotations on the multi-arch index too, so GHCR shows the
+          # description/license on the package page.
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        with:
+          images: ${{ steps.name.outputs.ref }}
+          flavor: latest=auto
+          tags: |
+            type=semver,pattern={{raw}},value=${{ env.TAG }}
+            type=semver,pattern={{version}},value=${{ env.TAG }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.TAG }}
+          labels: |
+            org.opencontainers.image.title=fuchine-${{ matrix.image }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.licenses=AGPL-3.0-only
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}#readme
+            org.opencontainers.image.vendor=Fuchine
+          annotations: |
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.licenses=AGPL-3.0-only
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      # 1) Build amd64 into the local daemon and scan it before publishing.
+      - name: Build for scan (amd64, local)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: fuchine-${{ matrix.image }}:scan
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+
+      - name: Trivy scan (fail on fixable CRITICAL)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: fuchine-${{ matrix.image }}:scan
+          scanners: vuln
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      # 2) Multi-arch build + push (amd64 layers come from the cache above).
+      - name: Build and push (amd64 + arm64)
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          # BuildKit attestations, stored next to the image in the registry.
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+
+      # GitHub-native (Sigstore) build provenance, verifiable with
+      #   gh attestation verify oci://ghcr.io/<owner>/fuchine-web:vX.Y.Z -R <owner>/<repo>
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.name.outputs.ref }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Summary
+        run: |
+          {
+            echo "### fuchine-${{ matrix.image }}"
+            echo ""
+            echo "Digest: \`${{ steps.push.outputs.digest }}\`"
+            echo ""
+            echo "Pin it with \`${{ steps.name.outputs.ref }}:${TAG}@${{ steps.push.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  github-release:
+    name: GitHub Release
+    needs: images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          version="${TAG#v}"
+          # Everything between "## [X.Y.Z]" and the next "## [" heading (or the
+          # link references at the bottom of the file).
+          awk -v v="$version" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on && /^\[[^]]+\]: / { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::CHANGELOG.md has no '## [$version]' section."
+            exit 1
+          fi
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          {
+            echo ""
+            echo "### Images"
+            echo ""
+            echo '```'
+            echo "ghcr.io/$owner/fuchine-web:$TAG"
+            echo "ghcr.io/$owner/fuchine-worker:$TAG"
+            echo '```'
+            echo ""
+            echo "Self-host with the published images: \`FUCHINE_VERSION=$TAG docker compose -f docker-compose.yml -f docker-compose.release.yml up -d\`."
+          } >> notes.md
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          prerelease=()
+          if [[ "$TAG" == *-* ]]; then prerelease=(--prerelease); fi
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file notes.md "${prerelease[@]}"
+          else
+            gh release create "$TAG" --verify-tag --title "Fuchine $TAG" \
+              --notes-file notes.md "${prerelease[@]}"
+          fi

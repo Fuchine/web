@@ -1,0 +1,11 @@
+# gitleaks configuration: the default rules, plus an allowlist for values that
+# look like credentials but are public by design.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public values that are not secrets"
+# YouTube's public web-client Innertube API key (see the comment in
+# tools/spike/captions.mjs). Matched exactly, so any other Google API key in
+# the repository is still reported.
+regexes = ['''AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8''']

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FAF8F4">
+<title>Offline · Fuchine</title>
+<!-- Served by /sw.js when a page can't be fetched. Static on purpose: it holds
+     no user data, so it is safe to keep in the service worker cache. -->
+<style>
+  :root { color-scheme: light; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; padding: 24px max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+    box-sizing: border-box; text-align: center;
+    background: #FAF8F4; color: #211E1A;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  img { width: 56px; height: 56px; border-radius: 12px; }
+  h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  p { margin: 0; max-width: 340px; font-size: 15px; line-height: 1.5; color: #6E6962; }
+  a {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 48px; padding: 0 24px; margin-top: 4px;
+    border-radius: 999px; background: #1C3D61; color: #F2F5FB;
+    font-size: 15px; font-weight: 600; text-decoration: none;
+  }
+</style>
+</head>
+<body>
+  <img src="/icons/icon-192.png" alt="" width="56" height="56">
+  <h1>You're offline</h1>
+  <p>Reviews need a connection to play clips. Reconnect and try again — your progress is saved on the server.</p>
+  <a href="/review">Try again</a>
+</body>
+</html>

@@ -6,9 +6,12 @@ import {
   albums,
   albumVideos,
   videos,
-  wordExamples,
+  videoWordCounts,
   userWordStats,
+  savedWords,
 } from "@fuchine/db";
+import { coverageFromTierCounts, emptyTierCounts, loadKnownWordParams, wordTierSqlFor, type TierCounts } from "./known-words";
+import { isUuid } from "./ids";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
@@ -98,17 +101,20 @@ export type AlbumView = {
   description: string | null;
   pinned: boolean;
   videoCount: number;
-  words: number; // distinct dictionary words across the album's videos
-  pct: number; // comprehension % (known distinct words / total)
+  words: number; // distinct countable dictionary words across the album's videos
+  pct: number; // token-weighted coverage headline across the album's videos (T3.9); 0 = too few words
   coverIds: string[]; // up to 4 member video ids, for the cover mosaic
 };
 
 /**
  * Albums enriched for the grid: video count, cover member ids, and real
- * comprehension (distinct known words / total distinct words across the album's
- * videos, same "known" heuristic as the library). Pinned first, then newest.
+ * coverage (token-weighted over the album's videos, same tier model as the
+ * library — lib/known-words; user token corrections are not applied to the
+ * album aggregate). Pinned first, then newest.
  */
 export async function listAlbumsForView(db: Database, userId: string): Promise<AlbumView[]> {
+  const params = await loadKnownWordParams(db, userId);
+  const wordTierSql = wordTierSqlFor(params.likelyMinViews);
   const base = await db
     .select({
       id: albums.id,
@@ -125,27 +131,33 @@ export async function listAlbumsForView(db: Database, userId: string): Promise<A
     .groupBy(albums.id)
     .orderBy(desc(albums.pinnedAt), desc(albums.createdAt));
 
-  // Per-album distinct-word totals + known count (comprehension).
+  // Per-album tier totals (coverage): occurrences and distinct words per tier.
+  // A word has one tier per user, so distinct words summed over the tiers =
+  // the album's distinct words.
   const stats = await db
     .select({
       albumId: albumVideos.albumId,
-      total: sql<number>`count(distinct ${wordExamples.wordEntryId})::int`,
-      known: sql<number>`count(distinct ${wordExamples.wordEntryId}) filter (where ${userWordStats.reviewsOk} >= 1 or ${userWordStats.views} >= 5)::int`,
+      tier: wordTierSql,
+      tokens: sql<number>`sum(${videoWordCounts.occurrences})::int`,
+      words: sql<number>`count(distinct ${videoWordCounts.wordEntryId})::int`,
     })
     .from(albumVideos)
     .innerJoin(albums, and(eq(albums.id, albumVideos.albumId), eq(albums.userId, userId)))
-    .innerJoin(wordExamples, eq(wordExamples.videoId, albumVideos.videoId))
-    .leftJoin(
-      userWordStats,
-      and(eq(userWordStats.wordEntryId, wordExamples.wordEntryId), eq(userWordStats.userId, userId)),
-    )
-    .groupBy(albumVideos.albumId);
-  const statsByAlbum = new Map(stats.map((s) => [s.albumId, s]));
+    .innerJoin(videoWordCounts, eq(videoWordCounts.videoId, albumVideos.videoId))
+    .leftJoin(userWordStats, and(eq(userWordStats.wordEntryId, videoWordCounts.wordEntryId), eq(userWordStats.userId, userId)))
+    .leftJoin(savedWords, and(eq(savedWords.wordEntryId, videoWordCounts.wordEntryId), eq(savedWords.userId, userId)))
+    .groupBy(albumVideos.albumId, wordTierSql);
+  const statsByAlbum = new Map<string, TierCounts>();
+  for (const r of stats) {
+    const c = statsByAlbum.get(r.albumId) ?? emptyTierCounts();
+    c[r.tier].tokens += Number(r.tokens);
+    c[r.tier].words += Number(r.words);
+    statsByAlbum.set(r.albumId, c);
+  }
 
   return base.map((a) => {
-    const s = statsByAlbum.get(a.id);
-    const total = Number(s?.total ?? 0);
-    const known = Number(s?.known ?? 0);
+    const c = statsByAlbum.get(a.id) ?? emptyTierCounts();
+    const total = c.unknown.words + c.likely.words + c.confirmed.words;
     return {
       id: a.id,
       name: a.name,
@@ -153,7 +165,7 @@ export async function listAlbumsForView(db: Database, userId: string): Promise<A
       pinned: a.pinnedAt != null,
       videoCount: Number(a.videoCount),
       words: total,
-      pct: total ? Math.round((known / total) * 100) : 0,
+      pct: coverageFromTierCounts(c, params.likelyWeight)?.headline ?? 0,
       coverIds: (a.coverIds ?? []).slice(0, 4),
     };
   });
@@ -271,6 +283,7 @@ export async function addVideoToAlbum(
   if (typeof videoId !== "string" || !videoId) {
     return { status: 400, body: { error: "videoId is required" } };
   }
+  if (!isUuid(videoId)) return { status: 400, body: { error: "videoId must be a uuid" } };
 
   const [album] = await db
     .select({ id: albums.id })
@@ -304,6 +317,7 @@ export async function removeVideoFromAlbum(
   if (typeof videoId !== "string" || !videoId) {
     return { status: 400, body: { error: "videoId is required" } };
   }
+  if (!isUuid(videoId)) return { status: 400, body: { error: "videoId must be a uuid" } };
 
   const [album] = await db
     .select({ id: albums.id })

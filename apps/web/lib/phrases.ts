@@ -1,8 +1,16 @@
 // Phrases read-side query (mined sentence cards). Auth-agnostic; routes add auth.
 
-import { and, asc, count, desc, eq, gt, ilike, lt, or, sql, type SQL } from "drizzle-orm";
-import { type Database, sentenceCards, subtitleLines, videos } from "@fuchine/db";
+import { and, asc, count, desc, eq, gt, ilike, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
+import {
+  type Database, type Explanation, type Token,
+  aiExplanations, sentenceCards, subtitleLines, userSettings, videos, wordEntries,
+} from "@fuchine/db";
+import { PROMPT_VERSION } from "@fuchine/llm";
+import type { WordEntryData, WordEntryRow } from "./cards";
 import { decodeListCursor, encodeListCursor, escapeLike } from "./list-query";
+import { isUuid } from "./ids";
+import { withTokenOverrides, type TokenSpan } from "./token-overrides";
+import { getIPlusOneLines } from "./i-plus-one";
 
 export type PhraseRow = {
   cardId: string;
@@ -92,7 +100,7 @@ export async function listPhrases(
       const parts = opts.cursor.split(":");
       const ts = parseInt(parts[1] ?? "", 10);
       const id = parts.slice(2).join(":");
-      if (!isNaN(ts) && id) {
+      if (!isNaN(ts) && isUuid(id)) {
         conditions.push(
           or(
             lt(sentenceCards.createdAt, new Date(ts)),
@@ -103,7 +111,7 @@ export async function listPhrases(
     } else if (sort === "oldest") {
       const ts = typeof decoded?.[0] === "number" ? decoded[0] : null;
       const id = typeof decoded?.[1] === "string" ? decoded[1] : null;
-      if (ts !== null && id) {
+      if (ts !== null && isUuid(id)) {
         conditions.push(
           or(
             gt(sentenceCards.createdAt, new Date(ts)),
@@ -114,7 +122,7 @@ export async function listPhrases(
     } else if (sort === "az") {
       const text = typeof decoded?.[0] === "string" ? decoded[0] : null;
       const id = typeof decoded?.[1] === "string" ? decoded[1] : null;
-      if (text !== null && id) {
+      if (text !== null && isUuid(id)) {
         conditions.push(
           or(
             sql`${subtitleLines.textOriginal} > ${text}`,
@@ -126,7 +134,7 @@ export async function listPhrases(
       const r = typeof decoded?.[0] === "number" ? decoded[0] : null;
       const ts = typeof decoded?.[1] === "number" ? decoded[1] : null;
       const id = typeof decoded?.[2] === "string" ? decoded[2] : null;
-      if (r !== null && ts !== null && id) {
+      if (r !== null && ts !== null && isUuid(id)) {
         conditions.push(
           or(
             sql`${rank} > ${r}`,
@@ -219,4 +227,185 @@ export async function countPhrasesByStatus(
     counts.total += row.n;
   }
   return counts;
+}
+
+/* ------------------------------------------------------------------ */
+/* "Mine now, curate later" (T3.6)                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A card is UNCURATED while `notes IS NULL` and it was never reviewed
+ * (`state = 0`). No schema change: mining from the player never sends notes
+ * (NULL), and curating always writes a string — "Done" with an empty field
+ * saves `notes = ""`, the explicit "curated, no notes" sentinel. A card that
+ * reaches a review session leaves the queue on its own (state ≠ 0): it was
+ * studied, so there's nothing left to curate before it.
+ */
+const uncuratedWhere = (userId: string) =>
+  and(eq(sentenceCards.userId, userId), isNull(sentenceCards.notes), eq(sentenceCards.state, 0))!;
+
+export type UncuratedCard = {
+  cardId: string;
+  createdAt: Date;
+  lineId: string;
+  textOriginal: string;
+  textTranslation: string | null;
+  tokens: Token[];
+  /** Set when the user corrected this line's tokens (T3.7); parallel to tokens. */
+  tokenSpans?: TokenSpan[];
+  tStartMs: number;
+  tEndMs: number;
+  videoId: string;
+  videoTitle: string;
+  source: string;
+  sourceId: string;
+  /** The cached layer-2 explanation, if one exists. Never generated here. */
+  explanation: Explanation | null;
+  /** i+1 (T3.10): the line's one new word, when it is an i+1 sentence for the user. */
+  iPlusOneWord?: string | null;
+};
+
+export type UncuratedPage = {
+  items: UncuratedCard[];
+  /** Dictionary entries for the page's tokens, once (not per card). */
+  wordEntries: Record<string, WordEntryData>;
+  nextCursor: string | null;
+};
+
+/**
+ * Uncurated cards for the curation screen, newest first (the client groups
+ * them by video). Keyset-paginated on (created_at, id). Each page carries the
+ * dictionary entries its tokens point to and the explanation already in the
+ * shared cache for the user's explanation language at the current
+ * PROMPT_VERSION — read-only, so a 40-card sitting costs no LLM calls.
+ */
+export async function listUncuratedCards(
+  db: Database,
+  userId: string,
+  opts: { limit?: number; cursor?: string } = {},
+): Promise<UncuratedPage> {
+  const limit = opts.limit ?? 50;
+  const conditions: SQL[] = [uncuratedWhere(userId)];
+  const decoded = opts.cursor ? decodeListCursor(opts.cursor) : null;
+  const ts = typeof decoded?.[0] === "number" ? decoded[0] : null;
+  const after = typeof decoded?.[1] === "string" ? decoded[1] : null;
+  if (ts !== null && isUuid(after)) {
+    conditions.push(
+      or(
+        lt(sentenceCards.createdAt, new Date(ts)),
+        and(eq(sentenceCards.createdAt, new Date(ts)), lt(sentenceCards.id, after)),
+      )!,
+    );
+  }
+
+  const rows = await db
+    .select({
+      cardId: sentenceCards.id,
+      createdAt: sentenceCards.createdAt,
+      lineId: subtitleLines.id,
+      textOriginal: subtitleLines.textOriginal,
+      textTranslation: subtitleLines.textTranslation,
+      tokens: subtitleLines.tokens,
+      tStartMs: subtitleLines.tStartMs,
+      tEndMs: subtitleLines.tEndMs,
+      videoId: videos.id,
+      videoTitle: videos.title,
+      source: videos.source,
+      sourceId: videos.sourceId,
+      language: videos.language,
+    })
+    .from(sentenceCards)
+    .innerJoin(subtitleLines, eq(subtitleLines.id, sentenceCards.subtitleLineId))
+    .innerJoin(videos, eq(videos.id, sentenceCards.videoId))
+    .where(and(...conditions))
+    .orderBy(desc(sentenceCards.createdAt), desc(sentenceCards.id))
+    .limit(limit + 1);
+
+  const hasMore = rows.length > limit;
+  // The user's token corrections (T3.7), before collecting the entries.
+  const corrected = await withTokenOverrides(db, userId, rows.slice(0, limit), (r) => r.lineId);
+  // i+1 badge (T3.10): one query for the page's words, per content language.
+  const ip1 = new Map<string, string>();
+  for (const lang of new Set(corrected.map((r) => r.language))) {
+    const hits = await getIPlusOneLines(
+      db, userId, corrected.filter((r) => r.language === lang).map((r) => ({ id: r.lineId, tokens: r.tokens })), lang,
+    );
+    for (const r of corrected) {
+      const h = hits.get(r.lineId);
+      if (h) ip1.set(r.cardId, r.tokens[h.tokenIdx]?.surface ?? "");
+    }
+  }
+  const page = corrected.map(({ language: _language, ...r }) => ({ ...r, iPlusOneWord: ip1.get(r.cardId) || null }));
+  const lineIds = page.map((r) => r.lineId);
+  const wordIds = [
+    ...new Set(
+      page.flatMap((r) => ((r.tokens as Token[] | null) ?? []).flatMap((t) => (t.wordEntryId ? [t.wordEntryId] : []))),
+    ),
+  ];
+
+  const [settings] = lineIds.length
+    ? await db
+        .select({ lang: userSettings.explanationLanguage })
+        .from(userSettings)
+        .where(eq(userSettings.userId, userId))
+        .limit(1)
+    : [];
+  const [explanations, entries] = await Promise.all([
+    lineIds.length
+      ? db
+          .select({ lineId: aiExplanations.subtitleLineId, content: aiExplanations.content })
+          .from(aiExplanations)
+          .where(and(
+            inArray(aiExplanations.subtitleLineId, lineIds),
+            eq(aiExplanations.kind, "line"),
+            eq(aiExplanations.explanationLanguage, settings?.lang || "en"),
+            eq(aiExplanations.promptVersion, PROMPT_VERSION),
+          ))
+      : Promise.resolve([]),
+    wordIds.length
+      ? db
+          .select({
+            id: wordEntries.id, reading: wordEntries.reading, lemma: wordEntries.lemma,
+            definitions: wordEntries.definitions, pos: wordEntries.pos, frequencyRank: wordEntries.frequencyRank,
+          })
+          .from(wordEntries)
+          .where(inArray(wordEntries.id, wordIds))
+      : Promise.resolve([]),
+  ]);
+
+  return buildUncuratedPage(page, explanations, entries, hasMore);
+}
+
+/** Shape the joined rows into the curation page payload. Pure — unit-tested. */
+export function buildUncuratedPage(
+  rows: (Omit<UncuratedCard, "explanation" | "tokens"> & { tokens: Token[] | null })[],
+  explanations: { lineId: string; content: Explanation }[],
+  entries: WordEntryRow[],
+  hasMore: boolean,
+): UncuratedPage {
+  const byLine = new Map(explanations.map((e) => [e.lineId, e.content]));
+  const map: Record<string, WordEntryData> = {};
+  for (const e of entries) {
+    map[e.id] = {
+      reading: e.reading ?? "", lemma: e.lemma, definitions: e.definitions, pos: e.pos ?? "",
+      frequencyRank: e.frequencyRank ?? null,
+    };
+  }
+  const items = rows.map((r): UncuratedCard => ({
+    ...r,
+    tokens: r.tokens ?? [],
+    explanation: byLine.get(r.lineId) ?? null,
+  }));
+  const last = items[items.length - 1];
+  return {
+    items,
+    wordEntries: map,
+    nextCursor: hasMore && last ? encodeListCursor([last.createdAt.getTime(), last.cardId]) : null,
+  };
+}
+
+/** How many cards wait for curation (the /phrases "Curate" entry point). */
+export async function countUncuratedCards(db: Database, userId: string): Promise<number> {
+  const [row] = await db.select({ n: count() }).from(sentenceCards).where(uncuratedWhere(userId));
+  return Number(row?.n ?? 0);
 }

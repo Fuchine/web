@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- WXT uses the <title> as the toolbar button's default_title. -->
+    <title>Import to Fuchine</title>
+    <style>
+      body { width: 320px; margin: 0; font: 14px system-ui, sans-serif; color: #1c1c1c; background: #faf9f7; }
+      .wrap { padding: 16px; }
+      h1 { font-size: 15px; margin: 0 0 4px; }
+      p.sub { margin: 0 0 12px; color: #666; font-size: 12px; }
+      button { width: 100%; padding: 10px; border: 0; border-radius: 8px; background: #1f3a5f; color: #fff; font-size: 14px; cursor: pointer; }
+      button:disabled { opacity: 0.6; cursor: default; }
+      .status { margin-top: 12px; font-size: 13px; white-space: pre-wrap; min-height: 18px; }
+      .settings { margin-top: 14px; border-top: 1px solid #e7e3dc; padding-top: 10px; }
+      label { font-size: 11px; color: #888; display: block; margin-bottom: 4px; }
+      input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #d8d2c8; border-radius: 6px; font-size: 12px; }
+      label.spaced { margin-top: 8px; }
+      .hint { margin: 4px 0 0; font-size: 11px; color: #888; }
+      a { color: #2b4f7e; }
+      .footer { margin-top: 10px; display: flex; justify-content: space-between; align-items: baseline; color: #aaa; font-size: 10px; }
+      .footer a { font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Fuchine</h1>
+      <p class="sub">Import this YouTube video to study it.</p>
+      <button id="import">Import to Fuchine</button>
+      <div class="status" id="status"></div>
+      <div class="settings">
+        <label for="base">Fuchine URL</label>
+        <input id="base" type="text" placeholder="http://localhost:3000" />
+        <label for="token" class="spaced">API token</label>
+        <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="fch_…" />
+        <p class="hint" id="token-hint"></p>
+      </div>
+      <div class="footer">
+        <span id="version"></span>
+        <a id="status-link" href="#" target="_blank" rel="noopener noreferrer">Known issues</a>
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

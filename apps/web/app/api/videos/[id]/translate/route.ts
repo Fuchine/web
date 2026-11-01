@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isUuid } from "@/lib/ids";
 import { db } from "@/lib/db";
 import { translateChunk } from "@/lib/translate";
 import { enforceRateLimit, retryAfterHeader } from "@/lib/rate-limit";
@@ -16,6 +17,7 @@ export async function POST(
   // Shared-cache model: videos are global (no per-user ownership), so any
   // signed-in user may trigger translation; results are reused across users.
   const { id } = await ctx.params;
+  if (!isUuid(id)) return NextResponse.json({ error: "video not found" }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as { chunkIdx?: unknown };
   if (typeof body.chunkIdx !== "number" || !Number.isInteger(body.chunkIdx) || body.chunkIdx < 0) {
     return NextResponse.json({ error: "chunkIdx (number >= 0) required" }, { status: 400 });

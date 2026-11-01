@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { parseLimit } from "@/lib/list-query";
 import { listVideos, getComprehensionByVideo, VIDEO_SORTS, type VideoSort } from "@/lib/study";
 import { toLibraryVideo } from "@/lib/library";
 
@@ -8,7 +9,7 @@ import { toLibraryVideo } from "@/lib/library";
 // Paginated: ?cursor=...&limit=24, plus server-side ?q= (title/channel),
 // ?category= and ?sort= (newest|short|level) over the whole catalog. Returns
 // the same enriched LibraryVideo shape the server page builds, so appended
-// pages render identically (comprehension scoped to the page — word_examples
+// pages render identically (coverage scoped to the page — video_word_counts
 // is catalog-sized). First page (no cursor) includes `total` under the same
 // filters, for real header counts.
 export async function GET(req: Request) {
@@ -18,7 +19,7 @@ export async function GET(req: Request) {
   }
   const url = new URL(req.url);
   const cursor = url.searchParams.get("cursor") ?? undefined;
-  const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "24", 10), 100);
+  const limit = parseLimit(url.searchParams.get("limit"), 24);
   const q = url.searchParams.get("q")?.slice(0, 100) || undefined;
   const category = url.searchParams.get("category")?.slice(0, 50) || undefined;
   const sortParam = url.searchParams.get("sort");

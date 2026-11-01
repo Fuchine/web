@@ -133,6 +133,10 @@ export type PrewarmSummary = {
   cached: number;
   generated: number;
   failed: number;
+  /** Lines left ungenerated because `shouldContinue` said stop (e.g. house budget spent). */
+  skipped: number;
+  /** True when the run stopped early on `shouldContinue`. */
+  stopped: boolean;
   /** Cumulative explain spend for the video; null when the usage query failed. */
   spend: VideoExplainSpend | null;
 };
@@ -145,7 +149,16 @@ export async function prewarmVideoExplanations(
   db: Database,
   provider: LlmProvider,
   videoId: string,
-  opts: { explanationLanguage: string; concurrency?: number; maxLines?: number },
+  opts: {
+    explanationLanguage: string;
+    concurrency?: number;
+    maxLines?: number;
+    /**
+     * Checked before each line; returning false stops the run (remaining lines
+     * are skipped, not failed). The worker passes the house-budget check (T2.4).
+     */
+    shouldContinue?: () => Promise<boolean>;
+  },
 ): Promise<PrewarmSummary> {
   const [video] = await db
     .select({ language: videos.language })
@@ -186,13 +199,20 @@ export async function prewarmVideoExplanations(
   const cachedIds = new Set(cachedRows.map((r) => r.subtitleLineId));
 
   const todo = planPrewarm(items, cachedIds);
-  const { ok, failed } = await runPool(todo, opts.concurrency ?? 2, (it) =>
-    explainLineCached(db, provider, it.lineId, it.ctx, {
+  let stopped = false;
+  let skipped = 0;
+  const { ok, failed } = await runPool(todo, opts.concurrency ?? 2, async (it) => {
+    if (stopped || (opts.shouldContinue && !(await opts.shouldContinue()))) {
+      stopped = true;
+      skipped++;
+      return;
+    }
+    return explainLineCached(db, provider, it.lineId, it.ctx, {
       explanationLanguage: opts.explanationLanguage,
       // Background/house call: attribute the cost to the video (no user).
-      meta: { videoId },
-    }),
-  );
+      meta: { videoId, keySource: "house" },
+    });
+  });
   // Spend is telemetry: it must never fail a prewarm that just succeeded.
   // The usage sink inserts fire-and-forget, so the very last calls of this run
   // may not be committed yet — a slight undercount, fine for a cost signal.
@@ -200,5 +220,13 @@ export async function prewarmVideoExplanations(
 
   // `total` is the scoped set (what this job set out to warm), so
   // cached + generated + failed reconcile with it.
-  return { total: items.length, cached: cachedIds.size, generated: ok, failed, spend };
+  return {
+    total: items.length,
+    cached: cachedIds.size,
+    generated: ok - skipped,
+    failed,
+    skipped,
+    stopped,
+    spend,
+  };
 }

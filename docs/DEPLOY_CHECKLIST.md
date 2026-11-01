@@ -1,25 +1,33 @@
 # Checklist do primeiro deploy
 
-**Versão 0.1 · 6 de julho de 2026**
+**Versão 0.2 · 30 de outubro de 2026** (v0.1: 6 de julho de 2026)
 
 Runbook executável do primeiro deploy de uma instância Fuchine (self-host ou a
 futura cloud). Complementa os índices do backlog:
 [PRODUCAO-2026-07-06](../backlog/PRODUCAO-2026-07-06.md) lista **o que
 construir** antes do deploy; este documento lista **o que conferir e executar
-no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
+no dia**. Itens marcados 🔒 dependem de backlog ainda aberto — hoje nenhum:
+os bloqueadores da v0.1 foram resolvidos no PR #19 (2026-07-09) e o ensaio de
+backup → restore foi feito em 2026-07-20 (Apêndice A). Os arquivos de backlog
+correspondentes foram removidos ao fechar (PR #21); o histórico fica no git.
 
 ---
 
 ## 1. Pré-requisitos de build (bloqueiam o deploy)
 
-- [ ] 🔒 Imagens/compose de web + worker existem
-      ([deploy-story-missing.md](../backlog/deploy-story-missing.md))
-- [ ] 🔒 Proxy TLS decidido e configurado — Caddy no compose ou proxy próprio
-      ([tls-and-security-headers.md](../backlog/tls-and-security-headers.md))
-- [ ] 🔒 Fail-fast de env no boot do web
-      ([env-validation-fail-fast.md](../backlog/env-validation-fail-fast.md))
-- [ ] 🔒 Backup agendado + restore testado **antes** do primeiro usuário real
-      ([backups-restore-missing.md](../backlog/backups-restore-missing.md))
+- [ ] Imagens de web + worker buildam (`apps/web/Dockerfile`,
+      `apps/worker/Dockerfile`; `docker compose up -d --build`) — resolvido no
+      PR #19
+- [ ] Proxy TLS configurado: serviço `caddy` do compose + `Caddyfile`
+      (Let's Encrypt automático com `SITE_ADDRESS=<domínio>`) ou proxy próprio;
+      security headers + CSP vêm do `next.config.ts` — resolvido no PR #19
+- [ ] Boot do web limpo: `apps/web/instrumentation.ts` aborta se faltar env
+      obrigatória (`DATABASE_URL`, `AUTH_SECRET`, `FUCHINE_ENCRYPTION_KEY`,
+      registro, teto da casa) — resolvido no PR #19
+- [ ] Backup agendado ligado (`docker compose --profile backup up -d`, sidecar
+      `db-backup` com `scripts/pg-backup.sh`) **antes** do primeiro usuário
+      real; restore com `scripts/pg-restore.sh`, ensaiado em 2026-07-20
+      (Apêndice A)
 
 ## 2. Configuração (o `.env` de produção)
 
@@ -27,13 +35,23 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
 - [ ] `AUTH_SECRET` novo (`openssl rand -base64 32`) — nunca o de dev
 - [ ] `AUTH_URL=https://<domínio>` (https, sem barra final)
 - [ ] `FUCHINE_ENCRYPTION_KEY` nova — e **backup dela junto do banco**:
-      perder a chave invalida todas as chaves BYOK salvas
-      ([encryption-key-ops.md](../backlog/encryption-key-ops.md))
+      perder a chave invalida todas as chaves BYOK salvas (ciphertext
+      versionado `v2:`; rotação com
+      `pnpm --filter @fuchine/worker rotate:key` — resolvido no PR #19)
 - [ ] `TZ` da instância definida e documentada (streaks bucketizam pela TZ do
-      processo — [timezone-streaks-decision.md](../backlog/timezone-streaks-decision.md))
+      processo; decisão do PR #19: TZ fixa por instância, igual em web e
+      worker — default `America/Sao_Paulo` no compose)
 - [ ] `LLM_PROVIDER`/`LLM_API_KEY` reais (echo em produção = IA silenciosamente
       desligada) · `MT_PROVIDER=deepl` se aplicável
 - [ ] `DEPLOYMENT_MODE=self-host`
+- [ ] `REGISTRATION` decidido (`invite` é o default de produção; nunca `open`
+      numa instância pública) e `AUTH_ALLOWED_EMAILS` com o seu e-mail — sem
+      isso ninguém cria a primeira conta. Convites:
+      `docker compose run --rm worker pnpm --filter @fuchine/worker invite add <email>`
+- [ ] `HOUSE_DAILY_TOKEN_BUDGET` definido (teto diário de tokens da chave da
+      casa) e decidido `HOUSE_EXPLAIN_FALLBACK` (`false` = explicação nova só
+      com BYOK). Conferir o gasto do dia com
+      `docker compose run --rm worker pnpm --filter @fuchine/worker usage`
 
 ## 3. Autenticação (as pegadinhas de produção)
 
@@ -48,6 +66,26 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
       container do web **inacessível por fora dele** — `trustHost: true`
       (`auth.ts:50`) confia nesses headers; bypass = risco de envenenamento de
       magic link
+- [ ] **`X-Forwarded-For` sobrescrito pelo proxy**: o limite do magic link por
+      IP lê o primeiro valor de `X-Forwarded-For`. O Caddy do compose descarta
+      o XFF do cliente (não há `trusted_proxies`) e grava o IP real. Um proxy
+      próprio (nginx, Traefik, CDN) **na frente** precisa fazer o mesmo —
+      nginx: `proxy_set_header X-Forwarded-For $remote_addr;` (não
+      `$proxy_add_x_forwarded_for`); atrás de CDN, confiar só nos IPs dela.
+      Se o proxy só *acrescentar* ao XFF, o cliente escolhe o próprio "IP" e
+      fura o limite
+- [ ] **Teto de body (413)**: o Caddyfile corta requisições acima de 2 MB.
+      Conferir: `head -c 3000000 /dev/zero | curl -sk -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/json' --data-binary @- https://<domínio>/api/import`
+      → `413`. Proxy próprio: configurar o equivalente
+      (nginx `client_max_body_size 2m;`)
+- [ ] **Segredos fora do proxy**: `docker inspect fuchine-caddy-1 --format '{{json .Config.Env}}'`
+      não lista `AUTH_SECRET`, `FUCHINE_ENCRYPTION_KEY`, `LLM_API_KEY` nem
+      senhas — o serviço `caddy` recebe só `SITE_ADDRESS`
+- [ ] **Headers de segurança** em `/`: `curl -skI https://<domínio>/` mostra
+      `Content-Security-Policy` com `frame-ancestors 'none'`,
+      `X-Frame-Options: DENY` e `Permissions-Policy`
+- [ ] **Magic link fail-closed**: com o Redis parado, pedir um magic link
+      **não** envia e-mail (o limitador recusa em vez de liberar)
 
 ## 4. Dimensionamento
 
@@ -55,7 +93,7 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
       em memória no primeiro tokenize — medir RSS real com um import de teste
       antes de fixar o plano do VPS
 - [ ] Postgres: `max_connections` ≥ 40 com folga (web ~10 + worker ~10 +
-      scripts — [db-pool-config.md](../backlog/db-pool-config.md))
+      scripts; knob `DB_POOL_MAX`, default 10 no web e 5 no worker — PR #19)
 - [ ] Disco: JMdict seedado ≈ 1–2 GB de banco base; +~2 MB por vídeo importado
 
 ## 5. Sequência de deploy (ordem importa)
@@ -70,6 +108,9 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
 3. `pnpm --filter @fuchine/db seed:jmdict [frequency.tsv]` — ~298k entries;
    rodar **antes** de abrir tráfego (o dicionário vazio parece bug —
    histórico: assim nasceu o falso "#9" do backlog)
+   - em seguida `pnpm --filter @fuchine/db seed:pitch` — pitch accent do
+     Kanjium (~124k linhas em `word_pitch`, idempotente); anotar o
+     "word_entries with pitch: X/Y" que o seed imprime (taxa de match real)
 4. `pnpm --filter @fuchine/worker backfill:level` (se houver vídeos migrados)
 5. Subir web + worker; conferir logs de boot limpos
 6. Congelar um **backup imediato pós-seed** (restore barato do estado zero)
@@ -77,16 +118,19 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
 ## 6. Smoke test — o loop inteiro, no domínio real
 
 - [ ] Login por **Google** e por **magic link** (recebido fora do spam)
-- [ ] Extensão apontada para `https://<domínio>` importa um vídeo real
-      (🔒 exige [extension-hardcoded-origin.md](../backlog/extension-hardcoded-origin.md))
+- [ ] Uma conta Google **fora** da allowlist e sem convite é recusada em
+      `/login` ("invite-only"), e um magic link para um e-mail não convidado
+      mostra "check your e-mail" **sem** enviar nada
+- [ ] Extensão apontada para `https://<domínio>` (campo de servidor no popup;
+      a permissão do origin é pedida em runtime — PR #19) importa um vídeo real
 - [ ] Import processa: status sai de Processing, tokens aparecem
 - [ ] Player toca no domínio https (embed com `origin` correto), legenda dupla
       sincronizada, tradução dos chunks chegando
 - [ ] Popup de dicionário responde; **Explain** gera (cache miss) e o segundo
       clique é instantâneo (cache hit)
 - [ ] Mine → Review → grade → resumo de sessão; stats registram o dia
-- [ ] `GET /api/health` respondendo (🔒
-      [health-endpoints-missing.md](../backlog/health-endpoints-missing.md))
+- [ ] `GET /api/health` responde 200 com `db`/`redis` ok e `workerAlive: true`
+- [ ] `GET /api/health` mostra `houseBudget: "ok"` (ou `"unlimited"` se sem teto)
 - [ ] Se a CSP foi ligada: thumbnails e o iframe do YouTube carregam sem erro
       de console
 
@@ -95,14 +139,15 @@ no dia**. Itens marcados 🔒 dependem de backlog ainda aberto.
 - [ ] Conferir que o backup diário está de fato gerando arquivos (e fazer um
       restore de amostra)
 - [ ] Observar logs do worker: fila vazia estável, sem vídeo preso em
-      `processing` ([import-jobs-no-retry.md](../backlog/import-jobs-no-retry.md))
-- [ ] Observar consumo de LLM/DeepL nos dashboards dos providers (enquanto
-      [llm-usage-metering.md](../backlog/llm-usage-metering.md) não existe,
-      o painel do provider é a única medição)
+      `processing` (jobs têm 3 tentativas com backoff e o worker re-enfileira
+      imports órfãos no boot; a causa de falha fica em `videos.status_reason`)
+- [ ] Observar consumo de LLM/DeepL: cada chamada grava em `llm_usage` (resumo
+      do dia com `pnpm --filter @fuchine/worker usage`); conferir contra o
+      painel do provider na primeira semana
 - [ ] Kill test: derrubar o worker e conferir que o compose o reergue e a
       fila drena
-- [ ] Revisitar o banner do Dependabot (8 alertas vs item resolvido no PR #16
-      — confirmar se era lag)
+- [ ] Revisitar o banner do Dependabot (o PR #24, 2026-10-14, fechou todos os
+      alertas abertos até então — conferir se surgiram novos)
 
 ---
 

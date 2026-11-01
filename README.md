@@ -69,17 +69,54 @@ The full stack runs from compose — Caddy (automatic HTTPS) in front of the web
 and worker containers, over Postgres + Redis. No Node toolchain needed on the
 host, just Docker.
 
+The complete guide is [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md); the
+essentials follow.
+
 ```bash
 cp .env.example .env
 # Edit .env — at minimum:
 #   AUTH_SECRET, FUCHINE_ENCRYPTION_KEY   (openssl rand -base64 32 each)
 #   a sign-in method: AUTH_GOOGLE_ID/SECRET or EMAIL_SERVER
+#   AUTH_ALLOWED_EMAILS=you@example.com   (production is invite-only by default)
 #   SITE_ADDRESS=your.domain.com          (Caddy gets a Let's Encrypt cert)
-#   change the Postgres password in docker-compose.yml for a real deploy
+#   POSTGRES_PASSWORD, REDIS_PASSWORD     (set before the first run)
 
 docker compose up -d --build            # migrate → web + worker → caddy
 docker compose run --rm migrate pnpm --filter @fuchine/db seed:jmdict   # one-time
 ```
+
+**Prebuilt images.** Releases publish `ghcr.io/fuchine/fuchine-web` and
+`ghcr.io/fuchine/fuchine-worker` (amd64 + arm64, SBOM + provenance). To run them
+instead of building, set `FUCHINE_VERSION=v0.1.0` in `.env` and:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.release.yml pull
+docker compose -f docker-compose.yml -f docker-compose.release.yml up -d
+```
+
+Pin by digest with `FUCHINE_WEB_IMAGE` / `FUCHINE_WORKER_IMAGE`. The worker
+runs as the unprivileged `node` user. See [`CHANGELOG.md`](CHANGELOG.md) for
+upgrade notes — production now defaults to `REGISTRATION=invite`.
+
+**Who can sign up.** A production instance is **invite-only by default**
+(`REGISTRATION=invite`): existing users, the addresses/domains in
+`AUTH_ALLOWED_EMAILS`/`AUTH_ALLOWED_DOMAINS`, and e-mails you invite. Every new
+account can spend your house LLM key, so keep public instances off `open`.
+
+```bash
+docker compose run --rm worker pnpm --filter @fuchine/worker invite add friend@example.com --days 14
+docker compose run --rm worker pnpm --filter @fuchine/worker invite list
+docker compose run --rm worker pnpm --filter @fuchine/worker invite revoke friend@example.com
+```
+
+Set `REGISTRATION=closed` to stop new sign-ups entirely (existing users keep working).
+
+**Cap your AI bill.** `HOUSE_DAILY_TOKEN_BUDGET` sets a daily ceiling on tokens
+spent with your house key; at the ceiling, new house-key AI pauses until
+midnight while cached content and users' own keys keep working.
+`HOUSE_EXPLAIN_FALLBACK=false` makes explanations BYOK-only. Check today's spend
+with `docker compose run --rm worker pnpm --filter @fuchine/worker usage`;
+`/api/health` reports `houseBudget`.
 
 The `migrate` service applies pending migrations automatically before web/worker
 boot. `web` publishes no host port — Caddy is the only ingress. Health:
@@ -132,6 +169,17 @@ AI just degrades gracefully.
 | `docs/` | Architecture, AI contract, screen inventory — the source of truth |
 
 ## Documentation
+
+- [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md) — run your own instance with
+  only Docker: configuration, local AI with Ollama, TLS, backups, upgrades,
+  troubleshooting.
+- [`docs/EXTENSION.md`](docs/EXTENSION.md) — install the browser extension,
+  point it at your instance, permissions and privacy.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — English summary of the
+  architecture: vision, open-core model, locked decisions (D1–D8), components,
+  data model, AI layers and cache.
+
+Internal docs are in Portuguese and are the source of truth:
 
 - [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) — vision, open-core model, locked
   decisions (D1–D8), system architecture, roadmap.

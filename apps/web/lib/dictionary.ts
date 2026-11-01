@@ -1,22 +1,92 @@
 // Dictionary lookups (F1 popup + F2 search). Auth-agnostic and testable.
 
-import { and, asc, eq, sql } from "drizzle-orm";
-import { type Database, wordEntries, wordExamples, subtitleLines, videos, savedWords } from "@fuchine/db";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { type Database, wordEntries, wordExamples, wordPitch, subtitleLines, videos, savedWords } from "@fuchine/db";
 import { getDictionary } from "@fuchine/nlp";
+import { getUserDictionaries, pitchDictionaryIds, withImportedDictionaries } from "./dictionaries";
 
-/** Fetch one entry by id — what the player popup uses for a resolved token. */
-export async function lookupById(db: Database, id: string) {
+/**
+ * Pitch accent of an entry (T3.2), one item per source. `positions` are the
+ * downstep morae (0 = heiban), every accent the source lists; the client turns
+ * them into a pattern with `pitchPattern` (@fuchine/core).
+ */
+export type EntryPitch = { reading: string; positions: number[]; source: string };
+
+type PitchKeyed = { language: string; lemma: string; reading: string | null };
+
+/**
+ * Attach `pitch` to dictionary entries: one indexed query for the whole batch,
+ * matched on the natural key (language, lemma, reading). Entries without a
+ * reading or without pitch data get `pitch: []`.
+ *
+ * Seeded sources (Kanjium: no dictionary_id) always show; rows of imported
+ * Yomitan pitch dictionaries (T3.4) only for the ids in `dictionaryIds` — the
+ * user's enabled ones — listed after the seeded source in that order.
+ */
+export async function withPitch<T extends PitchKeyed>(
+  db: Database,
+  entries: T[],
+  dictionaryIds: readonly string[] = [],
+): Promise<(T & { pitch: EntryPitch[] })[]> {
+  const keyed = entries.filter((e) => e.reading);
+  const rows = keyed.length
+    ? await db
+        .select({
+          language: wordPitch.language,
+          lemma: wordPitch.lemma,
+          reading: wordPitch.reading,
+          positions: wordPitch.positions,
+          source: wordPitch.source,
+          dictionaryId: wordPitch.dictionaryId,
+        })
+        .from(wordPitch)
+        .where(
+          and(
+            inArray(wordPitch.language, [...new Set(keyed.map((e) => e.language))]),
+            inArray(wordPitch.lemma, [...new Set(keyed.map((e) => e.lemma))]),
+            dictionaryIds.length
+              ? or(isNull(wordPitch.dictionaryId), inArray(wordPitch.dictionaryId, [...dictionaryIds]))
+              : isNull(wordPitch.dictionaryId),
+          ),
+        )
+        .orderBy(asc(wordPitch.source))
+    : [];
+  const order = (id: string | null) => (id === null ? -1 : dictionaryIds.indexOf(id));
+  rows.sort((a, b) => order(a.dictionaryId) - order(b.dictionaryId));
+  const byKey = new Map<string, EntryPitch[]>();
+  for (const r of rows) {
+    const k = `${r.language}\t${r.lemma}\t${r.reading}`;
+    const list = byKey.get(k) ?? [];
+    list.push({ reading: r.reading, positions: r.positions, source: r.source });
+    byKey.set(k, list);
+  }
+  return entries.map((e) => ({
+    ...e,
+    pitch: e.reading ? byKey.get(`${e.language}\t${e.lemma}\t${e.reading}`) ?? [] : [],
+  }));
+}
+
+/**
+ * Fetch one entry by id — what the player popup and the dictionary detail
+ * use. With a user, it also carries that user's imported dictionaries
+ * (`dictionaries`, `frequencies`) and their enabled pitch sources (T3.4).
+ */
+export async function lookupById(db: Database, id: string, userId?: string) {
   const [entry] = await db
     .select()
     .from(wordEntries)
     .where(eq(wordEntries.id, id))
     .limit(1);
-  return entry ?? null;
+  if (!entry) return null;
+  const mine = userId ? await getUserDictionaries(db, userId) : { ordered: [], frequency: null };
+  const [withP] = await withPitch(db, [entry], pitchDictionaryIds(mine));
+  const [full] = await withImportedDictionaries(db, mine, [withP!]);
+  return full!;
 }
 
 /** Search by lemma or reading (most frequent first). */
 export async function searchDictionary(db: Database, q: string, language = "ja") {
-  return getDictionary(language, db).lookup(q);
+  return withPitch(db, await getDictionary(language, db).lookup(q));
 }
 
 /**
@@ -126,7 +196,7 @@ export async function searchByGloss(db: Database, term: string, language = "ja")
   // ILIKE '%term%' over the materialized `glosses_text` rides the pg_trgm GIN
   // index (word_entries_glosses_trgm_idx) — same semantics as the old jsonb
   // unnest, but an index probe instead of a 298k-row seq scan per keystroke.
-  return db
+  const rows = await db
     .select()
     .from(wordEntries)
     .where(
@@ -137,4 +207,5 @@ export async function searchByGloss(db: Database, term: string, language = "ja")
     )
     .orderBy(sql`${wordEntries.frequencyRank} asc nulls last`)
     .limit(20);
+  return withPitch(db, rows);
 }

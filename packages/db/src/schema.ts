@@ -8,6 +8,7 @@ import {
   text,
   integer,
   doublePrecision,
+  real,
   boolean,
   timestamp,
   date,
@@ -15,9 +16,19 @@ import {
   primaryKey,
   index,
   uniqueIndex,
+  check,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
-import type { Token, Explanation, Definition, DailyGoals } from "./types";
+import type {
+  Token,
+  Explanation,
+  Definition,
+  DailyGoals,
+  KnownWordCalibration,
+  DictDefinition,
+  DictTagMeta,
+  DictionaryPrefs,
+} from "./types";
 
 /* ------------------------------------------------------------------ */
 /* Enums — the genuine state machines only. Everything else is text.   */
@@ -113,9 +124,76 @@ export const userSettings = pgTable("user_settings", {
   learningLanguage: text("learning_language").notNull().default("ja"),
   explanationLanguage: text("explanation_language").notNull().default("en"),
   dailyGoals: jsonb("daily_goals").$type<DailyGoals>(),
+  // FSRS per-user scheduling (T3.1). fsrs_params: the user's fitted FSRS-7
+  // weights (34 numbers, validated by @fuchine/core validateFsrsParams); null =
+  // the ts-fsrs FSRS-7 defaults. desired_retention: target recall probability
+  // in [0.80, 0.95]; null = 0.9.
+  fsrsParams: jsonb("fsrs_params").$type<number[]>(),
+  desiredRetention: real("desired_retention"),
   // Null = onboarding never finished; set on first completion.
   onboardingCompletedAt: timestamp("onboarding_completed_at", { withTimezone: true }),
+  // Known-word parameters measured on THIS user's own reviews (T3.10, 0022);
+  // null = not enough data of their own → instance_settings, then constants.
+  knownWordParams: jsonb("known_word_params").$type<KnownWordCalibration>(),
+  // Imported dictionaries this user shows, in order, and the frequency list
+  // behind the Lapis FreqSort (T3.4, 0023). Null = JMdict only.
+  dictionaryPrefs: jsonb("dictionary_prefs").$type<DictionaryPrefs>(),
 });
+
+// Small instance-wide key/value settings written by jobs (T3.10, 0022). Today
+// one key: "known_words" → KnownWordCalibration (the daily calibration job).
+export const instanceSettings = pgTable("instance_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Registration invites (T2.3). E-mail-bound, single use, expiring. Checked in
+// the Auth.js signIn callback and consumed atomically inside account creation
+// (apps/web/lib/auth-registration.ts). At most one active (unused) invite per
+// address; used rows stay as history.
+export const invites = pgTable(
+  "invites",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    email: text("email").notNull(), // normalized (normalizeEmail)
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    usedBy: uuid("used_by").references(() => users.id, { onDelete: "set null" }),
+    createdBy: text("created_by").notNull(), // "cli" now; admin e-mail from T2.13
+    note: text("note"),
+  },
+  (t) => [
+    uniqueIndex("invites_active_email_uq").on(t.email).where(sql`${t.usedAt} is null`),
+  ],
+);
+
+// Per-user API tokens (T2.11). Lets the browser extension (and other clients)
+// call POST /api/import with `Authorization: Bearer fch_…` instead of relying
+// on the session cookie being sent cross-origin. Only a SHA-256 hash of the
+// token is stored: the token is 32 random bytes (256 bits of entropy), so a
+// fast unsalted hash is not brute-forceable and allows an indexed lookup —
+// bcrypt/argon2 exist to slow down guessing LOW-entropy passwords and would
+// force a scan. `prefix` (first chars of the token) is for display only.
+// Revocation is a soft delete (revoked_at) so the list keeps an audit trail.
+export const apiTokens = pgTable(
+  "api_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull().unique(), // hex SHA-256 of the full token
+    prefix: text("prefix").notNull(), // e.g. "fch_AbC1" — display only
+    scopes: text("scopes").array().notNull().default(sql`'{import}'::text[]`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [index("api_tokens_user_idx").on(t.userId, t.createdAt)],
+);
 
 /* ------------------------------------------------------------------ */
 /* Content: videos, subtitle lines, dictionary, examples              */
@@ -140,11 +218,17 @@ export const videos = pgTable(
     // Coarse content category (heuristic at import); null = uncategorized.
     category: text("category"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // When the metadata above (title, channel, duration) was last captured by
+    // the extension (T3.10, 0022; backfilled from created_at). Never the Data
+    // API: re-imports refresh it, `refresh:metadata` lists rows older than 30
+    // days for re-capture/expiry. See ARQUITETURA.md §5 (metadata freshness).
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     // Shared-cache key (D1/D3): one row per source video, reused across users.
     uniqueIndex("videos_source_source_id_uq").on(t.source, t.sourceId),
     index("videos_status_idx").on(t.status), // worker picks up pending/processing
+    index("videos_fetched_at_idx").on(t.fetchedAt), // refresh:metadata (stale first)
   ],
 );
 
@@ -217,6 +301,123 @@ export const wordEntries = pgTable(
   ],
 );
 
+// Pitch accent per (lemma, reading), from an attributed source (T3.2: Kanjium,
+// CC BY-SA 4.0). Its own table, joined to word_entries by the natural key
+// (language, lemma, reading) — no FK, so the JMdict and pitch seeds run in any
+// order and re-seeding one never touches the other; `source` keeps provenance
+// and lets more sources (T3.4, Yomitan pitch dictionaries) sit side by side.
+// See docs/plans/2026-10-30-pitch-accent-spec.md.
+export const wordPitch = pgTable(
+  "word_pitch",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    language: text("language").notNull().default("ja"),
+    lemma: text("lemma").notNull(),
+    reading: text("reading").notNull(), // kana; = lemma for kana-only words
+    // Downstep positions (mora after which the pitch drops; 0 = heiban), in
+    // source order. Several accents per word are common — all are kept.
+    positions: integer("positions").array().notNull(),
+    source: text("source").notNull(), // e.g. "kanjium", or an imported dictionary's title
+    // Set for rows from an imported Yomitan pitch dictionary (T3.4, 0023):
+    // re-import/delete cascades, and lookups show them only to users who
+    // enabled that dictionary. Null = a seeded source (Kanjium), always shown.
+    dictionaryId: uuid("dictionary_id").references(() => dictionaries.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    // Seed upsert identity; its (language, lemma, reading) prefix serves the
+    // join from word_entries.
+    uniqueIndex("word_pitch_lemma_reading_source_uq").on(t.language, t.lemma, t.reading, t.source),
+    // Re-import / delete of an imported pitch dictionary (cascade) (T3.4).
+    index("word_pitch_dictionary_idx").on(t.dictionaryId),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Imported dictionaries (T3.4) — Yomitan zip format, instance-level    */
+/* ------------------------------------------------------------------ */
+
+// One imported Yomitan dictionary (index.json). Installed by the operator
+// (CLI `dict:import` or the admin upload); each user picks which to show and
+// in what order (user_settings.dictionary_prefs). Fuchine ships none of them:
+// the operator is responsible for the right to use what they import. Title is
+// the identity: re-importing the same title replaces its rows and keeps the id
+// (so users' choices survive an update). See
+// docs/plans/2026-10-31-yomitan-dictionaries-spec.md.
+export const dictionaries = pgTable(
+  "dictionaries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(),
+    revision: text("revision").notNull(),
+    formatVersion: integer("format_version").notNull(), // index.json format|version (3)
+    // Primary kind for the UI: "terms" when it has term banks, else
+    // "frequency" or "pitch" (term_meta banks). The counts say what it holds.
+    type: text("type").notNull(), // terms | pitch | frequency
+    language: text("language").notNull().default("ja"), // index.json sourceLanguage
+    targetLanguage: text("target_language"), // definitions' language; = language → monolingual
+    frequencyMode: text("frequency_mode"), // rank-based | occurrence-based (index.json)
+    author: text("author"),
+    attribution: text("attribution"),
+    url: text("url"),
+    description: text("description"),
+    tagMeta: jsonb("tag_meta").$type<DictTagMeta>().notNull().default({}),
+    termCount: integer("term_count").notNull().default(0),
+    frequencyCount: integer("frequency_count").notNull().default(0),
+    pitchCount: integer("pitch_count").notNull().default(0),
+    importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+    // Instance-wide switch (admin); a disabled dictionary is hidden for everyone.
+    enabled: boolean("enabled").notNull().default(true),
+  },
+  (t) => [uniqueIndex("dictionaries_title_uq").on(t.title)],
+);
+
+// Term entries of an imported dictionary (term_bank_*.json). `definitions`
+// keeps structured content as sanitized JSON (DictDefinition), rendered by
+// @fuchine/ui StructuredContent. A "" reading in the source means "same as
+// the expression"; it is stored resolved (never empty).
+export const dictionaryTerms = pgTable(
+  "dictionary_terms",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    dictionaryId: uuid("dictionary_id")
+      .notNull()
+      .references(() => dictionaries.id, { onDelete: "cascade" }),
+    language: text("language").notNull().default("ja"),
+    expression: text("expression").notNull(),
+    reading: text("reading").notNull(),
+    definitions: jsonb("definitions").$type<DictDefinition[]>().notNull(),
+    tags: text("tags").array().notNull().default(sql`'{}'::text[]`), // definition + term tags
+    score: real("score").notNull().default(0),
+    sequence: integer("sequence"),
+  },
+  (t) => [
+    index("dictionary_terms_expression_idx").on(t.language, t.expression),
+    index("dictionary_terms_reading_idx").on(t.language, t.reading),
+    index("dictionary_terms_dictionary_idx").on(t.dictionaryId),
+  ],
+);
+
+// Frequency of a term in an imported frequency list (term_meta "freq").
+// `value` is the source number; `rank` is always "lower = more frequent" (the
+// value for rank-based lists, the position by descending value for
+// occurrence-based ones) so FreqSort can use either. Reading "" = the source
+// gave none (applies to every reading of the expression).
+export const wordFrequency = pgTable(
+  "word_frequency",
+  {
+    dictionaryId: uuid("dictionary_id")
+      .notNull()
+      .references(() => dictionaries.id, { onDelete: "cascade" }),
+    language: text("language").notNull().default("ja"),
+    expression: text("expression").notNull(),
+    reading: text("reading").notNull().default(""),
+    value: doublePrecision("value").notNull(),
+    displayValue: text("display_value"),
+    rank: integer("rank").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.dictionaryId, t.language, t.expression, t.reading] })],
+);
+
 export const wordExamples = pgTable(
   "word_examples",
   {
@@ -261,16 +462,27 @@ export const sentenceCards = pgTable(
     // Reserved for cloze / production templates later; MVP creates "listening".
     cardType: text("card_type").notNull().default("listening"),
     notes: text("notes"),
-    // --- FSRS state (D6): maps 1:1 to a ts-fsrs Card. ---
+    // --- FSRS state (D6): maps 1:1 to a ts-fsrs v6 card (@fuchine/core CardState). ---
     stability: doublePrecision("stability").notNull().default(0),
+    // FSRS-7 fast trace (T3.1). null = FSRS-5 card, or a pre-0018 card whose
+    // FSRS-7 memory is rebuilt from review_logs on first touch.
+    stabilityFast: doublePrecision("stability_fast"),
     difficulty: doublePrecision("difficulty").notNull().default(0),
     due: timestamp("due", { withTimezone: true }).notNull().defaultNow(),
     lastReview: timestamp("last_review", { withTimezone: true }),
     state: integer("state").notNull().default(0), // 0 New 1 Learning 2 Review 3 Relearning
     reps: integer("reps").notNull().default(0),
     lapses: integer("lapses").notNull().default(0),
-    elapsedDays: integer("elapsed_days").notNull().default(0),
-    scheduledDays: integer("scheduled_days").notNull().default(0),
+    // Fractional days since the previous review (Fuchine-computed; ts-fsrs v6
+    // dropped the field). Integer before 0018.
+    elapsedDays: doublePrecision("elapsed_days").notNull().default(0),
+    // Fractional since FSRS-7 (integer before 0018).
+    scheduledDays: doublePrecision("scheduled_days").notNull().default(0),
+    learningStep: integer("learning_step").notNull().default(0),
+    // Which model schedules the card: "fsrs-7" (default) or "fsrs-5" (a card
+    // learned under ts-fsrs v4 without a complete review history, kept on the
+    // model that scheduled it — upstream's migration rule).
+    fsrsModel: text("fsrs_model").notNull().default("fsrs-7"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -297,14 +509,20 @@ export const reviewLogs = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     // Full ts-fsrs ReviewLog — lets you re-optimize FSRS params per user later (D6).
+    // Memory/schedule fields are the card's PRE-review values (ts-fsrs revlog).
     grade: integer("grade").notNull(), // 1 Again 2 Hard 3 Good 4 Easy
     state: integer("state").notNull(), // card state at review time
     due: timestamp("due", { withTimezone: true }).notNull(),
+    lastReview: timestamp("last_review", { withTimezone: true }), // T3.1; null before 0018
     stability: doublePrecision("stability").notNull(),
+    stabilityFast: doublePrecision("stability_fast"), // T3.1; FSRS-7 only
     difficulty: doublePrecision("difficulty").notNull(),
-    elapsedDays: integer("elapsed_days").notNull(),
-    lastElapsedDays: integer("last_elapsed_days").notNull(),
-    scheduledDays: integer("scheduled_days").notNull(),
+    elapsedDays: doublePrecision("elapsed_days").notNull(),
+    lastElapsedDays: doublePrecision("last_elapsed_days").notNull(),
+    scheduledDays: doublePrecision("scheduled_days").notNull(),
+    learningStep: integer("learning_step").notNull().default(0), // T3.1
+    // Model that produced the log (T3.1). null = written by ts-fsrs v4 (FSRS-5).
+    fsrsModel: text("fsrs_model"),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -399,6 +617,42 @@ export const userVideoFlags = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/* Per-user token corrections (T3.7)                                   */
+/* ------------------------------------------------------------------ */
+
+// A user's correction of a subtitle line's tokenization: the original tokens
+// [start_idx, end_idx] (inclusive, indices into subtitle_lines.tokens) are
+// replaced — for this user only — by `tokens`. Spans make merges (マー|ク →
+// マーク) and splits expressible; the corrected surfaces must concatenate to the
+// original span's surfaces, so the line text never changes (enforced by
+// validateTokenOverride in @fuchine/core on write, re-checked on read). The
+// shared line row and the AI cache stay untouched.
+// See docs/plans/2026-10-30-token-overrides-spec.md.
+export const tokenOverrides = pgTable(
+  "token_overrides",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    subtitleLineId: uuid("subtitle_line_id")
+      .notNull()
+      .references(() => subtitleLines.id, { onDelete: "cascade" }),
+    startIdx: integer("start_idx").notNull(),
+    endIdx: integer("end_idx").notNull(), // inclusive
+    tokens: jsonb("tokens").$type<Token[]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // One correction per (user, line, start); its prefix serves "this user's
+    // corrections for these lines" (one query per payload).
+    primaryKey({ columns: [t.userId, t.subtitleLineId, t.startIdx] }),
+    index("token_overrides_line_idx").on(t.subtitleLineId), // cascade from line delete
+    check("token_overrides_span_ck", sql`${t.startIdx} >= 0 and ${t.endIdx} >= ${t.startIdx}`),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
 /* Stats                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -415,9 +669,104 @@ export const userWordStats = pgTable(
     clicks: integer("clicks").notNull().default(0), // times the user opened the popup
     reviewsOk: integer("reviews_ok").notNull().default(0),
     reviewsTotal: integer("reviews_total").notNull().default(0),
+    // --- Known-word model signals (T3.9, 0021). See apps/web/lib/known-words.ts. ---
+    // Last popup lookup: a recent one demotes "likely" → "unknown" for a while.
+    lastClickedAt: timestamp("last_clicked_at", { withTimezone: true }),
+    // Outcome of the most recent review of a card containing the word
+    // (grade ≥ 3, same rule as reviews_ok). null = never reviewed, or pre-0021
+    // without a recoverable log. "confirmed" requires it to be true.
+    lastReviewOk: boolean("last_review_ok"),
+    lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
+    // Calibration snapshot (basis for T3.10): the word's tier just before its
+    // first-ever review, and whether that review was OK. Written once.
+    firstReviewTier: text("first_review_tier"),
+    firstReviewOk: boolean("first_review_ok"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.wordEntryId] })],
+);
+
+// Per-video word frequency (T3.9, 0021): occurrences of each dictionary word
+// in the video's shared tokens, counting only coverage tokens (proper nouns,
+// interjections, numerals and symbols excluded — isCoverageToken in
+// @fuchine/nlp). Materialized at import (and by backfill:word-counts) so the
+// token-weighted coverage of a page of videos is one aggregate over ~1–2k rows
+// per video instead of unnesting every line's tokens jsonb (word_examples keeps
+// one row per (word, line), so it loses in-line repeats and has no POS).
+// Per-user token corrections are applied on read as deltas. Shared, like
+// word_examples. See docs/plans/2026-10-30-known-words-spec.md.
+export const videoWordCounts = pgTable(
+  "video_word_counts",
+  {
+    videoId: uuid("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+    wordEntryId: uuid("word_entry_id")
+      .notNull()
+      .references(() => wordEntries.id, { onDelete: "cascade" }),
+    occurrences: integer("occurrences").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.videoId, t.wordEntryId] }), // serves the per-page aggregate
+    index("video_word_counts_word_idx").on(t.wordEntryId), // cascade from word delete
+  ],
+);
+
+// Per-user watch progress per video (T3.10, 0022), written by the player
+// beacon next to user_daily_stats. Feeds Explore's narrow-viewing boost
+// ("same channel as a video you watched recently") and its "already watched"
+// exclusion. One row per (user, video).
+export const userVideoProgress = pgTable(
+  "user_video_progress",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    videoId: uuid("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+    msWatched: integer("ms_watched").notNull().default(0),
+    linesSeen: integer("lines_seen").notNull().default(0),
+    lastWatchedAt: timestamp("last_watched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.videoId] }),
+    index("user_video_progress_recent_idx").on(t.userId, t.lastWatchedAt), // recent channels
+    index("user_video_progress_video_idx").on(t.videoId), // cascade from video delete
+  ],
+);
+
+// Explore's per-user candidate pre-filter (T3.10, 0022): the tier sums of the
+// token-weighted coverage of every catalog video for one user, materialized
+// by refreshUserVideoCoverage (one INSERT … SELECT over video_word_counts) and
+// refreshed stale-while-revalidate by the worker, so an Explore request reads
+// one row per catalog video instead of re-aggregating ~1k word rows per video.
+// The likely weight is applied on read (it is calibrated, T3.10). Token
+// corrections are NOT applied here — the exact coverage of the shown page is
+// recomputed with them. See docs/plans/2026-10-30-explore-spec.md.
+export const userVideoCoverage = pgTable(
+  "user_video_coverage",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    videoId: uuid("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+    tokens: integer("tokens").notNull(),
+    words: integer("words").notNull(),
+    confirmedTokens: integer("confirmed_tokens").notNull(),
+    likelyTokens: integer("likely_tokens").notNull(),
+    confirmedWords: integer("confirmed_words").notNull(),
+    likelyWords: integer("likely_words").notNull(),
+    // Distinct unknown words with frequency_rank ≤ NOVELTY_MAX_RANK (novelty).
+    newCommonWords: integer("new_common_words").notNull(),
+    computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.videoId] }),
+    index("user_video_coverage_video_idx").on(t.videoId), // cascade from video delete
+  ],
 );
 
 export const savedWords = pgTable(
@@ -471,9 +820,13 @@ export const llmUsage = pgTable(
     outTokens: integer("out_tokens"),
     ms: integer("ms").notNull(),
     ok: boolean("ok").notNull(),
+    // Whose key paid: "house" (operator) or "byok" (the user's own). Defaults to
+    // house so an unmarked call counts against the house budget (T2.4).
+    keySource: text("key_source").notNull().default("house"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    index("llm_usage_source_time_idx").on(t.keySource, t.createdAt), // house spend today (T2.4)
     index("llm_usage_video_idx").on(t.videoId), // cost per video (prewarm summary)
     index("llm_usage_user_time_idx").on(t.userId, t.createdAt), // cost per user/day (F3)
   ],
@@ -613,3 +966,7 @@ export type NewSentenceCard = typeof sentenceCards.$inferInsert;
 export type ReviewLog = typeof reviewLogs.$inferSelect;
 export type AiExplanation = typeof aiExplanations.$inferSelect;
 export type Album = typeof albums.$inferSelect;
+export type Invite = typeof invites.$inferSelect;
+export type TokenOverrideRow = typeof tokenOverrides.$inferSelect;
+export type Dictionary = typeof dictionaries.$inferSelect;
+export type DictionaryTerm = typeof dictionaryTerms.$inferSelect;

@@ -5,6 +5,9 @@ import { and, asc, eq, gt, inArray, or, sql } from "drizzle-orm";
 import { savedWords, userWordStats, wordEntries } from "@fuchine/db";
 import { freqTier } from "@/lib/dictionary";
 import { computeMastery, firstGloss, grammarPosCondition } from "@/lib/dictionary-utils";
+import { escapeLike, parseLimit } from "@/lib/list-query";
+import { isUuid } from "@/lib/ids";
+import { enforceRateLimit, tooManyRequests, retryAfterHeader } from "@/lib/rate-limit";
 
 export type BrowseItem = {
   id: string;
@@ -26,8 +29,9 @@ export async function GET(req: Request) {
   const userId = session.user.id;
   const url = new URL(req.url);
   const cursor = url.searchParams.get("cursor");
-  const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
-  const search = url.searchParams.get("q") ?? "";
+  const limit = parseLimit(url.searchParams.get("limit"), 50);
+  // Capped (C3): an unbounded q was an unbounded ILIKE pattern.
+  const search = (url.searchParams.get("q") ?? "").trim().slice(0, 100);
   const grammarOnly = url.searchParams.get("grammar") === "true";
   const posFilter = url.searchParams.get("pos"); // comma-separated JMdict POS tags
 
@@ -35,7 +39,18 @@ export async function GET(req: Request) {
   const baseConditions = [eq(wordEntries.language, "ja")];
 
   if (search) {
-    const like = `%${search}%`;
+    // The ILIKE over lemma/reading has no trigram index (seq scan), so text
+    // searches share the dictionary search limit; plain browsing doesn't count.
+    const rl = await enforceRateLimit("dictionarySearch", userId);
+    if (!rl.ok) {
+      const denied = tooManyRequests(rl, "Too many searches — slow down a moment.");
+      return NextResponse.json(denied.body, {
+        status: denied.status,
+        headers: retryAfterHeader(denied),
+      });
+    }
+    // Escaped so % and _ match literally instead of acting as wildcards.
+    const like = `%${escapeLike(search)}%`;
     baseConditions.push(
       sql`(${wordEntries.lemma} ILIKE ${like} OR ${wordEntries.reading} ILIKE ${like})`,
     );
@@ -72,7 +87,7 @@ export async function GET(req: Request) {
       const parts = cursor.slice(2).split(":");
       const len = parseInt(parts[0]!, 10);
       const idStr = parts.slice(1).join(":");
-      if (!isNaN(len) && idStr) {
+      if (!isNaN(len) && isUuid(idStr)) {
         pageConditions.push(
           or(
             sql`LENGTH(${wordEntries.lemma}) < ${len}`,

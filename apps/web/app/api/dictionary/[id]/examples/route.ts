@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isUuid } from "@/lib/ids";
 import { db } from "@/lib/db";
 import { getWordExamples } from "@/lib/dictionary";
 
@@ -13,6 +14,7 @@ export async function GET(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await ctx.params;
+  if (!isUuid(id)) return NextResponse.json({ error: "word not found" }, { status: 404 });
   const examples = await getWordExamples(db, id);
   return NextResponse.json({ examples });
 }

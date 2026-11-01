@@ -31,6 +31,31 @@ redistribution of that derived data must preserve this attribution and the
 CC BY-SA 4.0 terms.
 
 ================================================================================
+Kanjium (pitch accent data)
+================================================================================
+Pitch accent (the `word_pitch` table) is derived from Kanjium, a free database
+by Uros O. (mifunetoshiro), file data/source_files/raw/accents.txt:
+
+  "The pitch accent notation, verb particle data, phonetics, homonyms and other
+   additions or modifications to EDICT, KANJIDIC or KRADFILE were provided by
+   Uros O. through his free database."
+
+  - License: Creative Commons Attribution-ShareAlike 4.0 International
+             (CC BY-SA 4.0), per the repository's LICENSE.txt
+  - Source:  https://github.com/mifunetoshiro/kanjium
+             (revision 9ebca4589565c696e7c39e089e2e928ad65f678c unless
+             KANJIUM_REF overrides it)
+  - Legal:   https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+Kanjium builds on EDICT (EDRDG, see above). accents.txt is downloaded at seed
+time and is NOT redistributed in this repository, except a 15-line excerpt used
+as a test fixture (packages/db/seeds/fixtures/kanjium-accents-sample.txt), which
+is Kanjium data under CC BY-SA 4.0. Pitch data derived from Kanjium is a
+ShareAlike work: redistribution of it must keep this attribution and the
+CC BY-SA 4.0 terms. The app credits the source next to every pitch pattern
+("Pitch: Kanjium").
+
+================================================================================
 Japanese tokenization (kuromoji.js + IPADIC)
 ================================================================================
 Layer-0 tokenization uses kuromoji.js, which bundles the IPADIC morphological

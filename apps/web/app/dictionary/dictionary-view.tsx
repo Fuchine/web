@@ -5,6 +5,17 @@ import { useRouter } from "next/navigation";
 import type { BrowseItem } from "@/app/api/dictionary/browse/route";
 import type { CollectionItem } from "@/app/api/dictionary/collection/route";
 import type { GrammarItem } from "@/app/api/dictionary/grammar/route";
+import {
+  DictFrequencyChips,
+  DictSections,
+  PitchAccent,
+  type DictFrequencyInfo,
+  type DictSectionInfo,
+  type PitchInfo,
+} from "@fuchine/ui";
+
+/** What GET /api/dictionary?id= adds to a list item: pitch (T3.2), imported dictionaries and ranks (T3.4). */
+type EntryExtras = { pitch: PitchInfo[]; dictionaries: DictSectionInfo[]; frequencies: DictFrequencyInfo[] };
 
 type Item = BrowseItem | CollectionItem | GrammarItem;
 type Kind = "vocabulary" | "grammar";
@@ -212,6 +223,7 @@ function Detail({
   idx,
   saved,
   sources,
+  extras,
   onSave,
   onSetStatus,
   onClose,
@@ -221,6 +233,8 @@ function Detail({
   idx: number;
   saved: boolean;
   sources: Example[];
+  /** Pitch, imported dictionaries and ranks from GET /api/dictionary?id=; undefined while loading. */
+  extras?: EntryExtras;
   onSave: () => void;
   onSetStatus: (s: string) => void;
   onClose: () => void;
@@ -274,6 +288,7 @@ function Detail({
               {"r" in item && item.r && (
                 <div className="text-[15px] text-muted mt-[5px] tracking-[0.04em]">{item.r}</div>
               )}
+              <PitchAccent pitch={extras?.pitch} size="md" className="mt-[10px]" />
             </div>
             <span className="text-[13px] font-semibold text-faint tabular-nums pt-[6px]">#{idx}</span>
           </div>
@@ -286,10 +301,14 @@ function Detail({
               </span>
             )}
             <FreqDots n={item.freq} />
+            <DictFrequencyChips frequencies={extras?.frequencies} />
           </div>
 
           {/* Definition */}
           <p className="text-base leading-[1.55] text-fg mt-4 [text-wrap:pretty]">{item.def}</p>
+
+          {/* The user's imported dictionaries, in their order (T3.4) */}
+          <DictSections sections={extras?.dictionaries} className="mt-5" />
 
           {/* Status selector */}
           <div className="mt-5">
@@ -434,12 +453,12 @@ function Detail({
 
 /* ---------- Main View ---------- */
 
-export function DictionaryView() {
+export function DictionaryView({ initialQuery = "" }: { initialQuery?: string } = {}) {
   const router = useRouter();
   const [tab, setTab] = useState<Kind>("vocabulary");
   const [type, setType] = useState("all");
-  const [q, setQ] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [q, setQ] = useState(initialQuery);
+  const [searchOpen, setSearchOpen] = useState(initialQuery !== "");
 
   // Browse mode (type === "all"): accumulated items with infinite scroll
   const [browseItems, setBrowseItems] = useState<BrowseItem[]>([]);
@@ -454,6 +473,7 @@ export function DictionaryView() {
   const [sel, setSel] = useState<string | null>(null);
   const [savedSet, setSavedSet] = useState<Set<string>>(() => new Set());
   const [sources, setSources] = useState<Record<string, Example[]>>({});
+  const [extrasById, setExtrasById] = useState<Record<string, EntryExtras>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [showRomaji, setShowRomaji] = useState(true);
   const [showSkills, setShowSkills] = useState(true);
@@ -464,7 +484,7 @@ export function DictionaryView() {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const reqId = useRef(0);
   const debTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const [debouncedQ, setDebouncedQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState(initialQuery);
   const hasMoreRef = useRef(hasMore);
   const loadingRef = useRef(loading);
   const nextCursorRef = useRef(nextCursor);
@@ -625,6 +645,25 @@ export function DictionaryView() {
 
   const select = useCallback(async (id: string) => {
     setSel(id);
+    if (!extrasById[id]) {
+      // The entry payload carries its pitch accent; fetched alongside the
+      // examples so the list endpoints stay one cheap query per page.
+      fetch(`/api/dictionary?id=${encodeURIComponent(id)}`)
+        .then((res) => (res.ok ? (res.json() as Promise<{ entry: Partial<EntryExtras> }>) : null))
+        .then((data) => {
+          if (data) {
+            setExtrasById((prev) => ({
+              ...prev,
+              [id]: {
+                pitch: data.entry.pitch ?? [],
+                dictionaries: data.entry.dictionaries ?? [],
+                frequencies: data.entry.frequencies ?? [],
+              },
+            }));
+          }
+        })
+        .catch(() => { /* pitch is optional */ });
+    }
     if (!sources[id]) {
       try {
         const res = await fetch(`/api/dictionary/${id}/examples`);
@@ -634,7 +673,7 @@ export function DictionaryView() {
         }
       } catch { /* ignore */ }
     }
-  }, [sources]);
+  }, [sources, extrasById]);
 
   // Items to display (raw)
   const displayItems = useMemo(() => {
@@ -914,6 +953,7 @@ export function DictionaryView() {
           idx={selIdx}
           saved={savedSet.has(selItem.id)}
           sources={sources[selItem.id] ?? []}
+          extras={extrasById[selItem.id]}
           onSave={() => void toggleSaved(selItem.id)}
           onSetStatus={(s) => setStatus(selItem.id, s)}
           onClose={() => setSel(null)}

@@ -17,7 +17,10 @@ export type LibraryVideo = {
   status: "pending" | "processing" | "done" | "failed";
   statusReason?: string | null;
   level: number | null;
+  /** Token-weighted coverage headline (T3.9); the client "Most comprehensible" sort key. */
   comprehension: number | null;
+  /** Its confidence band + unique-word coverage; null with comprehension. */
+  coverageBand?: { low: number; high: number; unique: number } | null;
   embeddable?: boolean | null; // false = owner blocked embedded playback
   category?: string | null;
 };
@@ -39,11 +42,6 @@ function dur(s: number | null): string | undefined {
   const m = Math.floor((s % 3600) / 60);
   const sec = String(s % 60).padStart(2, "0");
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
-}
-
-function hrs(s: number): string {
-  const h = s / 3600;
-  return h >= 10 ? h.toFixed(1) : h.toFixed(1);
 }
 
 const STATUS: Record<string, { variant: "neutral" | "warning" | "error"; label: string } | null> = {
@@ -322,6 +320,7 @@ function VideoCardWithMenu({
         durationLabel={dur(v.durationS)}
         level={v.level ?? undefined}
         comprehension={v.comprehension ?? undefined}
+        comprehensionBand={v.coverageBand ?? undefined}
         thumbnailUrl={v.source === "youtube" ? youtubeThumbnail(v.sourceId) : undefined}
         onPlay={() => router.push(`/videos/${v.id}`)}
         onOverflow={handleOverflow}
@@ -685,7 +684,8 @@ export function LibraryView({
       const willSave = !saved.has(v.id);
       setSaved((s) => {
         const n = new Set(s);
-        willSave ? n.add(v.id) : n.delete(v.id);
+        if (willSave) n.add(v.id);
+        else n.delete(v.id);
         return n;
       });
       persistFlag(v.id, "saved", willSave);

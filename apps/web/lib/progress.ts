@@ -7,12 +7,18 @@ import {
   type Database,
   type DbOrTx,
   type Token,
+  savedWords,
   subtitleLines,
   userDailyStats,
+  userVideoProgress,
   userWordStats,
+  videos,
   wordEntries,
 } from "@fuchine/db";
+import { loadKnownWordParams, signalsFromRow, wordTier } from "./known-words";
 import { dayKey } from "./stats";
+import { isUuid } from "./ids";
+import { withTokenOverrides } from "./token-overrides";
 
 export type Result = { status: number; body: Record<string, unknown> };
 
@@ -50,8 +56,8 @@ export function parseProgressInput(
 
   let lineIds: string[] = [];
   if (b.lineIds !== undefined) {
-    if (!Array.isArray(b.lineIds) || b.lineIds.some((id) => typeof id !== "string" || !id)) {
-      return { ok: false, error: "lineIds must be an array of ids" };
+    if (!Array.isArray(b.lineIds) || b.lineIds.some((id) => !isUuid(id))) {
+      return { ok: false, error: "lineIds must be an array of uuids" };
     }
     if (b.lineIds.length > LINE_IDS_MAX) {
       return { ok: false, error: `lineIds must have at most ${LINE_IDS_MAX} entries` };
@@ -123,28 +129,89 @@ export async function bumpWordViews(
     });
 }
 
-/** Count a review against every dictionary word in the reviewed sentence. */
+/**
+ * Count a review against every dictionary word in the reviewed sentence, and
+ * keep the known-word model's signals (T3.9): the most recent outcome
+ * (last_review_ok — "confirmed" needs it true) and, on a word's first-ever
+ * review, a calibration snapshot of its tier just before (first_review_tier /
+ * first_review_ok — what scripts/calibrate-known-words.ts reads).
+ */
 export async function bumpWordReviews(
   db: DbOrTx,
   userId: string,
   wordEntryIds: string[],
   ok: boolean,
+  now: Date = new Date(),
 ): Promise<void> {
   const unique = [...new Set(wordEntryIds)];
   if (unique.length === 0) return;
+
+  // Pre-review tier per word (only used where this is its first review).
+  const before = await db
+    .select({
+      wordEntryId: wordEntries.id,
+      views: userWordStats.views,
+      clicks: userWordStats.clicks,
+      reviewsOk: userWordStats.reviewsOk,
+      reviewsTotal: userWordStats.reviewsTotal,
+      lastReviewOk: userWordStats.lastReviewOk,
+      lastClickedAt: userWordStats.lastClickedAt,
+      manual: savedWords.status,
+    })
+    .from(wordEntries)
+    .leftJoin(userWordStats, and(eq(userWordStats.userId, userId), eq(userWordStats.wordEntryId, wordEntries.id)))
+    .leftJoin(savedWords, and(eq(savedWords.userId, userId), eq(savedWords.wordEntryId, wordEntries.id)))
+    .where(inArray(wordEntries.id, unique));
+  // The threshold in force (calibrated, T3.10) — the snapshot must describe
+  // the tier the user actually saw, or the next calibration measures a rule
+  // that was never applied.
+  const { likelyMinViews } = await loadKnownWordParams(db, userId);
+  const tierBefore = new Map(before.map((r) => [r.wordEntryId, wordTier(signalsFromRow(r), r.manual, now, likelyMinViews)]));
+
   await db
     .insert(userWordStats)
     .values(unique.map((wordEntryId) => ({
       userId, wordEntryId, reviewsTotal: 1, reviewsOk: ok ? 1 : 0,
+      lastReviewOk: ok, lastReviewedAt: now,
+      firstReviewTier: tierBefore.get(wordEntryId) ?? "unknown", firstReviewOk: ok,
     })))
     .onConflictDoUpdate({
       target: [userWordStats.userId, userWordStats.wordEntryId],
       set: {
         reviewsTotal: sql`${userWordStats.reviewsTotal} + 1`,
         reviewsOk: sql`${userWordStats.reviewsOk} + excluded.reviews_ok`,
-        updatedAt: new Date(),
+        lastReviewOk: sql`excluded.last_review_ok`,
+        lastReviewedAt: sql`excluded.last_reviewed_at`,
+        // Written once, on the word's first review (the existing row had only views/clicks).
+        firstReviewTier: sql`case when ${userWordStats.reviewsTotal} = 0 then excluded.first_review_tier else ${userWordStats.firstReviewTier} end`,
+        firstReviewOk: sql`case when ${userWordStats.reviewsTotal} = 0 then excluded.first_review_ok else ${userWordStats.firstReviewOk} end`,
+        updatedAt: now,
       },
     });
+}
+
+/**
+ * Per-(user, video) watch progress (T3.10): Explore's narrow-viewing signal
+ * (channels watched recently) and "already watched" exclusion. Written only
+ * for a video that exists (the id is client-sent), in one statement.
+ */
+export async function bumpVideoProgress(
+  db: DbOrTx,
+  userId: string,
+  videoId: string,
+  bump: { msWatched: number; linesSeen: number },
+  now: Date = new Date(),
+): Promise<void> {
+  if (!isUuid(videoId)) return;
+  await db.execute(sql`
+    insert into ${userVideoProgress} ("user_id", "video_id", "ms_watched", "lines_seen", "last_watched_at")
+    select ${userId}::uuid, ${videos}."id", ${bump.msWatched}::int, ${bump.linesSeen}::int, ${now.toISOString()}::timestamptz
+    from ${videos} where ${videos}."id" = ${videoId}::uuid
+    on conflict ("user_id", "video_id") do update set
+      "ms_watched" = least(${userVideoProgress}."ms_watched"::bigint + excluded."ms_watched", 2000000000)::int,
+      "lines_seen" = ${userVideoProgress}."lines_seen" + excluded."lines_seen",
+      "last_watched_at" = excluded."last_watched_at"
+  `);
 }
 
 /** Record a progress beacon: watch time + which lines were seen. */
@@ -159,19 +226,23 @@ export async function recordProgress(
   const { msWatched, lineIds } = parsed.value;
 
   // Only lines that actually belong to this video count (ids are client-sent).
-  const lines = lineIds.length > 0
+  const shared = lineIds.length > 0
     ? await db
         .select({ id: subtitleLines.id, tokens: subtitleLines.tokens })
         .from(subtitleLines)
         .where(and(eq(subtitleLines.videoId, videoId), inArray(subtitleLines.id, lineIds)))
     : [];
+  // Views go to the words as this user sees them (T3.7 corrections); stats
+  // recorded before a correction are not rewritten.
+  const lines = await withTokenOverrides(db, userId, shared, (l) => l.id);
 
-  const wordCounts = countWordOccurrences(lines.map((l) => (l.tokens as Token[]) ?? []));
+  const wordCounts = countWordOccurrences(lines.map((l) => l.tokens));
 
   if (msWatched > 0 || lines.length > 0) {
     await bumpDailyStats(db, userId, { msWatched, linesSeen: lines.length });
   }
   await bumpWordViews(db, userId, wordCounts);
+  await bumpVideoProgress(db, userId, videoId, { msWatched, linesSeen: lines.length });
 
   return {
     status: 200,
@@ -194,11 +265,14 @@ export async function recordWordClick(
 
   await db
     .insert(userWordStats)
-    .values({ userId, wordEntryId, clicks: 1 })
+    // A lookup is evidence the word wasn't known just now: it demotes
+    // "likely" for LOOKUP_DECAY_DAYS (lib/known-words).
+    .values({ userId, wordEntryId, clicks: 1, lastClickedAt: new Date() })
     .onConflictDoUpdate({
       target: [userWordStats.userId, userWordStats.wordEntryId],
       set: {
         clicks: sql`${userWordStats.clicks} + 1`,
+        lastClickedAt: sql`excluded.last_clicked_at`,
         updatedAt: new Date(),
       },
     });

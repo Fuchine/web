@@ -8,7 +8,12 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./seed/pitch": "./src/seed/pitch.ts",
+    "./token-overrides": "./src/token-overrides.ts",
+    "./dictionaries": "./src/dictionaries/yomitan.ts",
+    "./dictionaries/fixture": "./src/dictionaries/fixture.ts",
+    "./structured-content": "./src/dictionaries/structured-content.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -18,7 +23,9 @@
     "studio": "drizzle-kit studio",
     "seed": "tsx --max-old-space-size=4096 src/seed/index.ts",
     "seed:fixture": "tsx src/seed/index.ts seeds/fixtures/jmdict-sample.json seeds/fixtures/frequency-sample.tsv",
-    "seed:jmdict": "tsx --max-old-space-size=4096 src/seed/jmdict-cli.ts"
+    "seed:jmdict": "tsx --max-old-space-size=4096 src/seed/jmdict-cli.ts",
+    "seed:pitch": "tsx src/seed/pitch-cli.ts",
+    "seed:pitch:fixture": "tsx src/seed/pitch-cli.ts seeds/fixtures/kanjium-accents-sample.txt"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -29,6 +36,6 @@
   "devDependencies": {
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.2",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }

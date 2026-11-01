@@ -1,0 +1,12 @@
+# CodeQL configuration (T2.9). Keep exclusions narrow and justified.
+name: fuchine-codeql
+
+query-filters:
+  # Fuchine stores no user passwords (sign-in is Google OAuth or a magic link).
+  # The only "secret hashed with a fast hash" this query finds is the per-user
+  # API token (apps/web/lib/api-tokens.ts): 256 bits of CSPRNG output, stored
+  # as HMAC-SHA256 keyed with AUTH_SECRET. A slow password KDF adds nothing for
+  # a high-entropy random token and would rule out the indexed lookup by hash.
+  # Revisit if the app ever accepts user-chosen passwords.
+  - exclude:
+      id: js/insufficient-password-hash

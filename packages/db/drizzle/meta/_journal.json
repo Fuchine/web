@@ -113,6 +113,69 @@
       "when": 1783970881502,
       "tag": "0015_nifty_yellowjacket",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793364408208,
+      "tag": "0016_aberrant_puppet_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793372833805,
+      "tag": "0017_sweet_blackheart",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793379445626,
+      "tag": "0018_fsrs7",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793381246488,
+      "tag": "0019_word_pitch",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793383792506,
+      "tag": "0020_token_overrides",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793385746423,
+      "tag": "0021_known_words",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793388025345,
+      "tag": "0022_explore",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793484852748,
+      "tag": "0023_api_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793486453937,
+      "tag": "0024_yomitan_dictionaries",
+      "breakpoints": true
     }
   ]
 }

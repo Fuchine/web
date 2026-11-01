@@ -67,6 +67,7 @@
 .dp-freq .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong); }
 .dp-freq .dots i.on { background: var(--link); }
 .dp-freq .flabel { font-size: 11.5px; color: var(--text-muted); }
+.dp-pitch { margin-top: 12px; }
 .dp-lemma {
   margin-top: 12px; font-size: 12.5px; color: var(--text-muted);
   display: flex; align-items: baseline; gap: 6px;
@@ -111,7 +112,21 @@
 .dp-action.save { background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); }
 .dp-action.save:hover { border-color: var(--text-faint); }
 .dp-action.save.saved { color: var(--link); border-color: var(--accent-line); background: var(--accent-soft-2); }
-.dp-error { padding: 8px 0; font-size: 13.5px; color: var(--text-muted); }
+.dp-error { padding: 8px 0; font-size: 13.5px; color: var(--text-muted); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dp-error > span:first-child { flex: 1; }
+/* T3.7 — per-user token correction */
+.dp-action.fix { flex: none; padding: 0 12px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); }
+.dp-action.fix:hover { border-color: var(--text-faint); }
+.dp-error .dp-action.fix { height: 32px; }
+/* T3.9 — one-click "Mark as unknown" (manual override for the coverage model) */
+.dp-foot { flex-wrap: wrap; }
+.dp-action.unknown { flex: none; padding: 0 12px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-muted); }
+.dp-action.unknown:hover { border-color: var(--text-faint); color: var(--text); }
+.dp-action.unknown.on { color: var(--link); border-color: var(--accent-line); background: var(--accent-soft-2); }
+.dp-corrected {
+  font-size: 11px; font-weight: 600; color: var(--link);
+  background: var(--accent-soft); border-radius: 999px; padding: 2px 8px;
+}
 .dp-skeleton { display: flex; flex-direction: column; gap: 14px; }
 .dp-sk-head { display: flex; justify-content: space-between; }
 .dp-sk-tags { display: flex; gap: 8px; }
@@ -199,6 +214,45 @@
 .mined-btn:hover { border-color: var(--text-faint); }
 .mined-btn.primary { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
 .mined-btn.primary:hover { background: var(--accent-hover); }
+.mined-btn.on { border-color: var(--accent); background: var(--accent-soft); color: var(--link); cursor: default; }
+.mined-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---- Focal token active state ---- */
 /* Active/popup state is handled in player.css via .word.active .w-kanji */
+/* T3.4 — imported (Yomitan) dictionaries under the JMdict entry, and their
+   frequency ranks. Structured content (.sc-*) only ever carries the
+   whitelisted tags; styling here is ours, never the dictionary's CSS. */
+.dict-freqs { display: inline-flex; flex-wrap: wrap; gap: 5px; }
+.dict-freq {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  font-size: 11px; border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px;
+}
+.dict-freq .k { color: var(--text-faint); max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dict-freq .v { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.dict-sections { display: flex; flex-direction: column; gap: 12px; }
+.dict-pop .dict-sections {
+  margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border);
+  max-height: 240px; overflow-y: auto; overscroll-behavior: contain;
+}
+.dict-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.dict-section-title {
+  font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted);
+}
+.dict-section-badge {
+  font-size: 10.5px; font-weight: 600; color: var(--link);
+  background: var(--accent-soft-2); border-radius: 999px; padding: 1px 7px;
+}
+.dict-section-entry + .dict-section-entry { margin-top: 8px; }
+.dict-section-headword { font-size: 14px; font-weight: 600; color: var(--text); }
+.dict-section-headword .r { font-weight: 400; color: var(--text-muted); font-size: 12.5px; }
+.dict-section-def { font-size: 13.5px; line-height: 1.6; color: var(--text); margin-top: 3px; }
+.sc-root ul, .sc-root ol { margin: 2px 0; padding-left: 1.3em; }
+.sc-root ul { list-style: disc; }
+.sc-root ol { list-style: decimal; }
+.sc-root li { margin: 1px 0; }
+.sc-root table { border-collapse: collapse; margin: 4px 0; font-size: 12.5px; }
+.sc-root td, .sc-root th { border: 1px solid var(--border); padding: 2px 6px; vertical-align: top; }
+.sc-root th { font-weight: 600; background: var(--bg-2); }
+.sc-root rt { font-size: 0.6em; color: var(--text-muted); }
+.sc-root a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
+.sc-root .sc-summary { font-weight: 600; }

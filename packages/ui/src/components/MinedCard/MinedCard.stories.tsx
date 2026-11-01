@@ -30,8 +30,19 @@ export default meta;
 
 type Story = StoryObj<typeof MinedCard>;
 
+// autoDismissMs: 0 keeps the toast on screen in Storybook (it auto-dismisses
+// after MINED_TOAST_MS in the Player).
 export const Created: Story = {
-  args: BASE_ARGS,
+  args: { ...BASE_ARGS, autoDismissMs: 0 },
+};
+
+/** T3.6: "Rewatch ×2" replays the mined clip without leaving the video. */
+export const WithRewatch: Story = {
+  args: { ...BASE_ARGS, onRewatch: () => {}, autoDismissMs: 0 },
+};
+
+export const Rewatching: Story = {
+  args: { ...BASE_ARGS, onRewatch: () => {}, rewatching: true },
 };
 
 export const AlreadyMined: Story = {

@@ -3,6 +3,7 @@
 import { useState, type SVGProps } from "react";
 import { useRouter } from "next/navigation";
 import { AppLayout } from "@/components/AppLayout";
+import { reviewMinutes, tomorrowSummary } from "@/lib/srs-defaults";
 
 /* ---- icons ---- */
 function IPlay(p: SVGProps<SVGSVGElement>) {
@@ -87,10 +88,22 @@ export type DashboardGoal = {
   goal: number;
 };
 
+/** Tomorrow's projected load (lib/goals.ts getTomorrowProjection). */
+export type DashboardTomorrow = {
+  reviews: number;
+  newCards: number;
+  total: number;
+  minutes: number;
+  secondsPerReview: number;
+  budgetMinutes: number | null;
+  overBudget: boolean;
+};
+
 export type DashboardProps = {
   account: { name: string; sub?: string };
   reviewDue: number;
   todaysGoals: DashboardGoal[];
+  tomorrow: DashboardTomorrow;
   continueVideo: DashboardVideo | null;
 };
 
@@ -172,7 +185,7 @@ function SectionHead({ title }: { title: string }) {
   );
 }
 
-function HeroReviews({ due }: { due: number }) {
+function HeroReviews({ due, secondsPerReview }: { due: number; secondsPerReview: number }) {
   const router = useRouter();
   const calm = due === 0;
 
@@ -212,7 +225,7 @@ function HeroReviews({ due }: { due: number }) {
             cards to review today
           </p>
           <p className="m-0 text-[13.5px] text-muted">
-            About {Math.ceil(due * 0.35)} minutes to clear your deck
+            About {reviewMinutes(due, secondsPerReview)} min to clear your deck
           </p>
         </div>
       </div>
@@ -222,6 +235,35 @@ function HeroReviews({ due }: { due: number }) {
         </BtnPrimary>
       </div>
     </div>
+  );
+}
+
+function ICalendar(p: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <rect x="4" y="5.5" width="16" height="14" rx="2.5" />
+      <path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" />
+    </svg>
+  );
+}
+
+/** "Tomorrow: 34 reviews · ~5 min" — the next day's load, so debt is visible before it lands. */
+function TomorrowLine({ tomorrow }: { tomorrow: DashboardTomorrow }) {
+  const { headline, budget, detail } = tomorrowSummary(tomorrow);
+  return (
+    <p
+      className="m-0 mt-3 flex items-center gap-2 px-1 text-[13px] text-muted"
+      title={detail}
+      data-testid="tomorrow-projection"
+    >
+      <ICalendar className="h-[15px] w-[15px] flex-none text-faint" />
+      <span className="tabular-nums">{headline}</span>
+      {budget && (
+        <span className={"tabular-nums " + (tomorrow.overBudget ? "font-[600] text-error" : "text-faint")}>
+          · {budget}
+        </span>
+      )}
+    </p>
   );
 }
 
@@ -474,7 +516,7 @@ function FirstRun() {
 }
 
 /* ---- main export ---- */
-export function DashboardView({ account, reviewDue, todaysGoals, continueVideo }: DashboardProps) {
+export function DashboardView({ account, reviewDue, todaysGoals, tomorrow, continueVideo }: DashboardProps) {
   const [collapsed, setCollapsed] = useState(false);
   const firstRun = continueVideo === null;
 
@@ -504,10 +546,11 @@ export function DashboardView({ account, reviewDue, todaysGoals, continueVideo }
 
           {/* Hero: reviews */}
           <div className="rise-2">
-            <HeroReviews due={reviewDue} />
+            <HeroReviews due={reviewDue} secondsPerReview={tomorrow.secondsPerReview} />
+            <TomorrowLine tomorrow={tomorrow} />
           </div>
 
-          {/* Today's goals — only when the user has set any */}
+          {/* Today's goals (new cards always: the effective default applies) */}
           {todaysGoals.length > 0 && <GoalsToday goals={todaysGoals} />}
 
           {/* Continue watching */}

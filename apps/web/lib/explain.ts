@@ -11,10 +11,15 @@ import {
   PROMPT_VERSION,
   MissingApiKeyError,
   ProviderError,
+  HOUSE_BUDGET_MESSAGE,
+  BYOK_REQUIRED_MESSAGE,
+  type HouseBudget,
+  type KeySource,
   type LlmProvider,
   type SubtitleLineCtx,
 } from "@fuchine/llm";
 import { houseProvider } from "./house-provider";
+import { houseBudget, houseBudgetConfig, secondsUntilLocalMidnight } from "./house-budget";
 import { enforceRateLimit, tooManyRequests } from "./rate-limit";
 
 export type Result = { status: number; body: Record<string, unknown> };
@@ -28,6 +33,12 @@ export async function explainLine(
     force?: boolean;
     /** Test seam: bypass BYOK/house resolution and use this provider directly. */
     provider?: LlmProvider;
+    /** Test seam: how the user's own (BYOK) provider is resolved. */
+    resolveByok?: typeof resolveUserProvider;
+    /** Test seam: the house budget checker (default: the process-wide one). */
+    houseBudget?: HouseBudget;
+    /** Test seam: HOUSE_EXPLAIN_FALLBACK (default: from env). */
+    explainFallback?: boolean;
   },
 ): Promise<Result> {
   const [line] = await db
@@ -57,37 +68,46 @@ export async function explainLine(
     if (!rl.ok) return tooManyRequests(rl, "Too many regenerations today — try again later.");
   } else {
     const cached = await getCachedExplanation(db, key);
-    if (cached) return { status: 200, body: { explanation: cached, cached: true } };
+    if (cached) return { status: 200, body: { explanation: cached, cached: true, promptVersion: PROMPT_VERSION } };
     const rl = await enforceRateLimit("explainMiss", userId);
     if (!rl.ok) return tooManyRequests(rl, "Too many explanation requests right now — try again shortly.");
   }
 
   // Miss → need a provider. An injected provider (tests) wins; otherwise BYOK
-  // when configured, else fall back to the house key. Any failure in resolving
-  // the user's provider (missing key, unimplemented provider, undecryptable
-  // ciphertext from a rotated encryption key) degrades to the house key —
-  // never a 500 (ARQUITETURA: "falha de IA degrada, não quebra").
-  let provider: LlmProvider;
+  // when configured, else the house key — if the operator allows the fallback
+  // (HOUSE_EXPLAIN_FALLBACK) and today's house budget isn't spent (T2.4). Any
+  // failure resolving the user's provider (missing key, unimplemented provider,
+  // undecryptable ciphertext from a rotated encryption key) is treated as "no
+  // BYOK" — never a 500 (ARQUITETURA: "falha de IA degrada, não quebra").
+  let provider: LlmProvider | null = null;
+  let keySource: KeySource = "house";
   if (opts.provider) {
     provider = opts.provider;
   } else {
     try {
-      provider = await resolveUserProvider(db, userId, opts.encryptionKey ?? "");
+      provider = await (opts.resolveByok ?? resolveUserProvider)(db, userId, opts.encryptionKey ?? "");
+      keySource = "byok";
     } catch (err) {
-      if (err instanceof MissingApiKeyError) {
-        provider = houseProvider();
-      } else {
-        // Provider construction or key decryption failed (e.g. rotated
-        // FUCHINE_ENCRYPTION_KEY, unimplemented provider saved before the
-        // allow-list was narrowed). Degrade to house key and log for diagnosis.
+      if (!(err instanceof MissingApiKeyError)) {
         // Never log the key or ciphertext — only the error type and userId.
         console.warn(
           `[explain] BYOK provider resolution failed for user ${userId}: ` +
             `${err instanceof Error ? err.constructor.name : typeof err} ` +
-            `(degrading to house provider)`,
+            `(treating as no BYOK key)`,
         );
-        provider = houseProvider();
       }
+    }
+    if (!provider) {
+      if (!(opts.explainFallback ?? houseBudgetConfig().explainFallback)) {
+        return { status: 403, body: { error: BYOK_REQUIRED_MESSAGE, code: "byok_required" } };
+      }
+      if ((await (opts.houseBudget ?? houseBudget()).state()) === "exhausted") {
+        return {
+          status: 429,
+          body: { error: HOUSE_BUDGET_MESSAGE, code: "house_budget", retryAfterSeconds: secondsUntilLocalMidnight() },
+        };
+      }
+      provider = houseProvider();
     }
   }
 
@@ -117,9 +137,9 @@ export async function explainLine(
     const explanation = await explainLineCached(db, provider, lineId, ctx, {
       explanationLanguage,
       force: opts.force,
-      meta: { userId, videoId: line.videoId },
+      meta: { userId, videoId: line.videoId, keySource },
     });
-    return { status: 200, body: { explanation, cached: false } };
+    return { status: 200, body: { explanation, cached: false, promptVersion: PROMPT_VERSION } };
   } catch (err) {
     if (err instanceof ProviderError) {
       return { status: 502, body: { error: "could not generate an explanation right now" } };

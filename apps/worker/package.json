@@ -11,7 +11,14 @@
     "backfill:explain": "tsx src/scripts/backfill-explain.ts",
     "backfill:level": "tsx src/scripts/backfill-level.ts",
     "backfill:daily-stats": "tsx src/scripts/backfill-daily-stats.ts",
-    "rotate:key": "tsx src/scripts/rotate-encryption-key.ts"
+    "backfill:word-counts": "tsx src/scripts/backfill-word-counts.ts",
+    "rotate:key": "tsx src/scripts/rotate-encryption-key.ts",
+    "invite": "tsx src/scripts/invite.ts",
+    "usage": "tsx src/scripts/usage.ts",
+    "refresh:metadata": "tsx src/scripts/refresh-metadata.ts",
+    "dict:import": "tsx src/scripts/dict.ts import",
+    "dict:list": "tsx src/scripts/dict.ts list",
+    "dict:remove": "tsx src/scripts/dict.ts remove"
   },
   "dependencies": {
     "@fuchine/db": "workspace:*",
@@ -24,6 +31,6 @@
   },
   "devDependencies": {
     "tsx": "^4.19.2",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }

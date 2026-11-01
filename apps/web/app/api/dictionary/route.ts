@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isUuid } from "@/lib/ids";
 import { db } from "@/lib/db";
 import { lookupById, searchDictionary, searchByGloss, detectMode } from "@/lib/dictionary";
 import { enforceRateLimit, tooManyRequests, retryAfterHeader } from "@/lib/rate-limit";
@@ -18,7 +19,8 @@ export async function GET(req: Request) {
   const lang = url.searchParams.get("lang") || "ja";
 
   if (id) {
-    const entry = await lookupById(db, id);
+    if (!isUuid(id)) return NextResponse.json({ error: "not found" }, { status: 404 });
+    const entry = await lookupById(db, id, session.user.id);
     if (!entry) return NextResponse.json({ error: "not found" }, { status: 404 });
     return NextResponse.json({ entry });
   }

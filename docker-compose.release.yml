@@ -1,0 +1,42 @@
+# Run Fuchine from the published images instead of building from source.
+# An override for docker-compose.yml: it only swaps `build:` for `image:` on
+# the three app services; Postgres, Redis, Caddy and backups stay as defined
+# there. Needs Docker Compose >= 2.24 (for `!reset`).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.release.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.release.yml up -d
+#
+# Tip: put `COMPOSE_FILE=docker-compose.yml:docker-compose.release.yml` in .env
+# and plain `docker compose pull && docker compose up -d` does the same.
+#
+# Version (set in .env):
+#   FUCHINE_VERSION=latest     default; moves on every release
+#   FUCHINE_VERSION=v0.1.0     pin a release (also 0.1.0, or 0.1 for patches)
+# Pin by digest (immutable; digests are in each GitHub Release's run summary,
+# or `docker buildx imagetools inspect ghcr.io/fuchine/fuchine-web:v0.1.0`):
+#   FUCHINE_WEB_IMAGE=ghcr.io/fuchine/fuchine-web:v0.1.0@sha256:<digest>
+#   FUCHINE_WORKER_IMAGE=ghcr.io/fuchine/fuchine-worker:v0.1.0@sha256:<digest>
+# A fork publishing its own images: FUCHINE_IMAGE_PREFIX=ghcr.io/<owner>.
+#
+# Verify what you pull (optional):
+#   gh attestation verify oci://ghcr.io/fuchine/fuchine-web:v0.1.0 -R Fuchine/web
+#
+# One-off commands use the worker image (it carries the db package + drizzle):
+#   docker compose run --rm migrate pnpm --filter @fuchine/db seed:jmdict
+#   docker compose run --rm worker pnpm --filter @fuchine/worker invite add <email>
+
+services:
+  # The worker image doubles as the migration runner (the build-from-source
+  # compose uses the web image's build stage instead, which is not published).
+  migrate:
+    image: ${FUCHINE_WORKER_IMAGE:-${FUCHINE_IMAGE_PREFIX:-ghcr.io/fuchine}/fuchine-worker:${FUCHINE_VERSION:-latest}}
+    build: !reset null
+    command: ["pnpm", "--filter", "@fuchine/db", "migrate"]
+
+  web:
+    image: ${FUCHINE_WEB_IMAGE:-${FUCHINE_IMAGE_PREFIX:-ghcr.io/fuchine}/fuchine-web:${FUCHINE_VERSION:-latest}}
+    build: !reset null
+
+  worker:
+    image: ${FUCHINE_WORKER_IMAGE:-${FUCHINE_IMAGE_PREFIX:-ghcr.io/fuchine}/fuchine-worker:${FUCHINE_VERSION:-latest}}
+    build: !reset null

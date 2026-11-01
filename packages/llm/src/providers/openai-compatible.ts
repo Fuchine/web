@@ -39,11 +39,18 @@ const PART_TAGS: readonly string[] = [
 ];
 const MAX_BREAKDOWN_PARTS = 8;
 
+/** Strip trailing "/" without a regex (no backtracking on long input). */
+function trimTrailingSlashes(s: string): string {
+  let end = s.length;
+  while (end > 0 && s.charCodeAt(end - 1) === 47) end--;
+  return s.slice(0, end);
+}
+
 export class OpenAICompatibleProvider implements LlmProvider {
   private readonly chat: ChatFn;
 
   constructor(config: OpenAICompatibleConfig) {
-    const baseUrl = config.baseUrl.replace(/\/+$/, "");
+    const baseUrl = trimTrailingSlashes(config.baseUrl);
     this.chat =
       config.chat ??
       defaultChat({ ...config, baseUrl, jsonMode: config.jsonMode ?? true });
@@ -201,6 +208,7 @@ function defaultChat(config: Required<Omit<OpenAICompatibleConfig, "chat" | "usa
       userId: ctx?.userId,
       videoId: ctx?.videoId,
       lineId: ctx?.lineId,
+      keySource: ctx?.keySource,
     };
 
     const t0 = Date.now();

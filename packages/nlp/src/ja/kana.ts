@@ -40,6 +40,14 @@ export function hiraToRomaji(input: string): string {
   let result = "";
   let i = 0;
   while (i < input.length) {
+    // Sokuon: double the next syllable's first consonant (じゅっぷん → juppun).
+    // Its map entry is "" (falsy), so it needs its own branch.
+    if (input[i] === "っ") {
+      const next = ROMAJI_MAP[input.slice(i + 1, i + 3)] || ROMAJI_MAP[input[i + 1] ?? ""] || "";
+      result += next.startsWith("ch") ? "t" : /^[a-z]/.test(next) && !/^[aeiou]/.test(next) ? next[0] : "";
+      i += 1;
+      continue;
+    }
     if (i + 2 <= input.length && ROMAJI_MAP[input.slice(i, i + 2)]) {
       result += ROMAJI_MAP[input.slice(i, i + 2)]!;
       i += 2;

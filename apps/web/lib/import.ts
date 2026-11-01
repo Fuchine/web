@@ -2,6 +2,7 @@
 // handles auth and HTTP. Captions are submitted by the browser extension
 // (the spike showed server-side caption fetch is gated — see tools/spike).
 
+import { eq } from "drizzle-orm";
 import { type Database, videos, subtitleLines } from "@fuchine/db";
 import type { ImportJob } from "@fuchine/jobs";
 import { parseYouTubeId } from "./youtube";
@@ -142,7 +143,25 @@ export async function createImport(
   const existing = await db.query.videos.findFirst({
     where: (v, { and, eq }) => and(eq(v.source, "youtube"), eq(v.sourceId, sourceId)),
   });
-  if (existing) return cacheHit(existing);
+  if (existing) {
+    // Re-capture (T3.10 metadata freshness): the extension just read this
+    // video's page in the user's own browser, so its title/channel/duration
+    // are current — refresh them and fetched_at (never via the Data API).
+    // Only a capture that carries a real title counts; a bare re-POST (no
+    // metadata) leaves the row alone.
+    if (req.title?.trim()) {
+      await db
+        .update(videos)
+        .set({
+          title,
+          ...(channel ? { channel } : {}),
+          ...(durationS != null ? { durationS } : {}),
+          fetchedAt: new Date(),
+        })
+        .where(eq(videos.id, existing.id));
+    }
+    return cacheHit(existing);
+  }
 
   if (rows.length === 0) {
     return {

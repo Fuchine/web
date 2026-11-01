@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decodeListCursor, encodeListCursor, escapeLike } from "./list-query";
+import { decodeListCursor, encodeListCursor, escapeLike, parseLimit } from "./list-query";
 import { phraseRank } from "./phrases";
 
 describe("list cursor", () => {
@@ -25,6 +25,17 @@ describe("escapeLike", () => {
   it("escapes LIKE metacharacters so they match literally", () => {
     expect(escapeLike("100%_done\\x")).toBe("100\\%\\_done\\\\x");
     expect(escapeLike("plain text")).toBe("plain text");
+  });
+});
+
+describe("parseLimit", () => {
+  it("clamps to [1, max] and falls back on junk", () => {
+    expect(parseLimit(null, 50)).toBe(50);
+    expect(parseLimit("abc", 24)).toBe(24);
+    expect(parseLimit("10", 50)).toBe(10);
+    expect(parseLimit("1000", 50)).toBe(100);
+    expect(parseLimit("-5", 50)).toBe(1);
+    expect(parseLimit("0", 50)).toBe(1);
   });
 });
 

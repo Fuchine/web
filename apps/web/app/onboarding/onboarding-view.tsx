@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { DEFAULT_NEW_CARDS_PER_DAY } from "@/lib/srs-defaults";
 
 /* ---- icons ---- */
 const ArrowIcon = () => (
@@ -53,7 +54,7 @@ type Step = "welcome" | "language" | "goals" | "key" | "done";
 const NUMBERED: Step[] = ["welcome", "language", "goals", "key"];
 
 /** Onboarding goal defaults — gentle, immersion-first (tunable in Settings). */
-const DEFAULT_NEW_CARDS = 20;
+const DEFAULT_NEW_CARDS = DEFAULT_NEW_CARDS_PER_DAY;
 const DEFAULT_WATCH_MIN = 20;
 
 const LANGS = [

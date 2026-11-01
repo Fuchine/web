@@ -4,6 +4,13 @@ import { type ReactNode } from "react";
 import { cn } from "../../lib/cn";
 import { posLabel } from "../../lib/pos";
 import { Skeleton } from "../Skeleton/Skeleton";
+import { PitchAccent, type PitchInfo } from "../PitchAccent/PitchAccent";
+import {
+  DictFrequencyChips,
+  DictSections,
+  type DictFrequencyInfo,
+  type DictSectionInfo,
+} from "../DictSources/DictSources";
 
 export type DictPopupProps = {
   position: { left: number; bottom: number; arrowLeft: number; w: number };
@@ -14,6 +21,12 @@ export type DictPopupProps = {
     frequencyRank: number | null;
     definitions: { glosses: string[]; partsOfSpeech: string[]; tags?: string[] }[];
     lemma?: { word: string; reading: string } | null;
+    /** Pitch accent per source (T3.2); omitted or empty = nothing shown. */
+    pitch?: PitchInfo[] | null;
+    /** The user's enabled imported dictionaries, in their order (T3.4). */
+    dictionaries?: DictSectionInfo[] | null;
+    /** Ranks from the user's enabled frequency lists (T3.4). */
+    frequencies?: DictFrequencyInfo[] | null;
   } | null;
   loading: boolean;
   error: string | null;
@@ -21,6 +34,19 @@ export type DictPopupProps = {
   onExplain: () => void;
   onSaveWord: () => void;
   onClose: () => void;
+  /**
+   * One-click "Mark as unknown" (T3.9): writes the manual override that keeps
+   * the word out of the known tiers. Absent = no button. With `markedUnknown`
+   * the button undoes it.
+   */
+  onMarkUnknown?: () => void;
+  markedUnknown?: boolean;
+  /** Open the per-user token correction editor (T3.7). Absent = no "Fix". */
+  onFix?: () => void;
+  /** The token is a correction saved by this user ("Corrected by you"). */
+  corrected?: boolean;
+  /** When set, the popup shows this (the TokenFixEditor) instead of the entry. */
+  fixEditor?: ReactNode;
   className?: string;
 };
 
@@ -101,6 +127,20 @@ function BookmarkFillIcon() {
   );
 }
 
+function WrenchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="15" height="15">
+      <path
+        d="M14.5 5.5a4 4 0 0 0-5 5L4.8 15.2a1.8 1.8 0 0 0 2.5 2.5l4.7-4.7a4 4 0 0 0 5-5l-2.4 2.4-2.1-.4-.4-2.1z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function VolumeIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="17" height="17">
@@ -131,6 +171,11 @@ export function DictPopup({
   onExplain,
   onSaveWord,
   onClose,
+  onFix,
+  onMarkUnknown,
+  markedUnknown = false,
+  corrected = false,
+  fixEditor,
   className,
 }: DictPopupProps) {
   const freq = entry?.frequencyRank ?? 0;
@@ -147,15 +192,23 @@ export function DictPopup({
       >
         <div className="dict-arrow" style={{ left: position.arrowLeft - 6 }} />
 
-        {loading && <DictPopupSkeleton />}
+        {fixEditor}
 
-        {error && !loading && (
+        {!fixEditor && loading && <DictPopupSkeleton />}
+
+        {!fixEditor && error && !loading && (
           <div className="dp-error">
             <span>{error}</span>
+            {corrected && <span className="dp-corrected">Corrected by you</span>}
+            {onFix && (
+              <button type="button" className="dp-action fix" onClick={onFix}>
+                <WrenchIcon /> Fix
+              </button>
+            )}
           </div>
         )}
 
-        {!loading && !error && entry && (
+        {!fixEditor && !loading && !error && entry && (
           <>
             <div className="dp-head">
               <div>
@@ -184,7 +237,11 @@ export function DictPopup({
             <div className="dp-tags">
               {entry.pos && <span className="dp-pos">{posLabel(entry.pos)}</span>}
               {freq > 0 && <FreqDots n={freq} />}
+              <DictFrequencyChips frequencies={entry.frequencies} />
+              {corrected && <span className="dp-corrected">Corrected by you</span>}
             </div>
+
+            <PitchAccent pitch={entry.pitch} className="dp-pitch" />
 
             {entry.lemma && (
               <div className="dp-lemma">
@@ -214,6 +271,8 @@ export function DictPopup({
               ))}
             </ol>
 
+            <DictSections sections={entry.dictionaries} />
+
             <div className="dp-foot">
               <button type="button" className="dp-action primary" onClick={onExplain}>
                 <SparkIcon /> Explain
@@ -226,6 +285,29 @@ export function DictPopup({
                 {saved ? <BookmarkFillIcon /> : <BookmarkIcon />}{" "}
                 {saved ? "Saved" : "Save word"}
               </button>
+              {onMarkUnknown && (
+                <button
+                  type="button"
+                  className={cn("dp-action unknown", markedUnknown && "on")}
+                  onClick={onMarkUnknown}
+                  aria-pressed={markedUnknown}
+                  title={markedUnknown
+                    ? "Marked unknown: it doesn't count as known in your coverage. Click to undo"
+                    : "Don't count this word as known in your coverage (also saves it)"}
+                >
+                  {markedUnknown ? "Marked unknown" : "Mark as unknown"}
+                </button>
+              )}
+              {onFix && (
+                <button
+                  type="button"
+                  className="dp-action fix"
+                  onClick={onFix}
+                  title="Wrong word boundary, reading or entry? Fix it for you"
+                >
+                  <WrenchIcon /> Fix
+                </button>
+              )}
             </div>
           </>
         )}

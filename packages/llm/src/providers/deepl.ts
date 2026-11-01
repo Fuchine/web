@@ -34,6 +34,13 @@ function tgtLang(code: string): string {
   return m[code] ?? code.toUpperCase();
 }
 
+/** Strip trailing "/" without a regex (no backtracking on long input). */
+function trimTrailingSlashes(s: string): string {
+  let end = s.length;
+  while (end > 0 && s.charCodeAt(end - 1) === 47) end--;
+  return s.slice(0, end);
+}
+
 export class DeepLProvider implements LlmProvider {
   readonly name = "deepl";
   private readonly apiKey: string;
@@ -42,7 +49,7 @@ export class DeepLProvider implements LlmProvider {
   constructor(config: DeepLConfig) {
     this.apiKey = config.apiKey;
     this.host =
-      config.baseUrl?.replace(/\/+$/, "") ??
+      (config.baseUrl != null ? trimTrailingSlashes(config.baseUrl) : undefined) ??
       (config.apiKey.trim().endsWith(":fx")
         ? "https://api-free.deepl.com"
         : "https://api.deepl.com");

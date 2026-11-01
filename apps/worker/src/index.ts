@@ -5,11 +5,20 @@
 import { Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { createDb, videos } from "@fuchine/db";
-import { prewarmVideoExplanations, resolveMaxLines, setUsageSink, dbUsageSink } from "@fuchine/llm";
+import {
+  createHouseBudget,
+  dbUsageSink,
+  prewarmVideoExplanations,
+  resolveMaxLines,
+  setUsageSink,
+} from "@fuchine/llm";
 import {
   getExplainQueue,
   getImportQueue,
+  getMaintenanceQueue,
   EXPLAIN_QUEUE,
+  MAINTENANCE_QUEUE,
+  type MaintenanceJob,
   WORKER_HEARTBEAT_KEY,
   WORKER_HEARTBEAT_TTL,
   type ExplainJob,
@@ -18,6 +27,7 @@ import { IMPORT_QUEUE, connection, bullConn, type ImportJob } from "./queue";
 import { importVideo } from "./pipeline";
 import { houseProvider, hasHouseLlm } from "./provider";
 import { env } from "./env";
+import { handleMaintenance, scheduleCalibration } from "./maintenance";
 
 // The worker runs at concurrency 2 (import) + 1 (explain), so a small pool is
 // plenty; keep it lean to leave connection budget for web. Overridable via
@@ -28,8 +38,13 @@ const db = createDb(env.databaseUrl, { max: Number(process.env.DB_POOL_MAX) || 5
 // The worker is the heaviest LLM caller (import translation + explain pre-warm).
 setUsageSink(dbUsageSink(db));
 
+// House-key daily ceiling (T2.4): pre-warm stops once today's spend reaches it.
+const budget = createHouseBudget(db, { getLimit: () => env.houseDailyTokens });
+const withinBudget = async () => (await budget.state()) !== "exhausted";
+
 const explainQueue = getExplainQueue(connection);
 const importQueue = getImportQueue(connection);
+const maintenanceQueue = getMaintenanceQueue(connection);
 
 const importWorker = new Worker<ImportJob>(
   IMPORT_QUEUE,
@@ -57,7 +72,12 @@ const importWorker = new Worker<ImportJob>(
 const explainWorker = new Worker<ExplainJob>(
   EXPLAIN_QUEUE,
   async (job) => {
+    if (!(await withinBudget())) {
+      console.log(`[explain] pre-warm ${job.data.videoId} skipped: house budget spent for today`);
+      return;
+    }
     const summary = await prewarmVideoExplanations(db, houseProvider(), job.data.videoId, {
+      shouldContinue: withinBudget,
       explanationLanguage: job.data.explanationLanguage,
       concurrency: 2,
       // `full` (first-open tail warm) covers the whole video; `head`/default
@@ -73,13 +93,28 @@ const explainWorker = new Worker<ExplainJob>(
     console.log(
       `[explain] pre-warm ${job.data.videoId} (${job.data.scope ?? "head"}): ` +
         `${summary.generated} generated, ${summary.cached} cached, ` +
-        `${summary.failed} failed of ${summary.total}${spend}`,
+        `${summary.failed} failed of ${summary.total}${spend}` +
+        (summary.stopped ? `; stopped: house budget (${summary.skipped} skipped)` : ""),
     );
   },
   // One video at a time; prewarm's internal pool already runs 2 calls in
   // flight, and the free-tier provider throttles beyond that.
   { connection: bullConn, concurrency: 1 },
 );
+
+// Maintenance (T3.10): daily known-word calibration + per-user Explore
+// coverage refreshes. One at a time — each is a single aggregate.
+const maintenanceWorker = new Worker<MaintenanceJob>(
+  MAINTENANCE_QUEUE,
+  async (job) => {
+    console.log(`[maintenance] ${await handleMaintenance(db, job.data)}`);
+  },
+  { connection: bullConn, concurrency: 1 },
+);
+maintenanceWorker.on("failed", (job, err) => {
+  console.error(`[maintenance] failed: ${job?.data.kind}`, err);
+});
+scheduleCalibration(maintenanceQueue).catch((err) => console.error("[maintenance] schedule failed", err));
 
 importWorker.on("completed", (job) => {
   console.log(`[import] done: ${job.data.videoId}`);
@@ -144,13 +179,15 @@ async function reconcileStuckImports() {
 }
 void reconcileStuckImports();
 
-console.log(`[worker] listening on "${IMPORT_QUEUE}" and "${EXPLAIN_QUEUE}" queues`);
+console.log(`[worker] listening on "${IMPORT_QUEUE}", "${EXPLAIN_QUEUE}" and "${MAINTENANCE_QUEUE}" queues`);
 
 async function shutdown() {
   clearInterval(heartbeat);
   await importWorker.close();
   await explainWorker.close();
+  await maintenanceWorker.close();
   await explainQueue.close();
+  await maintenanceQueue.close();
   await importQueue.close();
   await connection.del(WORKER_HEARTBEAT_KEY).catch(() => {});
   await connection.quit();

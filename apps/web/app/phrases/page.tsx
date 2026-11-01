@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { listPhrases, countPhrasesByStatus } from "@/lib/phrases";
+import { listPhrases, countPhrasesByStatus, countUncuratedCards } from "@/lib/phrases";
 import { countDueCards } from "@/lib/cards";
 import { AppLayout } from "@/components/AppLayout";
 import { PhrasesView } from "./phrases-view";
@@ -11,10 +11,11 @@ export default async function PhrasesPage() {
   if (!session?.user?.id) redirect("/login");
 
   const userId = session.user.id;
-  const [{ items: phrases, nextCursor }, counts, reviewDue] = await Promise.all([
+  const [{ items: phrases, nextCursor }, counts, reviewDue, uncurated] = await Promise.all([
     listPhrases(db, userId),
     countPhrasesByStatus(db, userId),
     countDueCards(db, userId),
+    countUncuratedCards(db, userId),
   ]);
 
   return (
@@ -23,7 +24,7 @@ export default async function PhrasesPage() {
       reviewDue={reviewDue}
       activeKey="phrases"
     >
-      <PhrasesView phrases={phrases} nextCursor={nextCursor} counts={counts} reviewDue={reviewDue} />
+      <PhrasesView phrases={phrases} nextCursor={nextCursor} counts={counts} reviewDue={reviewDue} uncurated={uncurated} />
     </AppLayout>
   );
 }

@@ -24,6 +24,10 @@ const UA_WEB =
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const UA_ANDROID = "com.google.android.youtube/19.09.37 (Linux; U; Android 14) gzip";
 const BASE_HEADERS = { "accept-language": "ja,en;q=0.8", cookie: "CONSENT=YES+1" };
+// NOT A SECRET: this is the public API key of YouTube's own web client, served
+// to every visitor in youtube.com's page source (ytcfg INNERTUBE_API_KEY). It
+// identifies the client, not an account, and grants nothing beyond what an
+// anonymous browser can do. Allowlisted for secret scanners in .gitleaks.toml.
 const INNERTUBE_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
 const QUERY = process.env.SPIKE_QUERY || "日本語 ニュース";
 const LIMIT = Number(process.env.SPIKE_LIMIT || 6);
@@ -70,11 +74,19 @@ function pickJa(tracks) {
 }
 
 function decodeXml(s) {
-  return s
-    .replace(/<[^>]+>/g, "")
-    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+  // Strip tags until stable (no partial "<script" left), then decode entities
+  // with &amp; last (one level of unescaping). Output is plain text.
+  let out = s;
+  let prev;
+  do {
+    prev = out;
+    out = out.replace(/<[^<>]*>/g, "");
+  } while (out !== prev);
+  return out
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/&#39;/g, "'").replace(/&quot;/g, '"')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&amp;/g, "&");
 }
 
 /** Try several formats; return the first that yields actual caption lines. */

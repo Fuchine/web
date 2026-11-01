@@ -9,10 +9,14 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fuchine/db": "workspace:*",
-    "ts-fsrs": "^4.6.0"
+    "ts-fsrs": "^6.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.12"
   }
 }

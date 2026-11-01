@@ -1,16 +1,35 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ReviewTopBar } from "./ReviewTopBar";
 import { ReviewCard, type TargetWord } from "./ReviewCard";
 import { ReviewDock } from "./ReviewDock";
-import { ReviewEmbed } from "./ReviewEmbed";
+import { ReviewEmbed, type ReviewEmbedHandle } from "./ReviewEmbed";
+import { ReviewModePicker } from "./ReviewModePicker";
+import { ListenRevealCard } from "./ListenRevealCard";
+import { ClozeCard } from "./ClozeCard";
+import { ShadowCard } from "./ShadowCard";
+import { useWakeLock } from "../Pwa/usePwa";
+import { checkClozeAnswer, pickClozeTarget } from "./answer";
+import {
+  canGrade,
+  initialStep,
+  primaryLabel,
+  readStoredReviewMode,
+  reviewStepReducer,
+  storeReviewMode,
+  type ReviewMode,
+  type ReviewStep,
+  type ReviewStepAction,
+} from "./review-modes";
 
 interface WordEntryData {
   reading: string;
   lemma: string;
   definitions: { glosses: string[] }[];
   pos: string;
+  /** JMdict frequency band (lower = more common); used to pick the cloze word. */
+  frequencyRank?: number | null;
 }
 
 export interface ReviewItem {
@@ -30,9 +49,14 @@ export interface ReviewItem {
 export interface ReviewSessionProps {
   queue: ReviewItem[];
   onComplete: () => void;
+  /**
+   * Start in this mode instead of the one remembered in this browser
+   * (localStorage). Stories use it; the app leaves it unset.
+   */
+  initialMode?: ReviewMode;
+  /** Extra controls at the end of the top bar (the app puts the install button there). */
+  topBarActions?: ReactNode;
 }
-
-type SessionState = "idle" | "question" | "answer";
 
 interface GradeOption {
   grade: 1 | 2 | 3 | 4;
@@ -161,25 +185,55 @@ function ReviewSummary({ cardsReviewed, onDone }: ReviewSummaryProps) {
   );
 }
 
-export function ReviewSession({ queue, onComplete }: ReviewSessionProps) {
-  const [state, setState] = useState<SessionState>("idle");
+export function ReviewSession({ queue, onComplete, initialMode, topBarActions }: ReviewSessionProps) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [sessionDone, setSessionDone] = useState(0);
-  const [revealed, setRevealed] = useState(false);
-  const [targetWord, setTargetWord] = useState<TargetWord | null>(null);
   const [embedPlaying, setEmbedPlaying] = useState(false);
   const [sessionComplete, setSessionComplete] = useState(false);
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
-  const startTimeRef = useRef(Date.now());
+  const [mode, setMode] = useState<ReviewMode>(initialMode ?? "classic");
+  const embedRef = useRef<ReviewEmbedHandle | null>(null);
 
-  // ALL hooks called unconditionally — before any early returns
+  // The remembered mode is read after mount (localStorage is browser-only).
   useEffect(() => {
-    if (queue.length === 0 || currentIdx >= queue.length) return;
-    setRevealed(false);
-    setTargetWord(null);
-    setState("question");
-    setTargetWord(extractTarget(queue[currentIdx]!.sentence.text, queue[currentIdx]!.tokens, queue[currentIdx]!.wordEntriesMap));
-  }, [currentIdx, queue]);
+    if (initialMode === undefined) setMode(readStoredReviewMode());
+  }, [initialMode]);
+
+  function changeMode(next: ReviewMode) {
+    setMode(next);
+    storeReviewMode(next);
+  }
+
+  const card = queue[currentIdx];
+  const targetWord = useMemo<TargetWord | null>(
+    () => (card ? extractTarget(card.sentence.text, card.tokens, card.wordEntriesMap) : null),
+    [card],
+  );
+  const clozeTarget = useMemo(
+    () => (card ? pickClozeTarget(card.sentence.text, card.tokens, card.wordEntriesMap) : null),
+    [card],
+  );
+  // A line with nothing worth blanking falls back to the classic card.
+  const effectiveMode: ReviewMode = mode === "cloze" && !clozeTarget ? "classic" : mode;
+
+  // The per-card step resets whenever the card or the mode changes.
+  const stepKey = `${currentIdx}:${effectiveMode}`;
+  const [stepState, setStepState] = useState<{ key: string; step: ReviewStep }>({
+    key: stepKey,
+    step: initialStep(effectiveMode),
+  });
+  const step = stepState.key === stepKey ? stepState.step : initialStep(effectiveMode);
+  function dispatch(action: ReviewStepAction) {
+    setStepState({ key: stepKey, step: reviewStepReducer(step, action) });
+  }
+
+  // Keep a phone's screen on for the whole session (T3.13); released on exit.
+  useWakeLock(!sessionComplete && queue.length > 0);
+
+  // New card: stop any clip; "listen first" starts it straight away.
+  useEffect(() => {
+    setEmbedPlaying(effectiveMode === "listen");
+  }, [currentIdx, effectiveMode]);
 
   // Early returns AFTER hooks
   if (queue.length === 0) {
@@ -205,7 +259,7 @@ export function ReviewSession({ queue, onComplete }: ReviewSessionProps) {
     );
   }
 
-  const currentCard = queue[currentIdx]!;
+  const currentCard = card!;
   const remaining = queue.slice(currentIdx);
 
   const againCount = remaining.filter((c) => c.state === 3).length;
@@ -219,7 +273,6 @@ export function ReviewSession({ queue, onComplete }: ReviewSessionProps) {
     setSessionDone((d) => d + 1);
     if (currentIdx < queue.length - 1) {
       setCurrentIdx((i) => i + 1);
-      setState("question");
     } else {
       setSessionComplete(true);
     }
@@ -252,6 +305,80 @@ export function ReviewSession({ queue, onComplete }: ReviewSessionProps) {
     }
   }
 
+  function playClip() {
+    if (embedPlaying) embedRef.current?.play();
+    else setEmbedPlaying(true);
+  }
+
+  const source = {
+    channel: "YouTube",
+    videoTitle: currentCard.clip.sourceId,
+    thumbnailUrl: `https://img.youtube.com/vi/${currentCard.clip.sourceId}/mqdefault.jpg`,
+  };
+  const clip = {
+    sourceId: currentCard.clip.sourceId,
+    startMs: currentCard.clip.startMs,
+    endMs: currentCard.clip.endMs,
+  };
+  const notes = localNotes[currentCard.cardId] ?? currentCard.notes;
+  const gradable = canGrade(step);
+
+  let body: ReactNode;
+  if (step.mode === "shadow") {
+    body = (
+      <ShadowCard
+        key={currentCard.cardId}
+        clip={clip}
+        sentence={currentCard.sentence}
+        target={targetWord}
+        source={source}
+        notes={notes}
+        onEditNotes={handleEditNotes}
+      />
+    );
+  } else if (step.mode === "listen") {
+    body = (
+      <ListenRevealCard
+        key={currentCard.cardId}
+        step={step.step}
+        sentence={currentCard.sentence}
+        target={targetWord}
+        source={source}
+        notes={notes}
+        onPlayClip={playClip}
+        onEditNotes={handleEditNotes}
+      />
+    );
+  } else if (step.mode === "cloze" && clozeTarget) {
+    body = (
+      <ClozeCard
+        key={currentCard.cardId}
+        sentence={currentCard.sentence}
+        target={clozeTarget}
+        result={step.step === "checked" ? { answer: step.answer, correct: step.correct } : null}
+        source={source}
+        notes={notes}
+        onSubmit={(answer) => dispatch({ type: "submit", answer, correct: checkClozeAnswer(answer, clozeTarget) })}
+        onPlayClip={playClip}
+        onEditNotes={handleEditNotes}
+      />
+    );
+  } else {
+    body = (
+      <ReviewCard
+        key={currentCard.cardId}
+        sentence={currentCard.sentence}
+        target={targetWord}
+        revealed={gradable}
+        clip={clip}
+        source={source}
+        notes={notes}
+        onPlayClip={playClip}
+        onEditNotes={handleEditNotes}
+      />
+    );
+  }
+
   return (
     <div className="rev-main">
       <ReviewTopBar
@@ -261,45 +388,36 @@ export function ReviewSession({ queue, onComplete }: ReviewSessionProps) {
         learnCount={learnCount}
         dueCount={dueCount}
         onExit={onComplete}
+        actions={topBarActions}
       />
 
-      <div className="rev-stage">
-        {embedPlaying && (
-          <ReviewEmbed
-            videoId={currentCard.clip.sourceId}
-            startMs={currentCard.clip.startMs}
-            endMs={currentCard.clip.endMs}
-            onEnded={() => setEmbedPlaying(false)}
-          />
-        )}
+      <ReviewModePicker mode={mode} onChange={changeMode} />
+      {mode === "cloze" && effectiveMode !== "cloze" && (
+        <p className="rev-mode-fallback">No word to blank on this card — showing the classic card.</p>
+      )}
 
-        <ReviewCard
-          sentence={currentCard.sentence}
-          target={targetWord}
-          revealed={revealed}
-          clip={{
-            sourceId: currentCard.clip.sourceId,
-            startMs: currentCard.clip.startMs,
-            endMs: currentCard.clip.endMs,
-          }}
-          source={{
-            channel: "YouTube",
-            videoTitle: currentCard.clip.sourceId,
-            thumbnailUrl: `https://img.youtube.com/vi/${currentCard.clip.sourceId}/mqdefault.jpg`,
-          }}
-          notes={localNotes[currentCard.cardId] ?? currentCard.notes}
-          onPlayClip={() => setEmbedPlaying(true)}
-          onEditNotes={handleEditNotes}
-        />
+      <div className="rev-stage">
+        <div className="rev-stack">
+          {embedPlaying && step.mode !== "shadow" && (
+            <ReviewEmbed
+              key={currentCard.cardId}
+              ref={embedRef}
+              videoId={clip.sourceId}
+              startMs={clip.startMs}
+              endMs={clip.endMs}
+              onEnded={() => setEmbedPlaying(false)}
+            />
+          )}
+          {body}
+        </div>
       </div>
 
       <ReviewDock
-        revealed={revealed}
+        revealed={gradable}
         grades={computeGrades(currentCard.intervals)}
-        onShowAnswer={() => {
-          setRevealed(true);
-          setState("answer");
-        }}
+        primaryLabel={primaryLabel(step) ?? undefined}
+        spaceShortcut={step.mode !== "cloze"}
+        onShowAnswer={() => dispatch(step.mode === "cloze" ? { type: "giveUp" } : { type: "reveal" })}
         onGrade={handleGrade}
       />
     </div>
