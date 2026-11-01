@@ -116,6 +116,10 @@ instead of depending on the session cookie reaching your instance cross-origin.
 Tokens can only import (no other route accepts them), are stored as SHA-256
 hashes, and are revoked from the same screen. Any client can use one:
 
+Tokens are stored as HMAC-SHA256 keyed with `AUTH_SECRET` (or `API_TOKEN_PEPPER`
+if set). Rotating that key invalidates every API token; users then create new
+ones in Settings.
+
 ```bash
 curl -X POST https://fuchine.example.com/api/import \
   -H "Authorization: Bearer fch_…" -H "Content-Type: application/json" \

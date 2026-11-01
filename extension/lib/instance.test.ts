@@ -3,6 +3,7 @@ import {
   DEFAULT_BASE,
   STATUS_URL,
   bridgeMatchPattern,
+  isYouTubeWatchUrl,
   isStaticBridgeOrigin,
   isVideoId,
   normalizeBase,
@@ -40,5 +41,20 @@ describe("instance helpers", () => {
 
   it("defaults the status page to the repo doc", () => {
     expect(STATUS_URL).toMatch(/docs\/EXTENSION_STATUS\.md$/);
+  });
+});
+
+describe("isYouTubeWatchUrl", () => {
+  it("accepts YouTube watch pages only", () => {
+    expect(isYouTubeWatchUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(true);
+    expect(isYouTubeWatchUrl("https://m.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(true);
+  });
+  it("rejects lookalikes, other paths and junk", () => {
+    expect(isYouTubeWatchUrl("https://evil.example/?x=youtube.com/watch")).toBe(false);
+    expect(isYouTubeWatchUrl("https://youtube.com.evil.example/watch?v=x")).toBe(false);
+    expect(isYouTubeWatchUrl("https://www.youtube.com/shorts/abc")).toBe(false);
+    expect(isYouTubeWatchUrl("http://www.youtube.com/watch?v=x")).toBe(false);
+    expect(isYouTubeWatchUrl("not a url")).toBe(false);
+    expect(isYouTubeWatchUrl(undefined)).toBe(false);
   });
 });

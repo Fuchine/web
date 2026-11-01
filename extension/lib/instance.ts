@@ -17,9 +17,33 @@ export const STATUS_URL: string =
   import.meta.env.WXT_STATUS_URL ||
   "https://github.com/Fuchine/web/blob/main/docs/EXTENSION_STATUS.md";
 
+/** Strip trailing "/" without a regex (no backtracking on long input). */
+function trimTrailingSlashes(s: string): string {
+  let end = s.length;
+  while (end > 0 && s.charCodeAt(end - 1) === 47) end--;
+  return s.slice(0, end);
+}
+
 /** Normalize a user-typed instance URL (trailing slashes off), defaulting to dev. */
 export function normalizeBase(base: string | undefined | null): string {
-  return (base || DEFAULT_BASE).replace(/\/+$/, "");
+  return trimTrailingSlashes(base || DEFAULT_BASE);
+}
+
+const YOUTUBE_HOSTS = new Set(["www.youtube.com", "youtube.com", "m.youtube.com"]);
+
+/**
+ * True only for a YouTube watch page: parsed https URL, exact YouTube host,
+ * path "/watch". A substring test like /youtube\.com\/watch/ would also
+ * accept e.g. https://evil.example/?x=youtube.com/watch.
+ */
+export function isYouTubeWatchUrl(url: string | undefined | null): boolean {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && YOUTUBE_HOSTS.has(u.hostname) && u.pathname === "/watch";
+  } catch {
+    return false;
+  }
 }
 
 /** `https://host/*` match pattern for an instance base URL, or null if unparseable. */
@@ -38,7 +62,7 @@ export function isStaticBridgeOrigin(origin: string): boolean {
 
 /** Match pattern used to register the bridge for an instance origin. */
 export function bridgeMatchPattern(origin: string): string {
-  return origin.replace(/\/+$/, "") + "/*";
+  return trimTrailingSlashes(origin) + "/*";
 }
 
 const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;

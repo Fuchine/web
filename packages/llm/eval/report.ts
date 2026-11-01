@@ -64,7 +64,8 @@ export function summarize(results: ItemResult[]): Summary {
 
 const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
 /** Escape for a markdown table cell. */
-const cell = (s: string) => s.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+const cell = (s: string) =>
+  s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 
 /** `<date>-<model>-v<N>.md`, filesystem-safe. */
 export function reportFileName(date: string, model: string, promptVersion: number): string {

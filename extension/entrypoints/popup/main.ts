@@ -8,6 +8,7 @@
 // (`Authorization: Bearer`) when one is set, else with the session cookie.
 import { extractCaptions } from "@/lib/capture";
 import {
+  isYouTubeWatchUrl,
   STATUS_URL,
   importRequestInit,
   isApiTokenFormat,
@@ -62,7 +63,7 @@ async function doImport() {
   btn.disabled = true;
   try {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    if (!tab || tab.id == null || !/youtube\.com\/watch/.test(tab.url || "")) {
+    if (!tab || tab.id == null || !isYouTubeWatchUrl(tab.url)) {
       setStatus("Open a YouTube video first.");
       return;
     }

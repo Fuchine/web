@@ -66,4 +66,6 @@ jobs:
           # Tag runs: named after the tag; PR runs: after the commit (PR ref names contain '/').
           name: fuchine-importer-chrome-${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}
           path: extension/.output/*-chrome.zip
+          # WXT writes to .output/ — a hidden directory, skipped by default.
+          include-hidden-files: true
           if-no-files-found: error

@@ -39,12 +39,24 @@ export type CaptureResult = CapturedVideo | CaptureError;
  * window.__fuchine. Returns `{ ...meta, captions, source }` or `{ error }`.
  */
 export async function extractCaptions(): Promise<CaptureResult> {
-  const decode = (s: string) =>
-    s
-      .replace(/<[^>]+>/g, "")
-      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+  // Strip tags until none are left (a single pass can leave a partial
+  // "<script"), then decode entities with &amp; last so "&amp;lt;" becomes the
+  // text "&lt;" — one level of unescaping, never two. Escaped brackets
+  // ("&lt;b&gt;") stay as literal text. The result is only ever rendered as
+  // text, never as HTML.
+  const decode = (s: string) => {
+    let out = s;
+    let prev: string;
+    do {
+      prev = out;
+      out = out.replace(/<[^<>]*>/g, "");
+    } while (out !== prev);
+    return out
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
       .replace(/&#39;/g, "'").replace(/&quot;/g, '"')
-      .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
+      .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+      .replace(/&amp;/g, "&");
+  };
 
   type Line = { startMs: number; endMs: number; text: string };
 

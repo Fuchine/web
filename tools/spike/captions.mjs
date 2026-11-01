@@ -74,11 +74,19 @@ function pickJa(tracks) {
 }
 
 function decodeXml(s) {
-  return s
-    .replace(/<[^>]+>/g, "")
-    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+  // Strip tags until stable (no partial "<script" left), then decode entities
+  // with &amp; last (one level of unescaping). Output is plain text.
+  let out = s;
+  let prev;
+  do {
+    prev = out;
+    out = out.replace(/<[^<>]*>/g, "");
+  } while (out !== prev);
+  return out
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/&#39;/g, "'").replace(/&quot;/g, '"')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&amp;/g, "&");
 }
 
 /** Try several formats; return the first that yields actual caption lines. */

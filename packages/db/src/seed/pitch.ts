@@ -38,7 +38,9 @@ export type PitchRow = {
 export function parseAccentField(field: string): number[] {
   const out: number[] = [];
   for (const part of field.split(",")) {
-    const m = /^\s*(?:\([^)]*\))?\s*(\d+)\s*$/.exec(part);
+    // Trim first so the pattern has no adjacent optional whitespace runs
+    // (no polynomial backtracking on long whitespace input).
+    const m = /^(?:\([^)]*\))?\s?(\d+)$/.exec(part.trim());
     if (!m) continue;
     const n = Number.parseInt(m[1]!, 10);
     if (!out.includes(n)) out.push(n);
@@ -85,7 +87,12 @@ export async function ensureKanjium(ref = process.env.KANJIUM_REF || KANJIUM_DEF
   if (!res.ok) throw new Error(`Kanjium download failed: ${res.status} ${res.statusText}`);
   const text = await res.text();
   mkdirSync(DATA_DIR, { recursive: true });
-  writeFileSync(path, text);
+  try {
+    // "wx": never overwrite — if another run wrote it meanwhile, keep that one.
+    writeFileSync(path, text, { flag: "wx" });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+  }
   console.log(`[pitch] wrote ${path}`);
   return path;
 }

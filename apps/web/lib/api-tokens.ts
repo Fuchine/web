@@ -13,7 +13,7 @@
 //
 // The raw token is returned exactly once (on create) and never stored or logged.
 
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, count, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { type Database, apiTokens } from "@fuchine/db";
 import { isUuid } from "./ids";
@@ -54,9 +54,24 @@ export function isApiTokenFormat(v: unknown): v is string {
   return typeof v === "string" && TOKEN_RE.test(v);
 }
 
-/** Hex SHA-256 of the token — the only form that touches the database. */
+/**
+ * Server key for token hashes: `API_TOKEN_PEPPER` if set, else `AUTH_SECRET`
+ * (required in production, see instrumentation). Keying the hash means a
+ * database leak alone can't confirm a guessed token. Rotating the key
+ * invalidates every API token — users create new ones in Settings.
+ */
+function tokenHashKey(): string {
+  const key = process.env.API_TOKEN_PEPPER || process.env.AUTH_SECRET;
+  if (key) return key;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("API token hashing needs AUTH_SECRET (or API_TOKEN_PEPPER)");
+  }
+  return "fuchine-dev-api-token-key"; // dev/test only
+}
+
+/** Hex HMAC-SHA256 of the token — the only form that touches the database. */
 export function hashApiToken(token: string): string {
-  return createHash("sha256").update(token, "utf8").digest("hex");
+  return createHmac("sha256", tokenHashKey()).update(token, "utf8").digest("hex");
 }
 
 /** The non-secret part shown in Settings to tell tokens apart. */

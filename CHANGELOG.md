@@ -23,6 +23,9 @@ always called out under **Upgrade notes**.
 
 ### Security
 
+- API tokens are hashed with HMAC-SHA256 keyed with `AUTH_SECRET` (or `API_TOKEN_PEPPER`), so a database leak alone can't confirm a guessed token. Rotating that key invalidates every token.
+- CodeQL fixes: caption entity decoding unescapes once and strips tags until stable; no backtracking regexes on external input (pitch seed, provider base URLs); the extension popup checks the parsed YouTube hostname instead of a substring; no check-then-use file races in the dictionary CLI and pitch seed; backslashes escaped in eval reports.
+
 - The cross-site exemption on `POST /api/import` is narrowed: requests with a
   bearer token, or with the session cookie from a browser-extension origin
   (deprecated path for extension < 0.2.0), pass; a cross-site web page is now

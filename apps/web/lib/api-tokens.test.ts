@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { describe, it, expect } from "vitest";
+import { createHash, createHmac } from "node:crypto";
+import { afterEach, describe, it, expect } from "vitest";
 import {
   DISPLAY_PREFIX_LENGTH,
   NAME_MAX,
@@ -52,12 +52,33 @@ describe("isApiTokenFormat", () => {
 });
 
 describe("hashApiToken", () => {
-  it("is the hex SHA-256 of the whole token, deterministic", () => {
+  const saved = { pepper: process.env.API_TOKEN_PEPPER, secret: process.env.AUTH_SECRET };
+  afterEach(() => {
+    process.env.API_TOKEN_PEPPER = saved.pepper;
+    process.env.AUTH_SECRET = saved.secret;
+    if (saved.pepper === undefined) delete process.env.API_TOKEN_PEPPER;
+    if (saved.secret === undefined) delete process.env.AUTH_SECRET;
+  });
+
+  it("is the hex HMAC-SHA256 of the whole token under the server key, deterministic", () => {
+    delete process.env.API_TOKEN_PEPPER;
+    process.env.AUTH_SECRET = "test-auth-secret";
     const t = generateApiToken();
-    expect(hashApiToken(t)).toBe(createHash("sha256").update(t).digest("hex"));
+    expect(hashApiToken(t)).toBe(createHmac("sha256", "test-auth-secret").update(t).digest("hex"));
+    expect(hashApiToken(t)).not.toBe(createHash("sha256").update(t).digest("hex")); // keyed, not bare
     expect(hashApiToken(t)).toMatch(/^[0-9a-f]{64}$/);
     expect(hashApiToken(t)).toBe(hashApiToken(t));
     expect(hashApiToken(t)).not.toBe(hashApiToken(generateApiToken()));
+  });
+
+  it("depends on the key: API_TOKEN_PEPPER wins over AUTH_SECRET, and changing it changes the hash", () => {
+    const t = generateApiToken();
+    process.env.AUTH_SECRET = "a";
+    delete process.env.API_TOKEN_PEPPER;
+    const withSecret = hashApiToken(t);
+    process.env.API_TOKEN_PEPPER = "p";
+    expect(hashApiToken(t)).toBe(createHmac("sha256", "p").update(t).digest("hex"));
+    expect(hashApiToken(t)).not.toBe(withSecret);
   });
 
   it("the stored hash and display prefix never contain the secret body", () => {

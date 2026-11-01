@@ -13,7 +13,7 @@
 // You are responsible for having the right to use the dictionaries you import.
 // Exit codes: 0 ok · 1 usage error · 2 import rejected / nothing to remove.
 
-import { readFileSync, statSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readFileSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { asc, eq } from "drizzle-orm";
 import { createDb, dictionaries } from "@fuchine/db";
@@ -50,13 +50,23 @@ async function main(): Promise<number> {
       if (!arg) usage("a .zip path is required");
       const path = userPath(arg);
       const max = maxUncompressedBytesFromEnv();
-      const size = statSync(path).size;
+      // One open file descriptor for both the size check and the read, so the
+      // file can't be swapped between them.
+      const fd = openSync(path, "r");
+      let bytes: Uint8Array;
+      let size: number;
+      try {
+        size = fstatSync(fd).size;
+        bytes = size > max ? new Uint8Array() : new Uint8Array(readFileSync(fd));
+      } finally {
+        closeSync(fd);
+      }
       if (size > max) {
         console.error(`error: ${path} is ${(size / 1048576).toFixed(1)} MB, over the limit (DICT_MAX_UNCOMPRESSED_MB)`);
         return 2;
       }
       try {
-        const r = await importYomitanZip(db, new Uint8Array(readFileSync(path)), {
+        const r = await importYomitanZip(db, bytes, {
           maxUncompressedBytes: max,
           onProgress: (m) => console.log(`[dict] ${m}`),
         });
