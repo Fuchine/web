@@ -16,7 +16,7 @@
 #     source through tsx, and this image doubles as the `migrate` one-shot in
 #     docker-compose.release.yml (`pnpm --filter @fuchine/db migrate`).
 
-FROM node:22-alpine AS base
+FROM node:26-alpine AS base
 RUN apk add --no-cache libc6-compat
 # Shared, root-owned corepack cache: pnpm is fetched once at build time and is
 # then readable by the `node` user (the default ~/.cache would be root's).
