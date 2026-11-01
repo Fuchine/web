@@ -7,7 +7,7 @@
 // accents.txt), CC BY-SA 4.0 — attribution in NOTICE. Downloaded at seed time
 // into seeds/data/ (gitignored), never committed.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { sql } from "drizzle-orm";
 import type { Database } from "../client";
@@ -74,25 +74,37 @@ export function parseKanjiumAccents(text: string, language = "ja"): PitchRow[] {
   return [...byKey.values()];
 }
 
-/** Download accents.txt (pinned ref) into seeds/data/ unless already there. */
+/**
+ * Download accents.txt (pinned ref) into seeds/data/ unless already there.
+ * The file is created atomically with "wx" *before* downloading: if it already
+ * exists, creation fails with EEXIST and the download is skipped — no
+ * check-then-use window. A failed download removes the empty file.
+ */
 export async function ensureKanjium(ref = process.env.KANJIUM_REF || KANJIUM_DEFAULT_REF): Promise<string> {
   const path = join(DATA_DIR, `kanjium-accents-${ref.slice(0, 12)}.txt`);
-  if (existsSync(path)) {
-    console.log(`[pitch] already downloaded: ${path}`);
-    return path;
-  }
-  const url = `https://raw.githubusercontent.com/mifunetoshiro/kanjium/${ref}/${KANJIUM_PATH}`;
-  console.log(`[pitch] downloading ${url}`);
-  const res = await fetch(url, { headers: { "User-Agent": "fuchine-seed" } });
-  if (!res.ok) throw new Error(`Kanjium download failed: ${res.status} ${res.statusText}`);
-  const text = await res.text();
   mkdirSync(DATA_DIR, { recursive: true });
+  let fd: number;
   try {
-    // "wx": never overwrite — if another run wrote it meanwhile, keep that one.
-    writeFileSync(path, text, { flag: "wx" });
+    fd = openSync(path, "wx");
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+    if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+      console.log(`[pitch] already downloaded: ${path}`);
+      return path;
+    }
+    throw err;
   }
+  try {
+    const url = `https://raw.githubusercontent.com/mifunetoshiro/kanjium/${ref}/${KANJIUM_PATH}`;
+    console.log(`[pitch] downloading ${url}`);
+    const res = await fetch(url, { headers: { "User-Agent": "fuchine-seed" } });
+    if (!res.ok) throw new Error(`Kanjium download failed: ${res.status} ${res.statusText}`);
+    writeSync(fd, await res.text());
+  } catch (err) {
+    closeSync(fd);
+    rmSync(path, { force: true });
+    throw err;
+  }
+  closeSync(fd);
   console.log(`[pitch] wrote ${path}`);
   return path;
 }
