@@ -3,7 +3,7 @@
 # root as context (see .dockerignore) so the pnpm workspace resolves.
 #   docker build -f apps/web/Dockerfile -t fuchine-web .
 
-FROM node:22-alpine AS base
+FROM node:26-alpine AS base
 # libc6-compat: some native deps (sharp) expect glibc symbols on Alpine.
 RUN apk add --no-cache libc6-compat
 RUN corepack enable
