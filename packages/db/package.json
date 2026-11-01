@@ -28,7 +28,7 @@
     "seed:pitch:fixture": "tsx src/seed/pitch-cli.ts seeds/fixtures/kanjium-accents-sample.txt"
   },
   "dependencies": {
-    "dotenv": "^16.4.7",
+    "dotenv": "^18.0.9",
     "drizzle-orm": "^0.45.2",
     "fflate": "^0.8.2",
     "postgres": "^3.4.5"

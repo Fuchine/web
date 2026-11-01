@@ -26,7 +26,7 @@
     "@fuchine/llm": "workspace:*",
     "@fuchine/nlp": "workspace:*",
     "bullmq": "^5.34.5",
-    "dotenv": "^16.4.7",
+    "dotenv": "^18.0.9",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
