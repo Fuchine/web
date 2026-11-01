@@ -62,8 +62,8 @@ importers:
         specifier: ^16.4.7
         version: 16.6.1
       drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(gel@2.2.0)(postgres@3.4.9)
+        specifier: ^0.45.4
+        version: 0.45.4(gel@2.2.0)(postgres@3.4.9)
       next:
         specifier: ^15.5.28
         version: 15.5.28(@babel/core@7.29.7)(@types/node@22.19.21)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -132,8 +132,8 @@ importers:
         specifier: ^16.4.7
         version: 16.6.1
       drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(gel@2.2.0)(postgres@3.4.9)
+        specifier: ^0.45.4
+        version: 0.45.4(gel@2.2.0)(postgres@3.4.9)
     devDependencies:
       tsx:
         specifier: ^4.19.2
@@ -161,8 +161,8 @@ importers:
         specifier: ^16.4.7
         version: 16.6.1
       drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(gel@2.2.0)(postgres@3.4.9)
+        specifier: ^0.45.4
+        version: 0.45.4(gel@2.2.0)(postgres@3.4.9)
       fflate:
         specifier: ^0.8.2
         version: 0.8.3
@@ -195,8 +195,8 @@ importers:
         specifier: workspace:*
         version: link:../db
       drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(gel@2.2.0)(postgres@3.4.9)
+        specifier: ^0.45.4
+        version: 0.45.4(gel@2.2.0)(postgres@3.4.9)
     devDependencies:
       vitest:
         specifier: ^4.1.12
@@ -208,8 +208,8 @@ importers:
         specifier: workspace:*
         version: link:../db
       drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(gel@2.2.0)(postgres@3.4.9)
+        specifier: ^0.45.4
+        version: 0.45.4(gel@2.2.0)(postgres@3.4.9)
       kuromoji:
         specifier: ^0.1.2
         version: 0.1.2
@@ -397,11 +397,11 @@ packages:
 
   '@esbuild-kit/core-utils@3.3.2':
     resolution: {integrity: sha512-sPRAnw9CdSsRmEtnsl2WXWdyquogVpB3yZ3dgwJfe8zrOzTsV7cJvmwrKVa+0ma5BoiGJ+BoqkMvawbayKUsqQ==}
-    deprecated: 'Merged into tsx: https://tsx.is'
+    deprecated: 'Merged into tsx: https://tsx.hirok.io'
 
   '@esbuild-kit/esm-loader@2.6.5':
     resolution: {integrity: sha512-FxEMIkJKnodyA1OaCUoEvbYRkoZlLZ4d/eXFu9Fh8CbBBgP5EmZxrfTRyN0qpXZ4vOvqnE5YdRdcrmUUXuU+dA==}
-    deprecated: 'Merged into tsx: https://tsx.is'
+    deprecated: 'Merged into tsx: https://tsx.hirok.io'
 
   '@esbuild/aix-ppc64@0.25.12':
     resolution: {integrity: sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA==}
@@ -1834,6 +1834,7 @@ packages:
   cron-parser@4.9.0:
     resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
     engines: {node: '>=12.0.0'}
+    deprecated: v4 is no longer maintained, upgrade to v5
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -1889,8 +1890,8 @@ packages:
     resolution: {integrity: sha512-7OZcmQUrdGI+DUNNsKBn1aW8qSoKuTH7d0mYgSP8bAzdFzKoovxEFnoGQp2dVs82EOJeYycqRtciopszwUf8bw==}
     hasBin: true
 
-  drizzle-orm@0.45.2:
-    resolution: {integrity: sha512-kY0BSaTNYWnoDMVoyY8uxmyHjpJW1geOmBMdSSicKo9CIIWkSxMIj2rkeSR51b8KAPB7m+qysjuHme5nKP+E5Q==}
+  drizzle-orm@0.45.4:
+    resolution: {integrity: sha512-NiM1YZpJ2UxyeE67DpDDZ+Tsw4YLX3trSlkNT7Tm9eKoUNb1LvaAaQzXgYQsWs+AQ9TUmmwMmBOCXuqqxUWKKQ==}
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=4'
@@ -1898,6 +1899,7 @@ packages:
       '@libsql/client': '>=0.10.0'
       '@libsql/client-wasm': '>=0.10.0'
       '@neondatabase/serverless': '>=0.10.0'
+      '@netlify/db': '>=0.4.0'
       '@op-engineering/op-sqlite': '>=2'
       '@opentelemetry/api': ^1.4.1
       '@planetscale/database': '>=1.13'
@@ -1933,6 +1935,8 @@ packages:
       '@libsql/client-wasm':
         optional: true
       '@neondatabase/serverless':
+        optional: true
+      '@netlify/db':
         optional: true
       '@op-engineering/op-sqlite':
         optional: true
@@ -4499,7 +4503,7 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.22.4
 
-  drizzle-orm@0.45.2(gel@2.2.0)(postgres@3.4.9):
+  drizzle-orm@0.45.4(gel@2.2.0)(postgres@3.4.9):
     optionalDependencies:
       gel: 2.2.0
       postgres: 3.4.9
