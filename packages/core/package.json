@@ -17,6 +17,6 @@
     "ts-fsrs": "^6.0.0"
   },
   "devDependencies": {
-    "vitest": "^4.1.12"
+    "vitest": "^5.0.5"
   }
 }
